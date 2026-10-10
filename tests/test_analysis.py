@@ -108,8 +108,10 @@ class AnalysisCheckingTests(unittest.TestCase):
             with self.subTest(example=path.stem):
                 source = ROOT / "examples" / (path.stem + ".algo")
                 generated = compile_source(source.read_text(), filename=source.name)
+                # Include dependency builds on slower runners; this checks proof
+                # validity, not the interactive editor's response-time limit.
                 checked = check_analysis(generated.lean, path.read_text(), generated.module,
-                                         points_lean=generated.points_lean)
+                                         timeout=300, points_lean=generated.points_lean)
                 self.assertTrue(checked.ok, checked.output)
 
 
