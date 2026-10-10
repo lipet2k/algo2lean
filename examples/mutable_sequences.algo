@@ -1,0 +1,37 @@
+# Assignments share objects, rebinding changes a variable, and copy clones one.
+def overwrite(a: Seq, index: Int, value: Int) -> Int:
+    a[index] = value
+    return a[index]
+
+
+def alias_demo() -> Int:
+    a = const(1)
+    b = a
+    b[-3] = 42
+    return a[-3]
+
+
+def copy_demo() -> Int:
+    a = const(7)
+    b = copy(a)
+    b[0] = 99
+    return a[0]
+
+
+def rebind_demo() -> Int:
+    a = const(1)
+    b = a
+    a = const(2)
+    b[0] = 9
+    return a[0]
+
+
+def callee_demo() -> Int:
+    a = const(3)
+    overwrite(a, -4, 41)
+    return a[-4]
+
+
+def aliased_parameters(a: Seq, b: Seq) -> Int:
+    a[0] = 11
+    return b[0]

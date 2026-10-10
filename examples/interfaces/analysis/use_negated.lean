@@ -1,0 +1,69 @@
+import Algo.use_negated.Generated
+import Algo.use_negated.Facts
+import Algo.negated.Analysis
+import Algo.increment.Analysis
+
+/-!
+Analysis outline:
+- `summary`: Reusable concrete-counter increment contract.
+- `correct`: Concrete-counter increment correctness.
+-/
+
+open Algo2LeanCore Algo2LeanGenerated Algo.use_negated
+
+namespace NegatedClientAnalysis
+
+/-- A small adapter applies the existing backend proofs; no backend transition
+    rules or storage details occur in this linking proof. -/
+def contract : CounterContract Negated_as_Counter where
+  Represents := NegatedAnalysis.Represents
+  readCost := 2
+  writeCost := 2
+  valid := by
+    intro heap ref value represented
+    simpa [Negated_as_Counter] using represented.1
+  read := by
+    intro heap ref value represented
+    obtain ⟨after, run, same, cost⟩ := NegatedAnalysis.read represented
+    exact ⟨after, Negated_as_Counter_summary_get run, same, cost⟩
+  write := by
+    intro heap ref old value represented
+    obtain ⟨after, run, updated, cost⟩ := NegatedAnalysis.write value represented
+    exact ⟨after, Negated_as_Counter_summary_put run, updated, cost⟩
+
+/-- Only the wrapper's own call boundary needs a local execution proof. -/
+theorem call {before after : Heap} {ref : ObjectRef} {output : Int}
+    (valid : Algo.negated.Algo2LeanGenerated.is_Negated before ref)
+    (run : Algo.increment.increment.Call use_increment_0 before ref after output) :
+    advance.Call before ref after output := by
+  open Algo.use_negated.Algo2LeanGenerated in
+    refine ⟨valid, ?_⟩
+    intro caller
+    apply Reaches.prepend (Step.advance_pc3 _ _ caller)
+    apply Reaches.prepend (Step.advance_pc2 _ _ caller)
+    apply (ModuleCall.summary import_2_use_increment_0_simulates _ caller run.2).trans
+    exact Reaches.single (Step.advance_pc1 _ _ caller)
+
+/-- The original generic analysis supplies both the result and runtime law. -/
+theorem summary {before : Heap} {ref : ObjectRef} {value : Int}
+    (represented : NegatedAnalysis.Represents before ref value) :
+    ∃ after, advance.Call before ref after (value + 1) ∧
+      NegatedAnalysis.Represents after ref (value + 1) ∧
+      before.Increments after (Clocks.single "counter_work" 4) := by
+  obtain ⟨after, run, updated, cost⟩ :=
+    IncrementAnalysis.summary use_increment_0 contract represented
+  exact ⟨after, call represented.1 run, updated, cost⟩
+
+-- Main result: Correctness and running time
+/-- Every concrete execution has the proved value, mutation, and cost. There
+    are no unproved generic-contract assumptions in this theorem. -/
+theorem correct {before after : Heap} {ref : ObjectRef} {value output : Int}
+    (represented : NegatedAnalysis.Represents before ref value)
+    (execution : advance.Run before ref after output) :
+    output = value + 1 ∧ NegatedAnalysis.Represents after ref (value + 1) ∧
+      before.Increments after (Clocks.single "counter_work" 4) := by
+  obtain ⟨finalHeap, run, updated, cost⟩ := summary represented
+  obtain ⟨rfl, rfl⟩ := execution.eq_of_call run
+  exact ⟨rfl, updated, cost⟩
+
+end NegatedClientAnalysis

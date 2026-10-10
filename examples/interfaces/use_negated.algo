@@ -1,0 +1,7 @@
+# Apply the abstract increment operation to a counter storing the negated value.
+from negated import Negated
+from increment import increment
+
+
+def advance(counter: Negated) -> Int:
+    return increment(counter)

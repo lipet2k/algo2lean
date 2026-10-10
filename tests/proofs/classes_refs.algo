@@ -1,0 +1,63 @@
+class Node:
+    value: Int
+    next: Node | None
+    values: Seq
+
+    def __init__(self, value: Int, next: Node | None) -> None:
+        self.value = value
+        self.next = next
+        self.values = const(value)
+
+    def add(self, amount: Int) -> None:
+        self.value += amount
+
+
+def aliased_cycle() -> Int:
+    first = Node(5, None)
+    alias = first
+    alias.next = first
+    alias.next.add(3)
+    alias.next.values[-10] = 2
+    return first.value * 10 + first.values[-10]
+
+
+def nullable_identity() -> Bool:
+    first = Node(5, None)
+    cursor: Node | None = None
+    cursor = first
+    if cursor is first and cursor is not None:
+        cursor = None
+    return cursor is None and first.next is None and first is not None
+
+
+def choose_node(flag: Bool) -> Node | None:
+    return Node(7, None) if flag else None
+
+
+def nullable_calls() -> Int:
+    chosen = choose_node(True)
+    chosen.add(3)
+    return chosen.value
+
+
+def identity(node: Node) -> Node:
+    return node
+
+
+def node_value(node: Node) -> Int:
+    return node.value
+
+
+class Empty:
+    value: Int
+    next: Empty | None
+
+
+def empty_read(empty: Empty) -> Int:
+    return empty.value
+
+
+def initialized_null() -> Bool:
+    empty = Empty()
+    empty.next = None
+    return empty.next is None

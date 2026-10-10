@@ -1,0 +1,102 @@
+# Regression cases for lowering read-only expressions with definedness guards.
+def literal_chain() -> Bool:
+    return 1 - 2 < 0 < 1
+
+
+def negative_arithmetic() -> Int:
+    return -(2 - 5) * (-3) + +4
+
+
+def negative_chain(n: Int) -> Bool:
+    return n - 2 < n - 1 < n
+
+
+def boolean_self_and(x: Bool) -> Bool:
+    x = (not x) and x
+    return x
+
+
+def boolean_self_or(x: Bool) -> Bool:
+    x = False or x
+    return x
+
+
+def arithmetic_self(x: Int) -> Int:
+    x = x * x + x
+    return x
+
+
+def pure_update(x: Int) -> Int:
+    x += x * 2 - 1
+    return x
+
+
+def augmented_sequence(x: Int) -> Int:
+    x += x * 2 - 1
+    x -= x - 2
+    x *= -3
+    return x
+
+
+def skipped_division() -> Bool:
+    return False and (1 // 0 == 0)
+
+
+def skipped_modulo() -> Bool:
+    return True or (1 % 0 == 0)
+
+
+def selected_branch(n: Int) -> Int:
+    return n - 1 if n < 0 else 1 // 0
+
+
+def chained_skip() -> Bool:
+    return 2 < 1 < (1 // 0)
+
+
+def nested_division(a: Int, b: Int, c: Int) -> Int:
+    return (a // b) % (c // b)
+
+
+def conditional_division(flag: Bool, n: Int) -> Int:
+    return n // 2 if flag else n % 3
+
+
+def read_before_write(n: Int) -> Int:
+    a = const(2)
+    a[a[0]] = a[0] + n
+    return a[2]
+
+
+def guarded_read(flag: Bool, a: Seq) -> Bool:
+    return flag and a[-1] > 0
+
+
+def nested_short_circuit() -> Bool:
+    return False or (True and (True or (1 // 0 == 0)))
+
+
+def augmented_quotient(x: Int, offset: Int) -> Int:
+    x //= offset - 1
+    return x
+
+
+def augmented_remainder(x: Int, offset: Int) -> Int:
+    x %= offset - 1
+    return x
+
+
+def required_and(flag: Bool) -> Bool:
+    return flag and (1 // 0 == 0)
+
+
+def required_or(flag: Bool) -> Bool:
+    return flag or (1 % 0 == 0)
+
+
+def required_chain(n: Int) -> Bool:
+    return 0 < n < (1 // 0)
+
+
+def required_middle(n: Int) -> Bool:
+    return n < (1 // 0) < n - 1

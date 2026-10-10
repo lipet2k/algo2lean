@@ -1,0 +1,19 @@
+class Cell:
+    value: Int
+
+    def add(self, amount: Int) -> None:
+        self.value += amount
+
+
+def argument(cell: Cell) -> Int:
+    cell.value += 1
+    return 7
+
+
+def null_call(cell: Cell) -> None:
+    receiver: Cell | None = None
+    receiver.add(argument(cell))
+
+
+def uninitialized_read(cell: Cell) -> Int:
+    return cell.value

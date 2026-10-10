@@ -1,0 +1,11 @@
+def assignment(n: Int) -> Int:
+    # @set
+    a = 1
+    # @ready
+    return a
+
+
+def touch(a: Seq, b: Seq) -> Int:
+    a[0] = 1
+    # @observe
+    return b[0]

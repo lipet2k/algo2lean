@@ -1,0 +1,14 @@
+# One Dijkstra building block: relax a nonnegative weighted directed edge.
+# A negative distance means that the vertex has not been reached yet.
+# The distance sequence is shared and is changed only on strict improvement.
+
+def relax(dist: Seq, u: Int, v: Int, weight: Int) -> Bool:
+    tick("relaxations")
+    if dist[u] >= 0 and weight >= 0:
+        candidate = dist[u] + weight
+        if dist[v] < 0 or candidate < dist[v]:
+            # @improve
+            dist[v] = candidate
+            tick("updates")
+            return True
+    return False

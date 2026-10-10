@@ -1,0 +1,7 @@
+# Compose two imported increments and accumulate both calls' clock charges.
+from increment import increment
+
+
+def twice(value: Int) -> Int:
+    first = increment(value)
+    return increment(first)

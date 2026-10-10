@@ -1,0 +1,9 @@
+name = "algo2lean"
+version = "0.1.0"
+defaultTargets = ["Algo2Lean"]
+
+[[lean_lib]]
+name = "Algo2Lean"
+
+[[lean_lib]]
+name = "Algo2LeanLib"

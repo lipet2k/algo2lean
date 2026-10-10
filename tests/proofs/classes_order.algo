@@ -1,0 +1,63 @@
+class Box:
+    value: Int
+
+    def __init__(self, value: Int) -> None:
+        self.value = value
+
+    def add(self, amount: Int) -> None:
+        self.value += amount
+
+
+class Holder:
+    current: Box
+
+    def __init__(self, current: Box) -> None:
+        self.current = current
+
+
+def move(holder: Holder, replacement: Box) -> Int:
+    holder.current.value = 50
+    holder.current = replacement
+    return 7
+
+
+def bound_receiver() -> Int:
+    first = Box(3)
+    second = Box(4)
+    holder = Holder(first)
+    holder.current.add(move(holder, second))
+    return first.value * 100 + second.value
+
+
+def ordinary_assignment() -> Int:
+    first = Box(3)
+    second = Box(4)
+    holder = Holder(first)
+    holder.current.value = move(holder, second)
+    return first.value * 100 + second.value
+
+
+def augmented_assignment() -> Int:
+    first = Box(3)
+    second = Box(4)
+    holder = Holder(first)
+    holder.current.value += move(holder, second)
+    return first.value * 100 + second.value
+
+
+def make_argument() -> Int:
+    unused = Box(99)
+    return 5
+
+
+def constructor_order() -> Box:
+    return Box(make_argument())
+
+
+def sequence_field() -> Int:
+    box = Box(3)
+    values = const(4)
+    box.add(5)
+    copy_values = copy(values)
+    copy_values[-2] = 11
+    return box.value * 100 + values[-2] * 10 + copy_values[-2]

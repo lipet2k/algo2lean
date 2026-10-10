@@ -1,0 +1,89 @@
+def count_once(x: Int) -> Int:
+    # @before
+    tick("steps")
+    # @after
+    return x + 1
+
+
+def pair_calls(x: Int) -> Int:
+    tick("calls")
+    a = count_once(x)
+    return count_once(a)
+
+
+def recursive_count(n: Int) -> Int:
+    if n <= 0:
+        return 0
+    tick("steps")
+    return recursive_count(n - 1) + 1
+
+
+def spin() -> None:
+    while True:
+        # @again
+        tick("spin")
+
+
+class Box:
+    value: Int
+
+    def __init__(self, value: Int) -> None:
+        tick("allocations")
+        self.value = value
+
+    def bump(self) -> Int:
+        tick("steps")
+        self.value += 1
+        return self.value
+
+
+def count_box(box: Box) -> Int:
+    tick("steps")
+    return box.value
+
+
+def mutate_and_count() -> Int:
+    tick("steps")
+    values = const(0)
+    values[-1] = 7
+    duplicate = copy(values)
+    box = Box(3)
+    result = box.bump()
+    tick("writes")
+    return result + duplicate[-1]
+
+
+def weighted(amount: Int) -> Int:
+    tick("weighted", amount)
+    return amount
+
+
+def weight_with_effect(amount: Int) -> Int:
+    tick("effects")
+    return amount
+
+
+def weighted_call(amount: Int) -> Int:
+    # @weighted
+    tick("weighted", weight_with_effect(amount))
+    # @after
+    return 0
+
+
+def return_unit() -> None:
+    tick("returned")
+
+
+def return_sequence() -> Seq:
+    tick("returned")
+    return const(3)
+
+
+def return_object() -> Box:
+    tick("returned")
+    return Box(2)
+
+
+def return_nullable() -> Box | None:
+    tick("returned")
+    return None

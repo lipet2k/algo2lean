@@ -1,0 +1,2 @@
+# Re-export the indexed binary heap for static priority-queue binding.
+from indexed_heap import MinHeap

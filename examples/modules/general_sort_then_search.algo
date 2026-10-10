@@ -1,0 +1,8 @@
+# Compose imported merge sort and binary lower-bound search on a finite signed interval.
+from general_merge_sort import merge_sort
+from general_binary_lower_bound import lower_bound
+
+
+def sort_then_search(a: Seq, lo: Int, hi: Int, key: Int) -> Int:
+    ordered = merge_sort(a, lo, hi)
+    return lower_bound(ordered, lo, hi, key)

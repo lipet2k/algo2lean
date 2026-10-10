@@ -1,0 +1,41 @@
+def assignment(n: Int) -> Int:
+    # @initialize
+    a = 0
+    # @set
+    a = 1
+    # @after
+    pass
+    # @ready
+    return a
+
+
+def caller(n: Int) -> Int:
+    # @call
+    result = assignment(n)
+    # @ready
+    return result + 1
+
+
+def spin(n: Int) -> Int:
+    # @entered
+    pass
+    # @again
+    return spin(n + 1)
+
+
+def start_spin(n: Int) -> Int:
+    # @waiting
+    value = spin(n)
+    # @unreachable
+    return value
+
+
+def mutate(a: Seq) -> Int:
+    # @bind
+    b = a
+    # @write
+    b[0] = 9
+    # @after
+    pass
+    # @finish
+    return a[0]

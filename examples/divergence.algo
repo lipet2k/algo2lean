@@ -1,0 +1,9 @@
+# Both functions diverge: valid finite execution prefixes exist, but neither returns.
+def endless_loop(x: Int) -> Int:
+    while True:
+        x = x + 1
+    return x
+
+
+def endless_recursion(x: Int) -> Int:
+    return endless_recursion(x)

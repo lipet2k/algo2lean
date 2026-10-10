@@ -1,0 +1,10 @@
+# Increment two different counter representations and add their returned values.
+from direct import Direct
+from negated import Negated
+from increment import increment
+
+
+def advance_both(first: Direct, second: Negated) -> Int:
+    a = increment(first)
+    b = increment(second)
+    return a + b

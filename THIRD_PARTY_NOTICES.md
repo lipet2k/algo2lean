@@ -1,0 +1,64 @@
+# Third-party notices
+
+Algo2Lean's browser distribution includes the unmodified **Pyodide 314.0.7 core
+runtime**, which contains third-party software under its own licenses. Those
+licenses remain applicable to the runtime regardless of Algo2Lean's license.
+The local Python compiler uses an installed Python interpreter; it does not
+require these browser runtime files.
+
+The site builder copies this notice and the `licenses/` directory into every
+versioned site. Preserve them when redistributing or hosting a built version.
+The original runtime artifact is
+[pyodide-core-314.0.7.tar.bz2](https://github.com/pyodide/pyodide/releases/download/314.0.7/pyodide-core-314.0.7.tar.bz2),
+with SHA-256:
+
+```text
+2abdcc2e35208af406e07724cffa85bc582ced97e9028383ecf5462541393f95
+```
+
+## Runtime sources and licenses
+
+Pyodide and hiwire are covered by the Mozilla Public License 2.0. Their source
+code is available from the exact upstream versions linked below, including the
+Pyodide build scripts and patches used to build its Python runtime. Algo2Lean
+distributes these runtime files without modifying them. Source archives can be
+obtained through those repositories' download controls at no charge.
+
+| Component | Source version | Included license or notice |
+| --- | --- | --- |
+| Pyodide | [314.0.7](https://github.com/pyodide/pyodide/tree/314.0.7) | [Mozilla Public License 2.0](licenses/pyodide-314.0.7-MPL-2.0.txt) |
+| CPython | [3.14.2](https://github.com/python/cpython/tree/v3.14.2) | [Python license](licenses/python-3.14.2-LICENSE.txt) and [standard-library third-party notices](licenses/python-3.14.2-notices.rst) |
+| Emscripten runtime | [5.0.3](https://github.com/emscripten-core/emscripten/tree/5.0.3) | [MIT/NCSA and Node.js notices](licenses/emscripten-5.0.3-LICENSE.txt) |
+| libffi | [f08493d249d2067c8b3207ba46693dd858f95db3](https://github.com/libffi/libffi/tree/f08493d249d2067c8b3207ba46693dd858f95db3) | [MIT license](licenses/libffi-LICENSE.txt) |
+| hiwire | [6a1e67280a15d929ebeceee54a6358c9c8d5f697](https://github.com/pyodide/hiwire/tree/6a1e67280a15d929ebeceee54a6358c9c8d5f697) | [Mozilla Public License 2.0](licenses/hiwire-MPL-2.0.txt) |
+| liblzma | [XZ Utils 5.2.2](https://github.com/tukaani-project/xz/tree/v5.2.2) | [Public-domain notice and package license information](licenses/xz-5.2.2-COPYING.txt) |
+| Zstandard | [1.5.7](https://github.com/python/cpython-source-deps/tree/zstd-1.5.7) | [BSD license](licenses/zstd-1.5.7-LICENSE.txt) |
+| SQLite | [3.39.0 source](https://www.sqlite.org/2022/sqlite-autoconf-3390000.tar.gz) | [Public-domain dedication](licenses/sqlite-3.39.0-NOTICE.txt) |
+| zlib | [1.3.1](https://github.com/madler/zlib/tree/v1.3.1) | [zlib license](licenses/zlib-1.3.1-LICENSE.txt) |
+| bzip2 | [1.0.6 Emscripten port](https://github.com/emscripten-ports/bzip2/tree/1.0.6) | [bzip2 license](licenses/bzip2-1.0.6-LICENSE.txt) |
+| StackFrame/error-stack-parser | [vendored in Pyodide 314.0.7](https://github.com/pyodide/pyodide/tree/314.0.7/src/js/vendor/stackframe) | [MIT license](licenses/stackframe-LICENSE.txt) |
+| MiniLZ4 | [vendored in Emscripten 5.0.3](https://github.com/emscripten-core/emscripten/blob/5.0.3/third_party/mini-lz4.js) | [MIT notice](licenses/mini-lz4-NOTICE.txt) |
+
+The Emscripten system runtime carries additional component notices:
+
+- [musl libc](licenses/emscripten-musl-LICENSE.txt), including its component-specific notices.
+- [LLVM compiler-rt](licenses/emscripten-compiler_rt-LICENSE.txt), [libc++](licenses/emscripten-libcxx-LICENSE.txt), [libc++abi](licenses/emscripten-libcxxabi-LICENSE.txt), [libunwind](licenses/emscripten-libunwind-LICENSE.txt), and [LLVM libc](licenses/emscripten-llvm_libc-LICENSE.txt).
+- [dlmalloc](licenses/dlmalloc-NOTICE.txt) and [mimalloc](licenses/emscripten-mimalloc-LICENSE.txt) allocator notices from the pinned Emscripten source tree.
+
+These upstream notice files are retained in full; the MiniLZ4, dlmalloc, and
+SQLite files contain their source's license or public-domain notice rather than
+unrelated implementation code. The CPython notices describe components of the
+upstream Python distribution; some optional Python modules are absent from the
+browser runtime. The allocator notices cover the pinned toolchain's alternatives
+without claiming both are active in a particular build.
+
+[`licenses/sources.json`](licenses/sources.json) records each notice's exact
+upstream location and SHA-256 digest. Dependency versions follow Pyodide's
+[build configuration](https://github.com/pyodide/pyodide/blob/314.0.7/Makefile.envs)
+and [CPython build recipe](https://github.com/pyodide/pyodide/blob/314.0.7/cpython/Makefile),
+plus Emscripten's pinned port recipes.
+
+Lean and its standard libraries are installed separately for local proof
+checking. This browser distribution does not bundle a Lean executable or
+Mathlib. Additional Pyodide packages are not installed by the Algo2Lean browser
+compiler; adding packages requires retaining their own licenses and notices.

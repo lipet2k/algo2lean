@@ -1,0 +1,15 @@
+# Euclid's algorithm: gcd(48, 18) = 6 and gcd(-48, 18) = 6.
+# The result is nonnegative; gcd(0, 0) is defined to be 0.
+def gcd(a: Int, b: Int) -> Int:
+    if a < 0:
+        a = -a
+    # @normalize_b
+    if b < 0:
+        b = -b
+
+    # @loop
+    while b != 0:
+        remainder = a % b
+        a = b
+        b = remainder
+    return a

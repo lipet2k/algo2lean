@@ -1,0 +1,34 @@
+{
+  "title": "Algo2Lean",
+  "version": "0.1.0-dev",
+  "status": "development",
+  "authors": [
+    {
+      "given_names": "Lunjia",
+      "family_names": "Hu",
+      "orcid": null
+    },
+    {
+      "given_names": "Chutong",
+      "family_names": "Yang",
+      "orcid": null
+    }
+  ],
+  "creators": [
+    {
+      "given_names": "Lunjia",
+      "family_names": "Hu",
+      "orcid": null
+    }
+  ],
+  "contributors": [
+    {
+      "given_names": "Chutong",
+      "family_names": "Yang",
+      "orcid": null
+    }
+  ],
+  "repository_url": "https://github.com/lunjiah/algo2lean",
+  "doi": null,
+  "license": "Apache-2.0"
+}

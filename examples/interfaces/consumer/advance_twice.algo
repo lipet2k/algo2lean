@@ -1,0 +1,8 @@
+# Call the imported concrete counter client twice and return the second incremented value.
+from direct import Direct
+from use_direct import advance
+
+
+def advance_twice(counter: Direct) -> Int:
+    advance(counter)
+    return advance(counter)

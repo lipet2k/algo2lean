@@ -1,0 +1,142 @@
+def write(a: Seq, i: Int, value: Int) -> Int:
+    a[i] = value
+    return value
+
+
+def aliases() -> Int:
+    a = const(1)
+    b = a
+    b[-4] = 91
+    return a[-4]
+
+
+def rebound() -> Int:
+    a = const(1)
+    b = a
+    a = const(2)
+    b[0] = 9
+    return a[0]
+
+
+def independent_copy() -> Int:
+    a = const(7)
+    b = copy(a)
+    b[0] = 99
+    return a[0]
+
+
+def fresh_constants() -> Int:
+    a = const(7)
+    b = const(7)
+    b[0] = 99
+    return a[0]
+
+
+def copy_current_contents() -> Int:
+    a = const(1)
+    a[0] = 8
+    b = copy(a)
+    a[0] = 9
+    return b[0]
+
+
+def mutating_call() -> Int:
+    a = const(0)
+    write(a, 8, 42)
+    return a[8]
+
+
+def read_call_read() -> Int:
+    a = const(1)
+    return a[0] + write(a, 0, 2) + a[0]
+
+
+def aliased_params(a: Seq, b: Seq) -> Int:
+    a[0] = 11
+    return b[0]
+
+
+def updating_returns_same_object() -> Int:
+    a = const(0)
+    b = update(a, 0, 7)
+    b[0] = 19
+    return a[0]
+
+
+def range_mark(a: Seq, value: Int) -> Int:
+    a[0] = a[0] * 10 + value
+    return value
+
+
+def range_args() -> Int:
+    a = const(0)
+    total = 0
+    for i in range(range_mark(a, 1), range_mark(a, 6), range_mark(a, 2)):
+        a[0] = a[0] + 1000
+        total += i
+    return total * 10000 + a[0]
+
+
+def descending_range() -> Int:
+    total = 0
+    for i in range(5, -2, -2):
+        total += i
+    return total
+
+
+def empty_range() -> Int:
+    i = 9
+    for i in range(0):
+        pass
+    return i
+
+
+def range_stop(n: Int) -> Int:
+    total = 0
+    for i in range(n):
+        total += i
+    return total
+
+
+def range_start_stop(start: Int, stop: Int) -> Int:
+    total = 0
+    for i in range(start, stop):
+        total += i
+    return total
+
+
+def range_signed(start: Int, stop: Int, step: Int) -> Int:
+    total = 0
+    for i in range(start, stop, step):
+        total += i
+    return total
+
+
+def range_body_rebinds() -> Int:
+    total = 0
+    for i in range(3):
+        total += i
+        i = 20
+    return total
+
+
+def range_uses_old_binding() -> Int:
+    i = 2
+    total = 0
+    for i in range(i, i + 3):
+        total += i
+    return total * 10 + i
+
+
+def assignment_order() -> Int:
+    a = const(0)
+    a[0] = 1
+    a[a[0]] = write(a, 0, 2)
+    return a[1] * 10 + a[2]
+
+
+def assignment_index_mutates() -> Int:
+    a = const(0)
+    a[0] = 1
+    a[write(a, 0, 2)] = a[0]
+    return a[0] * 10 + a[2]

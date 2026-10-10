@@ -1,0 +1,52 @@
+# Typed mutable objects, shared aliases, and a nullable linked structure.
+
+class Counter:
+    value: Int
+
+    def __init__(self, value: Int) -> None:
+        self.value = value
+
+    def add(self, delta: Int) -> None:
+        # @increment
+        self.value += delta
+
+    def read(self) -> Int:
+        return self.value
+
+
+class Node:
+    value: Int
+    next: Node | None
+
+    def __init__(self, value: Int, next: Node | None) -> None:
+        self.value = value
+        self.next = next
+
+    def sum(self) -> Int:
+        tail = self.next
+        # @last_node
+        if tail is None:
+            return self.value
+        else:
+            return self.value + tail.sum()
+
+
+def counter_alias(start: Int, delta: Int) -> Int:
+    counter = Counter(start)
+    alias = counter
+    alias.add(delta)
+    return counter.read()
+
+
+def read_counter(counter: Counter) -> Int:
+    return counter.read()
+
+
+def make_node(value: Int) -> Node:
+    return Node(value, None)
+
+
+def linked_sum(a: Int, b: Int) -> Int:
+    tail = Node(b, None)
+    head = Node(a, tail)
+    return head.sum()

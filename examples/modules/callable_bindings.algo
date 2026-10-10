@@ -1,0 +1,4 @@
+# The generic callable client is defined in the companion Lean analysis.
+# Both backends remain ordinary independently compiled functions.
+from callable_direct import successor as direct
+from callable_staged import successor as staged

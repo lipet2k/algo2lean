@@ -1,0 +1,11 @@
+# Count parent links from a zero-based binary-heap index to the root.
+# This isolates the logarithmic depth argument; it does not implement a heap.
+
+def heap_ancestors(index: Int) -> Int:
+    levels = 0
+    # @loop
+    while index > 0:
+        tick("levels")
+        index = (index - 1) // 2
+        levels = levels + 1
+    return levels

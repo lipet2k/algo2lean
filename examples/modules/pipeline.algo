@@ -1,0 +1,8 @@
+# Compose two imported two-increment calls and charge one batch.
+from twice import twice as advance_twice
+
+
+def advance_four(value: Int) -> Int:
+    tick("batches")
+    first = advance_twice(value)
+    return advance_twice(first)

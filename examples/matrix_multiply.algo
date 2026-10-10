@@ -1,0 +1,25 @@
+# Ordinary cubic matrix multiplication (CLRS 4.1).
+# Matrices occupy the first n*n entries of an infinite sequence in row-major
+# order. The outer two loops are flattened into one loop over output cells.
+# Each scalar multiplication and accumulation charges one multiply_add tick.
+
+def matrix_dot(a: Seq, b: Seq, n: Int, row: Int, column: Int) -> Int:
+    k = 0
+    total = 0
+    # @dot_loop
+    while k < n:
+        tick("multiply_add")
+        total = total + a[row * n + k] * b[k * n + column]
+        k = k + 1
+    return total
+
+
+def matrix_multiply(a: Seq, b: Seq, n: Int) -> Seq:
+    result = const(0)
+    cell = 0
+    # @cells_loop
+    while cell < n * n:
+        value = matrix_dot(a, b, n, cell // n, cell % n)
+        result[cell] = value
+        cell = cell + 1
+    return result

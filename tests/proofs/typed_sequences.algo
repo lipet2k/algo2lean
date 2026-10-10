@@ -1,0 +1,102 @@
+class Node:
+    value: Int
+    children: Seq[Node | None]
+
+    def __init__(self, value: Int) -> None:
+        self.value = value
+        self.children = const(None)
+
+    def bump(self) -> None:
+        self.value += 1
+
+
+def aliases_and_copy() -> Bool:
+    first = Node(4)
+    values = const(first)
+    alias = values
+    copied = copy(values)
+    copied[-1].value = 7
+    copied[0] = Node(9)
+    alias[2] = copied[0]
+    values[2].bump()
+    first.children[-3] = values[2]
+    tick("writes", 2)
+    return first.value == 7 and values[0] is first and copied[0].value == 10 and first.children[-3] is values[2]
+
+
+def make(value: Int) -> Seq[Node]:
+    return const(Node(value))
+
+
+def identity(values: Seq[Node]) -> Seq[Node]:
+    return values
+
+
+def at(values: Seq[Node], position: Int) -> Node:
+    return values[position]
+
+
+def nested() -> Int:
+    values: Seq[Seq[Node]] = const(const(Node(3)))
+    copied = copy(values)
+    copied[-1][5] = Node(8)
+    return values[0][5].value
+
+
+def nested_integers() -> Int:
+    values: Seq[Seq] = const(const(1))
+    alias = values[-100]
+    alias[-2] = 8
+    return values[4][-2]
+
+
+def primitive_sequences() -> Bool:
+    flags: Seq[Bool] = const(False)
+    copied = copy(flags)
+    update(flags, -2, True)
+    nulls: Seq[None] = const(None)
+    return flags[-2] and not copied[-2] and nulls[8] is None
+
+
+def rhs(node: Node) -> Node:
+    node.value = node.value * 10 + 1
+    return node
+
+
+def receiver(values: Seq[Node]) -> Seq[Node]:
+    values[0].value = values[0].value * 10 + 2
+    return values
+
+
+def index(node: Node) -> Int:
+    node.value = node.value * 10 + 3
+    return 0
+
+
+def assignment_order() -> Int:
+    node = Node(0)
+    values = const(node)
+    receiver(values)[index(node)] = rhs(node)
+    return node.value
+
+
+def read_order() -> Int:
+    node = Node(0)
+    values = const(node)
+    chosen: Node | None = receiver(values)[index(node)]
+    return chosen.value
+
+
+def nullable(values: Seq[Node | None]) -> Bool:
+    return values[-5] is None
+
+
+def contextual() -> Bool:
+    return nullable(const(None))
+
+
+def named(values: Seq[Node], node: Node) -> None:
+    # @replace
+    values[-1] = node
+    # @after
+    pass

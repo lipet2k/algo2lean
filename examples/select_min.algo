@@ -1,0 +1,16 @@
+# Select the first reachable unsettled vertex with minimum distance by a linear scan.
+# Return -1 when there is no reachable unsettled vertex.
+# Distances below zero denote infinity. Ties choose the first vertex.
+# One scan is charged per vertex; neither input sequence is modified.
+def select_min(distance: Seq, settled: Seq, n: Int) -> Int:
+    best = -1
+    i = 0
+    # @scan
+    while i < n:
+        tick("scans")
+        if settled[i] == 0 and distance[i] >= 0:
+            if best < 0 or distance[i] < distance[best]:
+                best = i
+        i += 1
+    # @finished
+    return best

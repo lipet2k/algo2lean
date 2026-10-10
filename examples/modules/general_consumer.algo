@@ -1,0 +1,6 @@
+# Sort a finite interval, search for a key, and return its insertion offset from lo.
+from general_sort_then_search import sort_then_search as locate
+
+
+def insertion_offset(a: Seq, lo: Int, hi: Int, key: Int) -> Int:
+    return locate(a, lo, hi, key) - lo

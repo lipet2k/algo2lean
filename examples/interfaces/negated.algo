@@ -1,0 +1,11 @@
+# Store the negated counter value; each read or write charges two units of counter_work.
+class Negated:
+    opposite: Int
+
+    def get(self) -> Int:
+        tick("counter_work", 2)
+        return -self.opposite
+
+    def put(self, value: Int) -> None:
+        tick("counter_work", 2)
+        self.opposite = -value

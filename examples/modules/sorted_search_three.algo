@@ -1,0 +1,8 @@
+# Sort three adjacent sequence entries, then find the first entry at least the key.
+from sort_three import sort_three
+from lower_bound_three import lower_bound_three
+
+
+def sorted_search_three(a: Seq, first: Int, key: Int) -> Int:
+    sort_three(a, first)
+    return lower_bound_three(a, first, key)

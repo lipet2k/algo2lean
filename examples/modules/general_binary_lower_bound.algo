@@ -1,0 +1,23 @@
+# Binary search for the first position whose value is at least target.
+# Assume a[lo:hi] is sorted and lo <= hi; the upper bound is exclusive.
+# Return hi when every value is smaller. Negative indices are supported.
+def lower_bound(a: Seq, lo: Int, hi: Int, target: Int) -> Int:
+    # @search
+    while lo < hi:
+        middle = (lo + hi) // 2
+        if a[middle] < target:
+            lo = middle + 1
+        else:
+            hi = middle
+    # @finished
+    return lo
+
+
+# Search [-3, 1, 1, 4] for 1. The first matching position is 1.
+def demo_lower_bound() -> Int:
+    a = const(0)
+    a[0] = -3
+    a[1] = 1
+    a[2] = 1
+    a[3] = 4
+    return lower_bound(a, 0, 4, 1)

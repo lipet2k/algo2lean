@@ -1,0 +1,12 @@
+# The caller supplies three sorted adjacent entries.
+def lower_bound_three(a: Seq, first: Int, key: Int) -> Int:
+    tick("search_comparisons")
+    if key <= a[first]:
+        return first
+    tick("search_comparisons")
+    if key <= a[first + 1]:
+        return first + 1
+    tick("search_comparisons")
+    if key <= a[first + 2]:
+        return first + 2
+    return first + 3

@@ -1,0 +1,17 @@
+# Labels expose statement locations and initialized source variables for proofs.
+def assignment(n: Int) -> Int:
+    # @initialize
+    a = 0
+    # @set
+    a = 1
+    # @after
+    pass
+    # @ready
+    return a
+
+
+def caller(n: Int) -> Int:
+    # @call
+    result = assignment(n)
+    # @ready
+    return result + 1

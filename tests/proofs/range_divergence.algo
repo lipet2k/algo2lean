@@ -1,0 +1,5 @@
+# Even an empty interval evaluates its step expression before starting.
+def diverging_bound(n: Int) -> Int:
+    for i in range(0, 0, diverging_bound(n)):
+        pass
+    return n

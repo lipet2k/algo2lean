@@ -1,0 +1,139 @@
+# These definitions are accompanied by Lean proofs in semantics.lean.
+def choose(x: Int, y: Int) -> Int:
+    if x >= 1:
+        return y
+    else:
+        return -y
+
+
+def zero() -> Int:
+    return 17
+
+
+def three(a: Int, b: Int, c: Int) -> Int:
+    return a + b + c
+
+
+def fact(n: Int) -> Int:
+    if n <= 0:
+        return 1
+    return n * fact(n - 1)
+
+
+def sum_to(n: Int) -> Int:
+    total = 0
+    while n > 0:
+        total = total + n
+        n = n - 1
+    return total
+
+
+def odd(n: Int) -> Bool:
+    if n <= 0:
+        return False
+    return even(n - 1)
+
+
+def even(n: Int) -> Bool:
+    if n <= 0:
+        return True
+    return odd(n - 1)
+
+
+def read_negative(a: Seq) -> Int:
+    return a[-12]
+
+
+def distant(v: Int) -> Int:
+    a = const(0)
+    a[100000000000000000000000000000000000000000000] = v
+    return a[100000000000000000000000000000000000000000000]
+
+
+def aliasing(a: Seq) -> Int:
+    b = a
+    b[0] = 99
+    return a[0]
+
+
+def untouched(a: Seq) -> Int:
+    a[-4] = 99
+    return a[5]
+
+
+def replacement(a: Seq, i: Int, v: Int) -> Int:
+    b = update(a, i, v)
+    return b[i]
+
+
+def constant(v: Int) -> Seq:
+    return const(v)
+
+
+def huge() -> Int:
+    return 999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 + 1
+
+
+def floor_div(a: Int, b: Int) -> Int:
+    return a // b
+
+
+def floor_mod(a: Int, b: Int) -> Int:
+    return a % b
+
+
+def end(match: Int) -> Int:
+    return match + 1
+
+
+def boolean_alias(x: Bool) -> Bool:
+    x = False or x
+    return x
+
+
+def boolean_and_alias(x: Bool) -> Bool:
+    x = (not x) and x
+    return x
+
+
+def branch_return(x: Int) -> Int:
+    if x > 0:
+        return 7
+    return -7
+
+
+def break_by_return(n: Int) -> Int:
+    while n > 0:
+        if n == 2:
+            return 42
+        n = n - 1
+    return 0
+
+
+def looping_bool() -> Bool:
+    return looping_bool()
+
+
+def looping_int() -> Int:
+    return looping_int()
+
+
+def false_and() -> Bool:
+    return False and looping_bool()
+
+
+def true_or() -> Bool:
+    return True or looping_bool()
+
+
+def short_chain() -> Bool:
+    return 5 < 0 < looping_int()
+
+
+def forever(x: Int) -> Int:
+    while True:
+        x = x + 1
+
+
+def recurse(x: Int) -> Int:
+    return recurse(x)

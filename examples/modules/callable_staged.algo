@@ -1,0 +1,5 @@
+# Compute the successor through an intermediate value and charge two units of callable_work.
+def successor(value: Int) -> Int:
+    tick("callable_work", 2)
+    shifted = value + 2
+    return shifted - 1

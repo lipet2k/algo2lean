@@ -1,0 +1,9 @@
+# Sum the integers from 1 through n; nonpositive inputs return 0.
+def sum_to(n: Int) -> Int:
+    total: Int = 0
+    i: Int = 1
+    # @loop
+    while i <= n:
+        total = total + i
+        i = i + 1
+    return total

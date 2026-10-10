@@ -1,0 +1,10 @@
+# Increment any counter implementing get and put, preserving its concrete representation.
+from counter import Counter
+
+
+def increment(counter: Counter) -> Int:
+    # @read
+    value = counter.get()
+    # @write
+    counter.put(value + 1)
+    return value + 1

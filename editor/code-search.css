@@ -1,0 +1,12 @@
+.code-search { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.code-search-field { display: flex; flex: 1 1 210px; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; }
+.code-search-field input { width: 100%; min-width: 80px; min-height: 38px; border: 1px solid var(--border); border-radius: 4px; padding: 7px 10px; background: var(--paper); color: var(--ink); font: 13px var(--mono); }
+.code-search-count { min-width: 76px; color: var(--muted); font-size: 12px; text-align: center; }
+.code-search .button { min-height: 38px; padding: 8px 10px; border-color: var(--border); }
+.code-search input:focus-visible, .code-search button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.code-search .button:disabled { cursor: default; opacity: .45; }
+/* Match the textarea's computed metrics; both layers share its scroll canvas. */
+.code-search-highlight { position: absolute; inset: 0; margin: 0; overflow: hidden; white-space: pre; color: transparent; background: transparent; pointer-events: none; user-select: none; }
+.code-search-highlight mark { color: transparent; background: #ffd96a; border-radius: 2px; box-shadow: 0 0 0 1px #b6881c; }
+@media (max-width: 480px) { .code-search-field { flex-basis: 100%; } .code-search { padding-inline: 12px; } .code-search-count { margin-right: auto; text-align: left; } }
+@media (forced-colors: active) { .code-search-highlight mark { background: Highlight; outline: 1px solid Highlight; } }

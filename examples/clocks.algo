@@ -1,0 +1,15 @@
+# Independent cost counters shared by a loop and its function calls.
+
+def advance(value: Int) -> Int:
+    # @charge
+    tick("work")
+    return value + 1
+
+
+def counted_loop(n: Int) -> Int:
+    tick("calls")
+    value = 0
+    # @loop
+    while value < n:
+        value = advance(value)
+    return value

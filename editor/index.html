@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17304d">
+  <meta name="description" content="Write Python-like algorithms and generate Lean definitions for proofs of correctness and running time.">
+  <title>Algo2Lean — Algorithms to Lean proofs</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/code-search.css">
+  <script src="drafts.js" defer></script>
+  <script src="interface.js" defer></script>
+  <script src="proof-outline.js" defer></script>
+  <script src="code-search.js" defer></script>
+  <script src="app.js" defer></script>
+  <script src="publication.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#source">Skip to source editor</a>
+  <header class="app-header">
+    <div class="identity">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M10 10h8v8h12M10 30h8V18M27 14l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="10" r="3" fill="currentColor"/><circle cx="10" cy="30" r="3" fill="currentColor"/></svg>
+      <div><h1>Algo2Lean</h1><p>Algorithms, expressed as propositions.</p></div>
+    </div>
+    <nav class="site-nav" aria-label="Main navigation">
+      <a href="#editor">Editor</a>
+      <a href="#analysis-outline">Main results</a>
+      <a href="#about">About</a>
+      <a href="#cite">Cite Algo2Lean</a>
+      <a id="github-link" class="repository-link" hidden rel="noopener noreferrer" target="_blank">Star on GitHub</a>
+    </nav>
+  </header>
+
+  <main class="workspace">
+    <section class="welcome" aria-labelledby="welcome-heading">
+      <div class="welcome-copy">
+        <h2 id="welcome-heading">From algorithms to Lean proofs.</h2>
+        <p>Write an algorithm in a typed, Python-like language. Generate its Lean definitions, then prove properties of its outputs, intermediate states, and running time.</p>
+      </div>
+      <ol class="workflow" aria-label="Getting started">
+        <li>Choose an example or open a file.</li>
+        <li>Compile and explore the Lean interface.</li>
+        <li>Write and check a proof in Lean analysis.</li>
+      </ol>
+    </section>
+    <section id="editor" class="document-toolbar" aria-label="Document controls">
+      <div class="file-controls">
+        <div class="filename-field"><label for="filename">File</label><input id="filename" value="merge_sort.algo" maxlength="255" spellcheck="false" autocomplete="off" aria-describedby="save-state"></div>
+        <span id="save-state" class="save-state">Example</span>
+        <span class="toolbar-divider" aria-hidden="true"></span>
+        <button id="open-button" class="button button-quiet" type="button">Open</button>
+        <button id="open-project-button" class="button button-quiet" type="button">Open project</button>
+        <button id="save-button" class="button button-quiet" type="button" title="Save source file (⌘ / Ctrl S)">Save .algo</button>
+        <button id="drafts-button" class="button button-quiet" type="button" aria-controls="draft-picker">Browser drafts</button>
+        <input id="file-picker" class="visually-hidden" type="file" accept=".algo,text/plain" tabindex="-1">
+        <input id="project-picker" class="visually-hidden" type="file" webkitdirectory multiple tabindex="-1" aria-label="Choose a project folder">
+      </div>
+      <div class="example-control"><label for="examples">Examples</label><select id="examples" aria-label="Load an example"><option value="">Choose an example…</option></select></div>
+    </section>
+
+    <section id="project-toolbar" class="project-toolbar" aria-label="Project modules" hidden>
+      <div class="project-identity"><span class="subtle-label">Project</span><strong id="project-name"></strong><span id="project-count" class="save-state"></span></div>
+      <div class="project-module-field"><label for="project-module">Module</label><select id="project-module" aria-describedby="project-help"></select></div>
+      <div class="project-actions"><button id="project-export-button" class="button button-quiet" type="button">Download project</button><button id="close-project-button" class="button button-quiet" type="button">Close project</button></div>
+      <p id="project-help">Edits stay in this browser. Switch modules to edit their source and analysis; download the project to keep every file together.</p>
+    </section>
+
+    <details id="draft-picker" class="draft-picker" hidden>
+      <summary>Browser drafts <span id="draft-count">0</span></summary>
+      <p class="draft-help">Recover a source and analysis pair to continue editing. Each tab saves separately. Drafts stay here until you discard them.</p>
+      <div class="draft-actions"><button id="clear-drafts-button" class="button button-quiet" type="button">Clear all drafts</button><button id="undo-clear-drafts-button" class="button button-quiet" type="button" hidden>Undo clear</button></div>
+      <p id="draft-empty" class="draft-help">No saved drafts yet. Your edits will appear here.</p>
+      <div id="draft-list" class="draft-list"></div>
+    </details>
+
+    <p class="scroll-help" id="scroll-help">Click a code box to scroll inside it; press Esc to return to page scrolling. Drag its lower-right corner to resize it.</p>
+    <div class="workbench">
+      <section class="pane source-pane" aria-labelledby="source-heading">
+        <div class="pane-heading">
+          <div class="pane-title"><span class="pane-dot" aria-hidden="true"></span><h2 id="source-heading">.algo</h2><span class="subtle-label">Source</span></div>
+          <button id="compile-button" class="button button-primary" type="button" title="Compile to Lean (⌘ / Ctrl Enter)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5 3 7 5-7 5Z" fill="currentColor"/></svg><span>Compile</span><kbd class="compile-shortcut">⌘ ↵</kbd></button>
+        </div>
+        <div class="source-editor code-viewport" id="source-editor">
+          <div class="code-canvas">
+            <div class="line-gutter" aria-hidden="true"><pre id="line-numbers">1</pre></div>
+            <div class="code-content">
+              <pre id="highlight" aria-hidden="true"><code id="highlight-code"></code></pre>
+              <textarea id="source" aria-label="Algo2Lean source code" aria-describedby="scroll-help editor-help" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="pane-footer"><span id="cursor-position">Ln 1, Col 1</span><span id="editor-help">4 spaces <span aria-hidden="true">·</span> Esc to leave editor</span></div>
+      </section>
+
+      <div class="generated-panes">
+      <section class="pane lean-pane" aria-labelledby="lean-heading">
+        <div class="pane-heading">
+          <div class="pane-title"><span class="pane-dot lean-dot" aria-hidden="true"></span><h2 id="lean-heading">Algorithm definitions</h2><span id="lean-state" class="state-tag">Not generated</span></div>
+          <div class="output-actions"><button id="copy-button" class="button button-quiet" type="button" disabled>Copy</button><button id="export-button" class="button button-quiet" type="button" disabled>Export .lean</button></div>
+        </div>
+        <p class="output-description">Outputs and execution semantics. This file stays identical when only line names change.</p>
+        <div class="output-container">
+          <div id="output-empty" class="output-empty"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M11 9h21l6 6v24H11V9Z" stroke="currentColor" stroke-width="1.5"/><path d="M31 9v8h7M18 25h13M18 31h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><h3>A precise meaning for the algorithm</h3><p>Compile to generate an output relation for each function. Nonterminating executions have no valid output.</p></div>
+          <div id="lean-output" class="lean-output code-viewport" hidden>
+            <div class="generated-canvas code-content">
+              <pre class="generated-highlight" aria-hidden="true"><code id="lean-code"></code></pre>
+              <textarea id="lean-selection" class="generated-selection" readonly aria-label="Generated algorithm definitions, read only" aria-describedby="scroll-help" wrap="off" spellcheck="false"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="pane-footer"><span id="output-summary">Generated code is read only</span><button id="check-button" type="button" class="check-button">Check both files <span aria-hidden="true">↗</span></button></div>
+      </section>
+
+      <section class="pane lean-pane points-pane" aria-labelledby="points-heading">
+        <div class="pane-heading">
+          <div class="pane-title"><span class="pane-dot lean-dot" aria-hidden="true"></span><h2 id="points-heading">Named-line interface</h2><span id="points-state" class="state-tag">Not generated</span></div>
+          <div class="output-actions"><button id="copy-points-button" class="button button-quiet" type="button" disabled>Copy</button><button id="export-points-button" class="button button-quiet" type="button" disabled>Export .lean</button></div>
+        </div>
+        <p class="output-description">Imports the algorithm definitions and adds locations and local observations for your proofs.</p>
+        <div class="output-container">
+          <div id="points-empty" class="output-empty"><h3>Name the steps you want to reason about</h3><p>Put <code># @name</code> on its own line directly above a statement, at the same indentation. It names the state before that statement. Compilation puts its proof interface in this separate file.</p></div>
+          <div id="points-output" class="lean-output code-viewport" hidden>
+            <div class="generated-canvas code-content">
+              <pre class="generated-highlight" aria-hidden="true"><code id="points-code"></code></pre>
+              <textarea id="points-selection" class="generated-selection" readonly aria-label="Generated named-line interface, read only" aria-describedby="scroll-help" wrap="off" spellcheck="false"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="pane-footer"><span id="points-summary">Generated code is read only</span></div>
+      </section>
+      </div>
+    </div>
+
+    <section class="feedback-panel" aria-labelledby="feedback-heading">
+      <div class="feedback-header"><h2 id="feedback-heading">Lean Interface</h2><span id="compile-status" class="compile-status" role="status" aria-live="polite">Ready to compile</span><span id="draft-status" class="draft-status" role="status" aria-live="polite">Local draft</span></div>
+      <div id="diagnostics" class="diagnostics"><p>Compile your source to describe its valid inputs and outputs in Lean.</p></div>
+      <div id="relations" class="relations" hidden></div>
+      <details id="lean-details" class="lean-details" hidden><summary>Lean checker output</summary><pre id="check-output" tabindex="0" aria-label="Lean checker output" aria-describedby="scroll-help"></pre></details>
+      <details id="shared-details" class="lean-details" hidden>
+        <summary id="shared-summary">Shared Lean library</summary>
+        <p>The algorithm definitions import <code>Algo2Lean</code>. Keep the library in your Lean project, or export the algorithm definitions with the library included. The named-line interface stays in its separate file.</p>
+        <div class="library-actions"><button id="library-button" class="button button-quiet" type="button" disabled>Download Algo2Lean.lean</button><button id="standalone-button" class="button button-quiet" type="button" disabled>Export standalone algorithm</button></div>
+        <pre id="shared-output" tabindex="0" aria-label="Shared Lean library, read only" aria-describedby="scroll-help"><code id="shared-code"></code></pre>
+      </details>
+      <p id="file-message" class="file-message" role="status" hidden></p>
+    </section>
+
+    <section id="generation-tools" class="feedback-panel" aria-labelledby="generation-heading" hidden>
+      <h2 id="generation-heading">Verify generated files</h2>
+      <p><a href="../../versions.html">Earlier compiler versions</a></p>
+      <p>Open the original .algo source or project above, then select the claimed generated .lean files. All generated algorithm, named-line, and linking files must match exactly; shared libraries are also checked when selected. Exclude handwritten proofs. For module projects, choose their generated folder to preserve paths.</p>
+      <div class="library-actions">
+        <button id="verify-files-button" class="button button-quiet" type="button">Verify files</button>
+        <button id="verify-folder-button" class="button button-quiet" type="button">Verify folder</button>
+        <button id="generation-bundle-button" class="button button-quiet" type="button">Download generation bundle</button>
+        <button id="generation-manifest-button" class="button button-quiet" type="button">Download manifest</button>
+      </div>
+      <input id="verify-files-picker" class="visually-hidden" type="file" accept=".lean,text/plain" multiple tabindex="-1">
+      <input id="verify-folder-picker" class="visually-hidden" type="file" webkitdirectory multiple tabindex="-1" aria-label="Choose generated Lean folder">
+      <p id="generation-status" role="status" aria-live="polite">An exact match identifies the compiler output. It does not check a Lean proof or prove the compiler's semantics correct.</p>
+      <pre id="generation-details" tabindex="0" aria-label="Generation comparison details"></pre>
+    </section>
+    <p id="browser-runtime-status" role="status" aria-live="polite" hidden></p>
+
+    <section id="analysis-workspace" class="pane analysis-pane" aria-labelledby="analysis-heading">
+      <div class="pane-heading">
+        <div class="pane-title"><span class="pane-dot lean-dot" aria-hidden="true"></span><h2 id="analysis-heading">Lean analysis</h2><span id="analysis-state" class="state-tag">Not checked</span></div>
+        <button id="analyze-button" class="button button-primary" type="button" title="Check analysis (⌘ / Ctrl Enter in the analysis editor)">Check analysis <kbd class="analysis-shortcut">⌘ ↵</kbd></button>
+      </div>
+      <div class="analysis-toolbar">
+        <div class="file-controls">
+          <div class="filename-field"><label for="analysis-filename">Analysis file</label><input id="analysis-filename" value="Analysis.lean" maxlength="255" spellcheck="false" autocomplete="off" aria-describedby="analysis-save-state"></div>
+          <span id="analysis-save-state" class="save-state">Starter</span>
+          <button id="analysis-open-button" class="button button-quiet" type="button">Open .lean</button>
+          <button id="analysis-save-button" class="button button-quiet" type="button" title="Save analysis (⌘ / Ctrl S in the analysis editor)">Save analysis</button>
+          <button id="analysis-find-button" class="button button-quiet" type="button" title="Find in analysis (⌘ / Ctrl F)">Find</button>
+          <input id="analysis-file-picker" class="visually-hidden" type="file" accept=".lean,text/plain" tabindex="-1">
+        </div>
+        <p id="analysis-import-help">Import <code id="analysis-module">MergeSortGenerated</code> for the algorithm; import <code id="analysis-points-module">MergeSortGeneratedPoints</code> for named lines. State the main theorem using the algorithm interface.</p>
+      </div>
+      <div id="example-update" class="example-update" hidden>
+        <p id="example-update-message"></p>
+        <button id="load-current-example" class="button button-quiet" type="button">Load current example</button>
+      </div>
+      <div id="analysis-outline" class="proof-outline"></div>
+      <div class="analysis-editor code-viewport" id="analysis-editor">
+        <div class="code-canvas">
+          <div class="line-gutter" aria-hidden="true"><pre id="analysis-line-numbers">1</pre></div>
+          <div class="code-content">
+            <pre id="analysis-measure" aria-hidden="true"></pre>
+            <textarea id="analysis" aria-label="Lean analysis code" aria-describedby="scroll-help analysis-import-help analysis-editor-help" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="pane-footer"><span id="analysis-cursor-position">Ln 1, Col 1</span><span id="analysis-editor-help">2 spaces · Esc to leave editor</span></div>
+      <div class="analysis-feedback">
+        <p id="analysis-status" class="analysis-status" role="status" aria-live="polite">Write theorems here, then check them against the current source.</p>
+        <div id="analysis-diagnostics" class="diagnostics"></div>
+        <details id="analysis-details" class="lean-details" hidden><summary>Analysis checker output</summary><pre id="analysis-output" tabindex="0" aria-label="Analysis checker output" aria-describedby="scroll-help"></pre></details>
+        <p id="analysis-file-message" class="file-message" role="status" hidden></p>
+      </div>
+    </section>
+
+    <section id="about" class="about-project" aria-labelledby="about-heading">
+      <div class="about-copy">
+        <h2 id="about-heading">About Algo2Lean</h2>
+        <p>Algo2Lean connects readable algorithm code with Lean's proof language. It supports mathematical integers, shared mutable sequences, classes, imports, and explicit cost counters.</p>
+        <p>Compilation defines the algorithm's behavior. Correctness and running-time guarantees come from the Lean proofs written against those definitions.</p>
+        <p id="project-authors" class="project-authors" hidden></p>
+        <p id="project-contributors" hidden></p>
+        <details class="about-details">
+          <summary>How compilation and checking work</summary>
+          <p id="compilation-description">This editor uses a Python compiler on this computer. Source is sent to that local server when compiling or checking; Lean checking requires a local Lean installation. Draft recovery uses browser storage. Save or download files for a durable copy.</p>
+          <p>The language is a defined Python-like subset. Lean checks the generated definitions and submitted proofs; this does not itself prove that the compiler implements the intended language semantics.</p>
+        </details>
+      </div>
+      <section id="cite" class="citation-panel" aria-labelledby="cite-heading">
+        <h2 id="cite-heading">Cite Algo2Lean</h2>
+        <p>If Algo2Lean contributes to a paper or formalization, please cite the software and record the compiler version used.</p>
+        <p id="citation-text" class="citation-text">Loading citation details…</p>
+        <div class="citation-actions">
+          <button id="copy-citation" class="button button-quiet" type="button" disabled>Copy citation</button>
+          <a id="download-citation" class="button button-quiet" download="CITATION.cff" hidden>Download citation</a>
+          <a id="release-doi" hidden rel="noopener noreferrer" target="_blank">Archived release</a>
+        </div>
+        <details id="bibtex-details" class="bibtex-details" hidden>
+          <summary>BibTeX</summary>
+          <pre id="citation-bibtex" tabindex="0" aria-label="BibTeX citation"></pre>
+          <button id="copy-bibtex" class="button button-quiet" type="button">Copy BibTeX</button>
+        </details>
+        <p id="citation-status" class="citation-status" role="status" aria-live="polite"></p>
+        <p id="citation-version-note" class="citation-note">This is a development build. For published work, use the citation for the exact release.</p>
+        <p class="citation-note">Algorithm and proof authors retain credit for their work.</p>
+        <noscript><p>Enable JavaScript to load the citation, or use the repository's CITATION.cff file.</p></noscript>
+      </section>
+    </section>
+    <footer class="workspace-footer"><span>Algo2Lean <span id="project-version" class="version-label">Development build</span></span><span>Python-like algorithms. Lean definitions and proofs.</span></footer>
+  </main>
+</body>
+</html>

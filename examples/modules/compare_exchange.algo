@@ -1,0 +1,8 @@
+# Put the smaller of two sequence entries first, charging one comparison.
+def compare_exchange(a: Seq, left: Int, right: Int) -> None:
+    tick("sort_comparisons")
+    x = a[left]
+    y = a[right]
+    if x > y:
+        a[left] = y
+        a[right] = x

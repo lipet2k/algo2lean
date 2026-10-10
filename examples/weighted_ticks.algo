@@ -1,0 +1,12 @@
+# A weighted charge models i units of work during iteration i. The independent
+# iteration counter distinguishes the number of iterations from their total work.
+
+def triangular_work(n: Int) -> Int:
+    i = 0
+    # @loop
+    while i < n:
+        # @charge
+        tick("work", i)
+        tick("iterations")
+        i = i + 1
+    return i

@@ -1,0 +1,6 @@
+# The relation myFunc.Returns takes the input pair (x, y).
+def myFunc(x: Int, y: Int) -> Int:
+    if x >= 1:
+        return y
+    else:
+        return -y

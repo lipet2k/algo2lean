@@ -1,0 +1,8 @@
+from compare_exchange import compare_exchange
+
+
+# A fixed three-element insertion network; indices may be negative.
+def sort_three(a: Seq, first: Int) -> None:
+    compare_exchange(a, first, first + 1)
+    compare_exchange(a, first + 1, first + 2)
+    compare_exchange(a, first, first + 1)

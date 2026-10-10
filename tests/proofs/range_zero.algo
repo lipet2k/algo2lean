@@ -1,0 +1,5 @@
+def zero_step(start: Int, stop: Int) -> Int:
+    total = 0
+    for i in range(start, stop, 0):
+        total += i
+    return total

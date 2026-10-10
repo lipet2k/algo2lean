@@ -1,0 +1,4 @@
+# Return the successor while charging one unit to the increments clock.
+def increment(value: Int) -> Int:
+    tick("increments")
+    return value + 1

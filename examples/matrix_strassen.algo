@@ -1,0 +1,72 @@
+# CLRS 4e, section 4.2. Matrices use a finite row-major prefix of a Seq.
+# Preconditions: n = 2^depth for a natural depth; inputs have arbitrary Int entries.
+# Every temporary and the result are fresh. Input sequences are never modified.
+
+def matrix_linear(a: Seq, b: Seq, count: Int, sign: Int) -> Seq:
+    c = const(0)
+    i = 0
+    # @loop
+    while i < count:
+        c[i] = a[i] + sign * b[i]
+        tick("linear_cells")
+        i += 1
+    return c
+
+
+def matrix_quadrant(a: Seq, n: Int, h: Int, row: Int, column: Int) -> Seq:
+    c = const(0)
+    i = 0
+    # @loop
+    while i < h * h:
+        c[i] = a[(row + i // h) * n + column + i % h]
+        tick("copied_cells")
+        i += 1
+    return c
+
+
+def matrix_join(a: Seq, b: Seq, c: Seq, d: Seq, h: Int) -> Seq:
+    result = const(0)
+    i = 0
+    # @loop
+    while i < h * h:
+        row = i // h
+        column = i % h
+        result[row * (2 * h) + column] = a[i]
+        result[row * (2 * h) + column + h] = b[i]
+        result[(row + h) * (2 * h) + column] = c[i]
+        result[(row + h) * (2 * h) + column + h] = d[i]
+        tick("copied_cells", 4)
+        i += 1
+    return result
+
+
+def strassen(a: Seq, b: Seq, n: Int) -> Seq:
+    tick("calls")
+    if n <= 1:
+        c = const(0)
+        c[0] = a[0] * b[0]
+        tick("products")
+        return c
+    else:
+        h = n // 2
+        a11 = matrix_quadrant(a, n, h, 0, 0)
+        a12 = matrix_quadrant(a, n, h, 0, h)
+        a21 = matrix_quadrant(a, n, h, h, 0)
+        a22 = matrix_quadrant(a, n, h, h, h)
+        b11 = matrix_quadrant(b, n, h, 0, 0)
+        b12 = matrix_quadrant(b, n, h, 0, h)
+        b21 = matrix_quadrant(b, n, h, h, 0)
+        b22 = matrix_quadrant(b, n, h, h, h)
+        # Seven recursive products replace the ordinary eight.
+        p1 = strassen(a11, matrix_linear(b12, b22, h * h, -1), h)
+        p2 = strassen(matrix_linear(a11, a12, h * h, 1), b22, h)
+        p3 = strassen(matrix_linear(a21, a22, h * h, 1), b11, h)
+        p4 = strassen(a22, matrix_linear(b21, b11, h * h, -1), h)
+        p5 = strassen(matrix_linear(a11, a22, h * h, 1), matrix_linear(b11, b22, h * h, 1), h)
+        p6 = strassen(matrix_linear(a12, a22, h * h, -1), matrix_linear(b21, b22, h * h, 1), h)
+        p7 = strassen(matrix_linear(a11, a21, h * h, -1), matrix_linear(b11, b12, h * h, 1), h)
+        c11 = matrix_linear(matrix_linear(matrix_linear(p5, p4, h * h, 1), p2, h * h, -1), p6, h * h, 1)
+        c12 = matrix_linear(p1, p2, h * h, 1)
+        c21 = matrix_linear(p3, p4, h * h, 1)
+        c22 = matrix_linear(matrix_linear(matrix_linear(p5, p1, h * h, 1), p3, h * h, -1), p7, h * h, -1)
+        return matrix_join(c11, c12, c21, c22, h)

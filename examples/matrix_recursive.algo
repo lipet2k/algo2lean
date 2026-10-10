@@ -1,0 +1,27 @@
+# CLRS 4th edition, Chapter 4: eight recursive block products.
+# Matrices use row-major indexing with the common positive stride.
+# c must be a separate output object. n is a positive power of two.
+# The multiplication clock counts scalar integer multiplications.
+# The calls clock counts all recursion nodes, including scalar leaves.
+def matrix_block(a: Seq, b: Seq, c: Seq, stride: Int, row: Int, col: Int, inner: Int, n: Int) -> Int:
+    tick("calls")
+    if n <= 1:
+        tick("multiplications")
+        c[row * stride + col] = c[row * stride + col] + a[row * stride + inner] * b[inner * stride + col]
+        return 0
+    half = n // 2
+    matrix_block(a, b, c, stride, row, col, inner, half)
+    matrix_block(a, b, c, stride, row, col, inner + half, half)
+    matrix_block(a, b, c, stride, row, col + half, inner, half)
+    matrix_block(a, b, c, stride, row, col + half, inner + half, half)
+    matrix_block(a, b, c, stride, row + half, col, inner, half)
+    matrix_block(a, b, c, stride, row + half, col, inner + half, half)
+    matrix_block(a, b, c, stride, row + half, col + half, inner, half)
+    matrix_block(a, b, c, stride, row + half, col + half, inner + half, half)
+    return 0
+
+
+def matrix_recursive(a: Seq, b: Seq, n: Int) -> Seq:
+    c = const(0)
+    matrix_block(a, b, c, n, 0, 0, 0, n)
+    return c

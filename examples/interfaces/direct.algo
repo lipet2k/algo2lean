@@ -1,0 +1,11 @@
+# Store the counter value directly; each read or write charges one unit of counter_work.
+class Direct:
+    value: Int
+
+    def get(self) -> Int:
+        tick("counter_work")
+        return self.value
+
+    def put(self, value: Int) -> None:
+        tick("counter_work")
+        self.value = value

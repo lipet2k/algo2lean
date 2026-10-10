@@ -1,0 +1,15 @@
+# Seq is an infinite mathematical sequence indexed by every integer.
+# Element updates mutate the object, including all aliases and caller references.
+def replace(a: Seq, index: Int, value: Int) -> Seq:
+    a[index] = value
+    return a
+
+
+def distant_value(value: Int) -> Int:
+    a: Seq = const(0)
+    a[100000000000000000000000000000000000000000000000000] = value
+    return a[100000000000000000000000000000000000000000000000000]
+
+
+def negative_index(a: Seq) -> Int:
+    return a[-1]

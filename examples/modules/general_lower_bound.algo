@@ -1,0 +1,9 @@
+# Linear lower bound on an arbitrary finite sorted interval.
+# Empty and reversed intervals return lo without inspecting an entry.
+def lower_bound(a: Seq, lo: Int, hi: Int, key: Int) -> Int:
+    if hi <= lo:
+        return lo
+    tick("search_comparisons")
+    if key <= a[lo]:
+        return lo
+    return lower_bound(a, lo + 1, hi, key)

@@ -1,0 +1,7 @@
+# An abstract mutable counter exposes integer reads and writes.
+# Its Lean contract supplies representation and per-operation clock costs.
+from algo2lean import Interface
+
+class Counter(Interface):
+    def get(self) -> Int: ...
+    def put(self, value: Int) -> None: ...

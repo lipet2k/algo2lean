@@ -1,0 +1,29 @@
+# Mutable adjacency lists with bounded vertices and nonnegative weights.
+# Shared by the binary-heap and Fibonacci-heap Dijkstra examples.
+
+class Edge:
+    target: Int
+    weight: Int
+    next: Edge | None
+
+    def __init__(self, target: Int, weight: Int, next: Edge | None) -> None:
+        self.target = target
+        self.weight = weight
+        self.next = next
+
+
+class Graph:
+    size: Int
+    heads: Seq[Edge | None]
+
+    def __init__(self, size: Int) -> None:
+        self.size = size
+        if size < 0:
+            self.size = 0
+        self.heads = const(None)
+
+    def add_edge(self, source: Int, target: Int, weight: Int) -> Bool:
+        if source < 0 or source >= self.size or target < 0 or target >= self.size or weight < 0:
+            return False
+        self.heads[source] = Edge(target, weight, self.heads[source])
+        return True

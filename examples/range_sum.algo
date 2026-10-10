@@ -1,0 +1,22 @@
+# range(stop), range(start, stop), and range(start, stop, step) use integer bounds.
+def range_sum(n: Int) -> Int:
+    total = 0
+    for i in range(n):
+        # @iteration
+        total += i
+    return total
+
+
+def stepped_sum(start: Int, stop: Int, step: Int) -> Int:
+    total = 0
+    for i in range(start, stop, step):
+        # @iteration
+        total += i
+    return total
+
+
+def empty_range_preserves_binding() -> Int:
+    i = 9
+    for i in range(0):
+        pass
+    return i
