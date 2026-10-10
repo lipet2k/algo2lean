@@ -274,7 +274,7 @@ def _decoder(binding, method, interface_namespace=None):
     source = binding.backend.namespace + ".Algo2LeanGenerated"
     decode = "fun result : %s.Result => match result with | .fn_%s value => some (%s.Result.fn_%s value)" % (
         source, original.name, prefix, _operation(binding.interface, method))
-    if len(binding.backend.functions) > 1:
+    if binding.backend.result_count > 1:
         decode += " | _ => none"
     return "(" + decode + ")"
 

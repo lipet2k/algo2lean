@@ -93,6 +93,13 @@ class CompiledModule:
     dependencies: dict = field(default_factory=dict)
     bindings: dict = field(default_factory=dict)
     environments: dict = field(default_factory=dict)
+    implementation: object = None
+    implementation_names: dict = field(default_factory=dict)
+    group_members: tuple = ()
+
+    @property
+    def result_count(self):
+        return len((self.implementation or self).functions)
 
     @property
     def stats(self):
@@ -105,6 +112,7 @@ class CompiledModule:
 class ProjectCompilation:
     project: Project
     modules: dict = field(default_factory=dict)
+    implementation_modules: dict = field(default_factory=dict)
 
     @property
     def entry(self):
@@ -113,7 +121,7 @@ class ProjectCompilation:
     @property
     def files(self):
         sources = {}
-        for module in self.modules.values():
+        for module in (*self.implementation_modules.values(), *self.modules.values()):
             sources[module.lean_module] = module.lean
             sources[module.points_module] = module.points_lean
             if module.facts_lean:
@@ -134,7 +142,7 @@ class _Names(ast.NodeTransformer):
     def imported(self, node):
         symbol = getattr(node, "_module_symbol", None)
         if symbol is not None and symbol.kind in {"function", "class", "interface"}:
-            name = symbol.name if symbol.module == self.owner.name else self.names[symbol]
+            name = self.names.get(symbol, symbol.name) if symbol.module == self.owner.name else self.names[symbol]
             return ast.copy_location(ast.Name(id=name, ctx=ast.Load()), node)
         return None
 
@@ -150,6 +158,16 @@ class _Names(ast.NodeTransformer):
 
 
 def _tree(owner, names):
+    def check_reserved(node):
+        spelling = getattr(node, "id", getattr(node, "name", getattr(node, "arg", "")))
+        if not isinstance(spelling, str):
+            return
+        for prefix, purpose in (("_a2l_import_", "import resolution"),
+                                ("_a2l_group_", "recursive compilation")):
+            if spelling.startswith(prefix):
+                raise ProjectError("Names beginning %s are reserved for %s." % (prefix, purpose),
+                                   owner.path, getattr(node, "lineno", 1), getattr(node, "col_offset", 0) + 1)
+
     # Attach provenance before copying: Python AST ids change during deepcopy.
     for node in ast.walk(owner.tree):
         if id(node) in owner.resolved_symbols:
@@ -157,21 +175,22 @@ def _tree(owner, names):
         if id(node) in owner.quoted_annotations:
             annotation = owner.quoted_annotations[id(node)]
             for item in ast.walk(annotation):
+                check_reserved(item)
                 if id(item) in owner.resolved_symbols:
                     item._module_symbol = owner.resolved_symbols[id(item)]
             node._module_annotation = annotation
-        spelling = getattr(node, "id", getattr(node, "name", getattr(node, "arg", "")))
-        if isinstance(spelling, str) and spelling.startswith("_a2l_import_"):
-            raise ProjectError("Names beginning _a2l_import_ are reserved for import resolution.",
-                               owner.path, getattr(node, "lineno", 1), getattr(node, "col_offset", 0) + 1)
+        check_reserved(node)
     return ast.fix_missing_locations(_Names(owner, names).visit(copy.deepcopy(owner.tree)))
 
 
 def _imports(project, owner, compiled):
     dependencies = project.transitive_dependencies(owner)
     symbols, names, classes, origins, functions, calls = {}, {}, {}, {}, {}, {}
+    execution_indices = {}
     for index, dependency in enumerate(dependencies):
         module = compiled[dependency]
+        execution = module.implementation or module
+        execution_indices.setdefault(execution.name, index)
         for name, origin in module.class_origins.items():
             if origin.module != dependency:
                 continue
@@ -218,8 +237,11 @@ def _imports(project, owner, compiled):
                                 constructor_for=translate(original.constructor_for, module) if original.constructor_for else None,
                                 clocks=set(original.clocks))
             functions[local] = function
-            calls[local] = ImportedCall(function, module.namespace, name, "import_%d" % index,
-                                        len(module.functions), dependency)
+            execution = module.implementation or module
+            implementation_name = module.implementation_names.get(name, name)
+            calls[local] = ImportedCall(function, execution.namespace, implementation_name,
+                                        "import_%d" % execution_indices[execution.name],
+                                        module.result_count, dependency)
     return names, classes, origins, functions, calls
 
 
@@ -306,7 +328,7 @@ def _emit(owner, module, declarations):
             lines += ['local notation "entry_%s" => entry_%s dependencies' % (name, name)]
         emit_public(lines, lowerer, bool(clocks) or bool(module.dependencies),
                     module.namespace, bool(module.dependencies))
-    prefix = namespace(owner.name)
+    prefix = module.namespace
     header = ["import Algo2LeanLib.Modules"]
     if declarations or module.dependencies or module.bindings:
         header.append("import Algo2LeanLib.Interface")
@@ -315,7 +337,7 @@ def _emit(owner, module, declarations):
     # imported transitively; no duplicate source or namespace is emitted.
     header += ["", "namespace " + prefix, "", "open _root_.Algo2LeanGenerated", ""]
     lean = "\n".join(header + lines + ["end " + prefix, ""])
-    points = ["import " + lean_module(owner.name), "", "namespace " + prefix, "",
+    points = ["import " + module.lean_module, "", "namespace " + prefix, "",
               "open _root_.Algo2LeanGenerated Algo2LeanGenerated", "",
               "-- Named locations are independent of the compiled module body.", ""]
     points += emit_dependency_context(module)
@@ -332,7 +354,12 @@ def compile_project(entry, *, root=None, sources=None):
     from .interfaces import collect_interfaces
     from .module_interfaces import prepare_interfaces, resolve_interfaces
     interfaces = collect_interfaces(project)
-    for owner in project.modules.values():
+    for group in project.compilation_groups:
+        if len(group) > 1 or group[0] in project.modules[group[0]].dependencies:
+            from .recursive_modules import compile_group
+            compile_group(result, group, interfaces)
+            continue
+        owner = project.modules[group[0]]
         names, classes, origins, external, all_calls = _imports(project, owner, result.modules)
         prepare_interfaces(project, owner, interfaces, names, classes, origins, external, all_calls)
         tree = _tree(owner, names)

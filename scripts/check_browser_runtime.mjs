@@ -58,11 +58,24 @@ sources = {module.path.relative_to(project.root).as_posix(): module.source
            for module in project.modules.values()}
 add("interface imports", {"filename": entry, "source": sources[entry], "project_sources": sources}, True)
 
-catalog = load_example_project("dijkstra-fibonacci")
-add("Fibonacci Dijkstra imports", {"filename": catalog["entry"], "source": catalog["sources"][catalog["entry"]],
-                                 "project_sources": catalog["sources"]}, True)
+recursive = load_example_project("mutual-recursion-imports")
+add("mutually recursive imports", {"filename": recursive["entry"],
+    "source": recursive["sources"][recursive["entry"]], "project_sources": recursive["sources"]}, True)
+
+catalogs = {identifier: load_example_project(identifier)
+            for identifier in ("modules", "interfaces", "mutual-recursion-imports", "dijkstra")}
+for identifier in ("modules", "interfaces"):
+    project = catalogs[identifier]
+    add(identifier + " project folder", {"filename": project["entry"],
+        "source": project["sources"][project["entry"]], "project_sources": project["sources"]}, True)
+
+catalog = load_example_project("dijkstra")
+for backend in ("binary", "fibonacci"):
+    entry = "composable_dijkstra/dijkstra_" + backend + ".algo"
+    add(backend + " Dijkstra imports", {"filename": entry, "source": catalog["sources"][entry],
+                                     "project_sources": catalog["sources"]}, True)
 (target / "fixtures.json").write_text(json.dumps({"runtime": runtime["version"],
-    "fixtures": fixtures, "catalog_sources": catalog["sources"], "catalog_entry": catalog["entry"]}), encoding="utf-8")
+    "fixtures": fixtures, "catalogs": catalogs}), encoding="utf-8")
 `;
 
 function sameFiles(actual, expected, context) {
@@ -117,9 +130,12 @@ def _archive_summary(encoded):
     assert.ok(ok(call("/api/examples"), "Examples").examples.length >= 20);
     assert.ok(ok(call("/api/publication"), "Publication").title);
     assert.ok(ok(call("/CITATION.cff"), "Citation").includes("cff-version:"));
-    const imported = ok(call("/api/example-project/dijkstra-fibonacci"), "Project example");
-    assert.equal(imported.entry, configuration.catalog_entry);
-    sameFiles(imported.sources, configuration.catalog_sources, "Project catalog sources");
+    for (const [identifier, project] of Object.entries(configuration.catalogs)) {
+      const imported = ok(call(`/api/example-project/${identifier}`), "Project example");
+      assert.equal(imported.entry, project.entry);
+      sameFiles(imported.sources, project.sources, `${identifier}: project catalog sources`);
+      sameFiles(imported.analyses, project.analyses, `${identifier}: project catalog proofs`);
+    }
     console.log("PASS catalog, metadata, citation, and imported project loading");
 
     for (const fixture of configuration.fixtures) {

@@ -1,15 +1,33 @@
-# Dijkstra with an independently verified priority queue
+# Dijkstra
 
 `dijkstra.algo` imports the existing `graph.algo` and the three-method
 `PriorityQueue` interface. It contains no heap implementation. The project root
 is `examples`, so imported source and companion proofs keep their own modules.
 
-In the editor, choose **Examples → Dijkstra — binary heap (imports)** or
-**Dijkstra — Fibonacci heap (imports)**. Each opens the complete project with
-its imported sources and unchanged companion proofs. **Check analysis** checks
-the selected proof and its imports. To open the files from disk instead, choose
-**Open project → examples**, then select a `composable_dijkstra` module;
-opening only this subfolder leaves out the graph and heap modules.
+In the editor, choose **Examples → Project folders → Dijkstra**. This opens one
+project containing both queue variants and their shared dependencies. The
+**Project file** picker groups files by folder and opens `dijkstra_binary.algo`
+first. Select `dijkstra_fibonacci.algo` for the Fibonacci-heap version. The
+**Main results** in each companion analysis link to its correctness and running
+time theorems. Online proof checking is unavailable; use a local Lean setup or
+the local editor's **Check analysis** to check the proof and its imports.
+
+To open the files from disk, choose **Open project → examples**; opening only
+this subfolder leaves out the graph and heap modules.
+
+| Source | Purpose | Analysis |
+| --- | --- | --- |
+| [dijkstra_binary.algo](dijkstra_binary.algo) | Ready-to-use Dijkstra with an indexed binary heap. | [Correctness and running time](../analysis/composable_dijkstra/dijkstra_binary.lean) |
+| [dijkstra_fibonacci.algo](dijkstra_fibonacci.algo) | Ready-to-use Dijkstra with a Fibonacci heap. | [Correctness and running time](../analysis/composable_dijkstra/dijkstra_fibonacci.lean) |
+| [dijkstra.algo](dijkstra.algo) | Shared algorithm, independent of the queue implementation. | [Generic proof](../analysis/composable_dijkstra/dijkstra.lean) |
+| [priority_queue.algo](priority_queue.algo) | The queue operations required by Dijkstra. | [Queue contract](../analysis/composable_dijkstra/priority_queue.lean) |
+
+The graph and heap implementations live in `graph.algo`, `indexed_heap.algo`,
+and `fibonacci_heap.algo` in the parent directory. The
+[support proofs](../analysis/composable_dijkstra/support/) verify the heap
+operations and establish that they satisfy the queue contract. These are Lean
+dependencies, not extra algorithm examples; they are included automatically
+when checking or downloading this project.
 
 The entry point is:
 

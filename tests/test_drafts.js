@@ -350,6 +350,7 @@ function editor(local = new MemoryStorage(), session = new MemoryStorage(), opti
   elements.get("filename").value = "merge_sort.algo";
   elements.get("analysis-filename").value = "Analysis.lean";
   elements.get("project-toolbar").hidden = true;
+  elements.get("new-file-form").hidden = true;
   elements.get("undo-clear-drafts-button").hidden = true;
   elements.get("analyze-button").append({ textContent: "Check analysis " });
   elements.get("examples").options = [new Element("option")];
@@ -559,6 +560,55 @@ test("generated text controls contain the exact current Lean in both panes", asy
     assert.equal(await (await fetch(app.downloads.at(-2).href)).text(), core);
     assert.equal(await (await fetch(app.downloads.at(-1).href)).text(), points);
   }
+});
+
+test("shared execution browsing preserves public proof imports and exports the displayed files", async () => {
+  const publicModule = "Algo.even.Generated";
+  const publicPoints = "Algo.even.Points";
+  const sharedModule = "Algo._a2l_groups.Gtest.Generated";
+  const sharedPoints = "Algo._a2l_groups.Gtest.Points";
+  const files = {
+    [publicModule]: `import ${sharedModule}\n-- public even interface\n`,
+    [publicPoints]: `import ${sharedPoints}\n-- public named points\n`,
+    [sharedModule]: "-- shared transitions for even and odd\n",
+    [sharedPoints]: "-- shared named points for even and odd\n",
+  };
+  let cyclic = true;
+  const app = editor(undefined, undefined, { fetch: (url) => {
+    if (url === "/api/compile") return { ok: true, json: async () => ({
+      ok: true, lean: files[publicModule], points_lean: files[publicPoints], functions: [],
+      module: publicModule, points_module: publicPoints, project_files: files,
+      implementation_module: cyclic ? sharedModule : null,
+      implementation_points_module: cyclic ? sharedPoints : null,
+    }) };
+  } });
+  await app.ready();
+  await app.elements.get("compile-button").click();
+  const proof = app.elements.get("analysis").value;
+  assert.equal(app.elements.get("generated-view-control").hidden, false);
+  assert.equal(app.elements.get("lean-selection").value, files[publicModule]);
+  app.elements.get("generated-view").value = "execution";
+  await app.elements.get("generated-view").dispatch("change");
+  assert.equal(app.elements.get("lean-selection").value, files[sharedModule]);
+  assert.equal(app.elements.get("points-selection").value, files[sharedPoints]);
+  assert.equal(app.elements.get("analysis-module").textContent, publicModule);
+  assert.equal(app.elements.get("analysis-points-module").textContent, publicPoints);
+  assert.equal(app.elements.get("analysis").value, proof);
+  await app.elements.get("export-button").click();
+  await app.elements.get("export-points-button").click();
+  assert.equal(app.downloads.at(-2).name, sharedModule + ".lean");
+  assert.equal(app.downloads.at(-1).name, sharedPoints + ".lean");
+  assert.equal(await (await fetch(app.downloads.at(-2).href)).text(), files[sharedModule]);
+  assert.equal(await (await fetch(app.downloads.at(-1).href)).text(), files[sharedPoints]);
+  await app.elements.get("compile-button").click();
+  assert.equal(app.elements.get("generated-view").value, "execution");
+  assert.equal(app.elements.get("lean-selection").value, files[sharedModule]);
+  await app.edit("-- edit source\n");
+  assert.equal(app.elements.get("generated-view").disabled, true);
+  cyclic = false;
+  await app.elements.get("compile-button").click();
+  assert.equal(app.elements.get("generated-view-control").hidden, true);
+  assert.equal(app.elements.get("lean-selection").value, files[publicModule]);
 });
 
 test("named-point navigation scrolls the shared source viewport only after the explicit source action", async () => {
@@ -1309,6 +1359,163 @@ async function selectModule(app, path) {
   await app.ready();
 }
 
+async function createFile(app, name) {
+  await app.elements.get("new-file-button").click();
+  if (name !== undefined) app.elements.get("new-file-name").value = name;
+  await app.elements.get("new-file-form").dispatch("submit");
+  await app.ready();
+}
+
+test("New file preserves the previous source and proof and creates an independent standalone draft", async () => {
+  const app = editor();
+  await app.ready();
+  await app.edit("pending original algorithm");
+  await app.editAnalysis("-- pending original proof");
+  const compileRequests = app.requests.filter(({ url }) => url === "/api/compile").length;
+  await createFile(app, "fresh");
+  assert.equal(app.elements.get("filename").value, "fresh.algo");
+  assert.equal(app.elements.get("source").value, "");
+  assert.match(app.elements.get("analysis").value, /^import FreshGenerated\n/);
+  assert.equal(app.elements.get("new-file-form").hidden, true);
+  assert.equal(app.elements.get("new-file-button").getAttribute("aria-expanded"), "false");
+  assert.equal(app.requests.filter(({ url }) => url === "/api/compile").length, compileRequests);
+  const original = app.records().find((record) => record.source === "pending original algorithm");
+  const fresh = app.records().find((record) => record.filename === "fresh.algo");
+  assert.equal(original.analysis, "-- pending original proof");
+  assert.equal(fresh.source, "");
+  assert.notEqual(original.id, fresh.id);
+  const reloaded = editor(app.local, app.session);
+  await reloaded.ready();
+  assert.equal(reloaded.elements.get("filename").value, "fresh.algo");
+  assert.equal(reloaded.elements.get("source").value, "");
+});
+
+test("New file defaults avoid existing drafts and Cancel or Escape leave the workspace unchanged", async () => {
+  const app = editor();
+  await app.ready();
+  await createFile(app);
+  assert.equal(app.elements.get("filename").value, "untitled.algo");
+  const before = [...app.local.data];
+  await app.elements.get("new-file-button").click();
+  assert.equal(app.elements.get("new-file-name").value, "untitled_2.algo");
+  await app.elements.get("cancel-new-file-button").click();
+  assert.equal(app.elements.get("new-file-form").hidden, true);
+  assert.deepEqual([...app.local.data], before);
+  await app.elements.get("new-file-button").click();
+  await app.elements.get("new-file-form").dispatch("keydown", { key: "Escape" });
+  assert.equal(app.elements.get("new-file-form").hidden, true);
+  assert.equal(app.elements.get("filename").value, "untitled.algo");
+  assert.deepEqual([...app.local.data], before);
+});
+
+test("New file refuses to replace an unbacked-up standalone source and proof", async () => {
+  const app = editor();
+  await app.ready();
+  await app.edit("keep algorithm");
+  await app.editAnalysis("keep proof");
+  app.local.fail.add("write");
+  app.window.confirm = () => { throw new Error("New file should report the backup failure inline"); };
+  await createFile(app, "fresh.algo");
+  assert.equal(app.elements.get("source").value, "keep algorithm");
+  assert.equal(app.elements.get("analysis").value, "keep proof");
+  assert.equal(app.elements.get("new-file-form").hidden, false);
+  assert.match(app.elements.get("new-file-help").textContent, /could not be backed up/);
+});
+
+test("New file adds a project source and companion without replacing any edited file or support proof", async () => {
+  const app = editor();
+  await app.ready();
+  await openProject(app, "nested", {
+    "main.algo": PROJECT_SOURCE, "helpers/library.algo": PROJECT_LIBRARY,
+    "analysis/support/facts.lean": "-- reusable support proof",
+  });
+  await app.edit("pending main");
+  await app.editAnalysis("-- pending main proof");
+  await selectModule(app, "helpers/library.algo");
+  await app.edit("pending library");
+  await app.editAnalysis("-- pending library proof");
+  await app.elements.get("new-file-button").click();
+  assert.equal(app.elements.get("new-file-name").value, "helpers/untitled.algo");
+  app.elements.get("new-file-name").value = "helpers/search.algo";
+  await app.elements.get("new-file-form").dispatch("submit");
+  assert.equal(app.elements.get("filename").value, "helpers/search.algo");
+  assert.equal(app.elements.get("source").value, "");
+  assert.equal(app.elements.get("analysis-filename").value, "analysis/helpers/search.lean");
+  assert.match(app.elements.get("analysis").value, /^import Algo.helpers.search.Generated\n/);
+  await app.edit("def search() -> Int:\n    return 1\n");
+  await app.elements.get("project-export-button").click();
+  const payload = app.requests.filter(({ url }) => url === "/api/project-export").at(-1).body;
+  assert.equal(payload.project_sources["helpers/search.algo"], "def search() -> Int:\n    return 1\n");
+  assert.equal(payload.project_sources["main.algo"], "pending main");
+  assert.equal(payload.project_sources["helpers/library.algo"], "pending library");
+  assert.equal(payload.project_analyses["Algo.main.Analysis"], "-- pending main proof");
+  assert.equal(payload.project_analyses["Algo.helpers.library.Analysis"], "-- pending library proof");
+  assert.equal(payload.project_analyses["Algo.support.facts.Analysis"], "-- reusable support proof");
+  await selectModule(app, "helpers/library.algo");
+  assert.equal(app.elements.get("source").value, "pending library");
+  assert.equal(app.elements.get("analysis").value, "-- pending library proof");
+});
+
+test("New project files reject invalid paths, duplicate sources, proof collisions, and inconsistent folder case", async () => {
+  const app = editor();
+  await app.ready();
+  await openProject(app, "nested", {
+    "pkg/main.algo": PROJECT_LIBRARY, "analysis/support/facts.lean": "-- support proof",
+  });
+  const before = app.elements.get("source").value;
+  for (const name of ["", "../new.algo", "/new.algo", "bad-name.algo", "pkg//new.algo", "pkg/main.algo",
+    "Pkg/new.algo", "support/facts.algo", "Support/new.algo", "_a2l_groups/new.algo", "2wrong.algo"]) {
+    await createFile(app, name);
+    assert.equal(app.elements.get("new-file-form").hidden, false, name);
+    assert.equal(app.elements.get("new-file-name").getAttribute("aria-invalid"), "true", name);
+    assert.equal(app.elements.get("source").value, before, name);
+    assert.equal(app.elements.get("filename").value, "pkg/main.algo", name);
+  }
+  await createFile(app, "new_folder/new.algo");
+  assert.equal(app.elements.get("filename").value, "new_folder/new.algo");
+  assert.equal(app.elements.get("new-file-form").hidden, true);
+});
+
+test("New standalone files reject folder paths and unsafe names without replacing the current file", async () => {
+  const app = editor();
+  await app.ready();
+  for (const name of ["nested/new.algo", "../new.algo", "new file.algo", "", "_a2l_groups.algo"]) {
+    await createFile(app, name);
+    assert.equal(app.elements.get("filename").value, "merge_sort.algo");
+    assert.equal(app.elements.get("new-file-form").hidden, false);
+  }
+});
+
+test("New file respects the project source and proof limits", async () => {
+  for (const proofsOnly of [false, true]) {
+    const app = editor();
+    await app.ready();
+    const files = { "main.algo": PROJECT_LIBRARY };
+    for (let index = 1; index < 256; index += 1) files[proofsOnly ? `analysis/support_${index}.lean` : `file_${index}.algo`] = proofsOnly ? "-- proof" : PROJECT_LIBRARY;
+    await openProject(app, "full", files);
+    await createFile(app, "extra.algo");
+    assert.equal(app.elements.get("filename").value, "main.algo");
+    assert.match(app.elements.get("new-file-help").textContent, /at most 256/);
+  }
+});
+
+test("project file selection groups paths by folder and retains full path values", async () => {
+  const app = editor();
+  await app.ready();
+  await openProject(app, "nested", {
+    "main.algo": PROJECT_LIBRARY, "sorting/main.algo": PROJECT_LIBRARY,
+    "sorting/merge.algo": PROJECT_LIBRARY, "searching/main.algo": PROJECT_LIBRARY,
+  });
+  const groups = app.elements.get("project-module").children;
+  assert.deepEqual(groups.map((group) => group.label), ["Project root", "searching/", "sorting/"]);
+  assert.ok(groups.every((group) => group.tagName === "OPTGROUP"));
+  assert.deepEqual(groups[2].children.map((option) => [option.textContent, option.value]), [
+    ["main.algo", "sorting/main.algo"], ["merge.algo", "sorting/merge.algo"],
+  ]);
+  await selectModule(app, "sorting/main.algo");
+  assert.equal(app.elements.get("filename").value, "sorting/main.algo");
+});
+
 test("project folder selection sends relative sources and canonical companion proof modules", async () => {
   const app = editor();
   await app.ready();
@@ -1515,7 +1722,7 @@ test("native folder picker reads only files below the explicitly selected direct
   assert.equal(app.elements.get("source").value, PROJECT_LIBRARY);
 });
 
-const PROJECT_EXAMPLE = { name: "Dijkstra — binary heap (imports)", project_id: "dijkstra-binary",
+const PROJECT_EXAMPLE = { name: "Dijkstra", project_id: "dijkstra", folder: "composable_dijkstra",
   filename: "client/main.algo", source: PROJECT_SOURCE };
 const PROJECT_BUNDLE = { name: "Dijkstra example", entry: "client/main.algo",
   sources: { "client/main.algo": PROJECT_SOURCE, "library.algo": PROJECT_LIBRARY },
@@ -1524,7 +1731,7 @@ const PROJECT_BUNDLE = { name: "Dijkstra example", entry: "client/main.algo",
 
 function projectExampleResponse(url) {
   if (url === "/api/examples") return { ok: true, json: async () => ({ examples: [PROJECT_EXAMPLE] }) };
-  if (url === "/api/example-project/dijkstra-binary") return { ok: true, json: async () => PROJECT_BUNDLE };
+  if (url === "/api/example-project/dijkstra") return { ok: true, json: async () => PROJECT_BUNDLE };
 }
 
 async function chooseProjectExample(app) {
@@ -1533,6 +1740,58 @@ async function chooseProjectExample(app) {
   await selector.dispatch("change");
   await app.ready();
 }
+
+test("the example picker separates project folders from single files while retaining their catalog indices", async () => {
+  const app = editor(undefined, undefined, { fetch: (url) => {
+    if (url === "/api/examples") return { ok: true, json: async () => ({ examples: [
+      { name: "Merge sort", filename: "merge_sort.algo", source: "-- sort" },
+      PROJECT_EXAMPLE,
+      { name: "Reusable algorithms", project_id: "modules", folder: "modules", filename: "pipeline.algo", source: "-- pipeline" },
+    ] }) };
+    return projectExampleResponse(url);
+  } });
+  await app.ready();
+  const groups = app.elements.get("examples").children;
+  assert.deepEqual(groups.map((group) => group.label), ["Project folders", "Single files"]);
+  assert.deepEqual(groups[0].children.map((option) => [option.value, option.textContent]), [
+    ["1", "Dijkstra · composable_dijkstra/"], ["2", "Reusable algorithms · modules/"],
+  ]);
+  assert.equal(groups[1].children[0].value, "0");
+  app.elements.get("examples").value = "1";
+  await app.elements.get("examples").dispatch("change");
+  assert.equal(app.elements.get("project-name").textContent, "Dijkstra example");
+});
+
+test("creating a file cancels replacement by a late project-example download", async () => {
+  let finish;
+  const pending = new Promise((resolve) => { finish = resolve; });
+  const app = editor(undefined, undefined, { fetch: (url) => {
+    if (url === "/api/example-project/dijkstra") return pending;
+    return projectExampleResponse(url);
+  } });
+  await app.ready();
+  const opening = chooseProjectExample(app);
+  await app.ready();
+  await createFile(app, "my_new_file.algo");
+  finish({ ok: true, json: async () => PROJECT_BUNDLE });
+  await opening;
+  assert.equal(app.elements.get("filename").value, "my_new_file.algo");
+  assert.equal(app.elements.get("project-toolbar").hidden, true);
+  assert.equal(app.elements.get("source").value, "");
+});
+
+test("hosted projects can add files and send them to the browser compiler", async () => {
+  const app = editor(undefined, undefined, { hosted: true, fetch: projectExampleResponse });
+  await app.ready();
+  await chooseProjectExample(app);
+  await createFile(app, "client/extra.algo");
+  await app.edit("def answer() -> Int:\n    return 42\n");
+  await app.elements.get("compile-button").click();
+  const request = app.requests.filter(({ url }) => url === "/api/compile").at(-1);
+  assert.equal(request.body.filename, "client/extra.algo");
+  assert.equal(request.body.project_sources["client/extra.algo"], "def answer() -> Int:\n    return 42\n");
+  assert.equal(request.body.project_sources["library.algo"], PROJECT_LIBRARY);
+});
 
 test("outdated project server is detected before compile, check, analysis, or export and retry recovers", async () => {
   let updated = false;
@@ -1578,7 +1837,7 @@ test("late example download cannot replace edits made while loading", async () =
   let complete;
   const pending = new Promise((resolve) => { complete = resolve; });
   const app = editor(undefined, undefined, { fetch: (url) => {
-    if (url === "/api/example-project/dijkstra-binary") return pending;
+    if (url === "/api/example-project/dijkstra") return pending;
     return projectExampleResponse(url);
   } });
   await app.ready();
@@ -1594,7 +1853,7 @@ test("late example download cannot replace edits made while loading", async () =
 
 test("incomplete example download leaves the current source and proof intact", async () => {
   const app = editor(undefined, undefined, { fetch: (url) => {
-    if (url === "/api/example-project/dijkstra-binary") return { ok: true, json: async () => ({ ...PROJECT_BUNDLE, entry: "missing.algo" }) };
+    if (url === "/api/example-project/dijkstra") return { ok: true, json: async () => ({ ...PROJECT_BUNDLE, entry: "missing.algo" }) };
     return projectExampleResponse(url);
   } });
   await app.ready();
@@ -1608,7 +1867,7 @@ test("incomplete example download leaves the current source and proof intact", a
 
 test("an invalid bundled example shows the server diagnostic without replacing drafts", async () => {
   const app = editor(undefined, undefined, { fetch: (url) => {
-    if (url === "/api/example-project/dijkstra-binary") return { ok: false,
+    if (url === "/api/example-project/dijkstra") return { ok: false,
       json: async () => ({ diagnostics: [{ message: "Module 'graph' was not found." }] }) };
     return projectExampleResponse(url);
   } });

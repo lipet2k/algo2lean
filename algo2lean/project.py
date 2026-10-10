@@ -69,17 +69,20 @@ class SourceModule:
 class Project:
     root: Path
     entry: str
-    # Insertion order is deterministic and dependencies precede their callers.
+    # Dependencies precede callers except within a mutually dependent group.
     modules: Dict[str, SourceModule] = field(default_factory=dict)
     # Retain unvisited editor buffers for algorithm dependencies mentioned only
     # by a subsequently selected Lean analysis. Keys are root-relative .algo
     # paths: a canonical module like pkg.algo is otherwise ambiguous with the
     # filename pkg.algo when passed back through the public loader.
     source_overlays: Dict[str, str] = field(default_factory=dict)
+    # Each group is compiled together. Members are sorted so the identity of a
+    # recursive group does not depend on which of its modules was the entry.
+    compilation_groups: Tuple[Tuple[str, ...], ...] = ()
 
     def transitive_dependencies(self, module: Union[str, SourceModule]) -> Tuple[str, ...]:
         owner = self.modules[module] if isinstance(module, str) else module
-        seen = set()
+        seen = {owner.name}
         ordered = []
 
         def visit(name):
@@ -153,6 +156,7 @@ class _Loader:
         self.spellings = {}
         self.loading = []
         self.paths = {}
+        self.pending_imports = []
         self.max_modules = max_modules
         for key, source in (sources or {}).items():
             name = self.module_name(key)
@@ -234,13 +238,12 @@ class _Loader:
             _error(origin, node, "Module names must use ASCII identifiers separated by dots.")
         if name == "algo2lean" or name.startswith("algo2lean."):
             _error(origin, node, "'algo2lean' is reserved for compiler-provided declarations.")
+        if name.split(".")[0].casefold() == "_a2l_groups":
+            _error(origin, node, "'_a2l_groups' is reserved for generated recursive compilation groups.")
         self._register_spelling(name, origin, node)
-        if name in self.loading:
-            chain = self.loading[self.loading.index(name):] + [name]
-            _error(origin, node, "Import cycle: %s." % " -> ".join(chain))
         if name in self.project.modules:
             return self.project.modules[name]
-        if len(self.project.modules) + len(self.loading) >= self.max_modules:
+        if len(self.project.modules) >= self.max_modules:
             _error(origin, node, "Project exceeds the limit of %s modules." % self.max_modules)
         path = self._safe_path(name, origin, node)
         try:
@@ -255,6 +258,11 @@ class _Loader:
         module = SourceModule(name, path, source, tree)
         self.loading.append(name)
         self._declarations(module)
+        # Register declarations before following imports. Sources contain no
+        # executable top-level statements, so recursive imports need no Python
+        # module-initialization order and can share these declaration identities.
+        module.exports = dict(module.bindings)
+        self.project.modules[name] = module
         dependencies = []
         for declaration in tree.body:
             if not isinstance(declaration, (ast.Import, ast.ImportFrom)):
@@ -276,25 +284,81 @@ class _Loader:
                     _error(path, declaration, "Wildcard imports are not supported.")
                 if declaration.module == "algo2lean":
                     exports = {"Interface": INTERFACE}
+                    for alias in declaration.names:
+                        if alias.name not in exports:
+                            _error(path, declaration, "Module 'algo2lean' does not export '%s'." % alias.name)
+                        self._bind(module, alias.asname or alias.name, exports[alias.name], declaration)
                 else:
                     imported = self.load(declaration.module, module, declaration)
                     dependencies.append(imported.name)
-                    exports = imported.exports
-                for alias in declaration.names:
-                    if alias.name not in exports:
-                        _error(path, declaration, "Module '%s' does not export '%s'." % (declaration.module, alias.name))
-                    self._bind(module, alias.asname or alias.name, exports[alias.name], declaration)
+                    for alias in declaration.names:
+                        self.pending_imports.append((module, declaration, alias))
         module.dependencies = tuple(dict.fromkeys(dependencies))
-        for declaration in tree.body:
-            if isinstance(declaration, ast.ClassDef) and (declaration.bases or declaration.keywords):
-                if declaration.keywords or len(declaration.bases) != 1 or self.project.resolve(module, declaration.bases[0]) != INTERFACE:
-                    _error(path, declaration, "Class inheritance is unsupported; interfaces must use the imported Interface marker as their only base.")
-                module.bindings[declaration.name] = Symbol(name, declaration.name, "interface")
-        module.exports = dict(module.bindings)
-        _References(self.project, module).visit(tree)
         self.loading.pop()
-        self.project.modules[name] = module
         return module
+
+    def finish(self):
+        """Resolve the complete declaration graph before inspecting bodies."""
+        pending = self.pending_imports
+        while pending:
+            unresolved = []
+            for module, declaration, alias in pending:
+                exports = self.project.modules[declaration.module].exports
+                if alias.name in exports:
+                    self._bind(module, alias.asname or alias.name, exports[alias.name], declaration)
+                else:
+                    unresolved.append((module, declaration, alias))
+            if len(unresolved) == len(pending):
+                self._unresolved_import(unresolved)
+            pending = unresolved
+
+        # Imported aliases must retain the declaration's final kind as well as
+        # its identity. Classifying after name resolution also handles Interface
+        # markers re-exported through a mutually dependent group of modules.
+        interfaces = {}
+        for module in self.project.modules.values():
+            for declaration in module.tree.body:
+                if isinstance(declaration, ast.ClassDef) and (declaration.bases or declaration.keywords):
+                    if declaration.keywords or len(declaration.bases) != 1 or self.project.resolve(module, declaration.bases[0]) != INTERFACE:
+                        _error(module.path, declaration, "Class inheritance is unsupported; interfaces must use the imported Interface marker as their only base.")
+                    old = module.bindings[declaration.name]
+                    interfaces[old] = Symbol(module.name, declaration.name, "interface")
+        for module in self.project.modules.values():
+            module.bindings = {name: interfaces.get(symbol, symbol) for name, symbol in module.bindings.items()}
+            module.exports = dict(module.bindings)
+
+        self.project.compilation_groups = _compilation_groups(self.project.modules)
+        self.project.modules = {
+            name: self.project.modules[name]
+            for group in self.project.compilation_groups for name in group
+        }
+        for module in self.project.modules.values():
+            self.loading.append(module.name)
+            _References(self.project, module).visit(module.tree)
+            self.loading.pop()
+
+    def _unresolved_import(self, pending):
+        """Explain an ungrounded alias cycle or its missing export endpoint."""
+        imports = {
+            (module.name, alias.asname or alias.name): (module, declaration, alias)
+            for module, declaration, alias in pending
+        }
+        module, declaration, alias = pending[0]
+        chain = []
+        positions = {}
+        while True:
+            key = (module.name, alias.asname or alias.name)
+            if key in positions:
+                cycle = chain[positions[key]:] + [key]
+                _error(module.path, declaration,
+                       "Unresolved cyclic re-export: %s. The imported name needs a function, class, or module declaration."
+                       % " -> ".join(owner + "." + name for owner, name in cycle))
+            positions[key] = len(chain)
+            chain.append(key)
+            target = (declaration.module, alias.name)
+            if target not in imports:
+                _error(module.path, declaration, "Module '%s' does not export '%s'." % target)
+            module, declaration, alias = imports[target]
 
     def _bind(self, module, local, symbol, node):
         if not _NAME.fullmatch(local) or local in TYPES or local in BUILTINS:
@@ -303,6 +367,7 @@ class _Loader:
         if previous is not None and previous != symbol:
             _error(module.path, node, "Conflicting binding for '%s'." % local)
         module.bindings[local] = symbol
+        module.exports[local] = symbol
 
     def _declarations(self, module):
         top_imports = {id(node) for node in module.tree.body if isinstance(node, (ast.Import, ast.ImportFrom))}
@@ -319,6 +384,40 @@ class _Loader:
                 _error(module.path, node, "Duplicate definition '%s'." % node.name)
             declarations.add(node.name)
             self._bind(module, node.name, Symbol(module.name, node.name, "function" if isinstance(node, ast.FunctionDef) else "class"), node)
+
+
+def _compilation_groups(modules):
+    """Tarjan components in dependency-first order, retaining acyclic ordering."""
+    indices = {}
+    lowlinks = {}
+    stack = []
+    active = set()
+    groups = []
+
+    def visit(name):
+        indices[name] = lowlinks[name] = len(indices)
+        stack.append(name)
+        active.add(name)
+        for dependency in modules[name].dependencies:
+            if dependency not in indices:
+                visit(dependency)
+                lowlinks[name] = min(lowlinks[name], lowlinks[dependency])
+            elif dependency in active:
+                lowlinks[name] = min(lowlinks[name], indices[dependency])
+        if lowlinks[name] == indices[name]:
+            members = []
+            while True:
+                member = stack.pop()
+                active.remove(member)
+                members.append(member)
+                if member == name:
+                    break
+            groups.append(tuple(sorted(members)))
+
+    for name in modules:
+        if name not in indices:
+            visit(name)
+    return tuple(groups)
 
 
 class _References(ast.NodeVisitor):
@@ -422,6 +521,7 @@ def load_project(entry: Union[str, Path], *, root: Union[str, Path],
     loader.project.entry = loader.module_name(entry)
     try:
         loader.load(loader.project.entry)
+        loader.finish()
     except (RecursionError, MemoryError):
         owner = loader.loading[-1] if loader.loading else loader.project.entry
         raise ProjectError(RESOURCE_LIMIT, loader.path(owner)) from None

@@ -1,8 +1,9 @@
 # Algorithm projects
 
 A project is a folder of `.algo` files and optional Lean companion analyses.
-Each algorithm module is compiled separately. Adding a caller preserves the
-imported module's generated definitions and existing proofs.
+Algorithm modules without circular dependencies are compiled separately.
+Mutually dependent source files are compiled as one recursive group. Adding a
+caller preserves the imported definitions and existing proofs in both cases.
 
 ## Files and imports
 
@@ -10,6 +11,10 @@ The project root determines module names: `sorting.algo` is `sorting`, and
 `collections/queue.algo` is `collections.queue`. Paths use ASCII identifiers,
 including their original letter case. Python keywords cannot be path components.
 There are no implicit packages or `__init__.algo` files.
+The root name `_a2l_groups`, including case variants, is reserved for the
+compiler's generated recursive implementations and cannot name a source module.
+Source identifiers beginning `_a2l_group_` are also reserved for generated
+declarations, preventing accidental references to compiler-internal names.
 
 All four import forms are supported at the top level:
 
@@ -28,11 +33,62 @@ one identity. Dotted imports such as `import collections.queue` permit qualified
 references such as `collections.queue.Queue`.
 
 Imports are resolved statically without executing Python. Relative imports,
-wildcard imports, conditional or function-local imports, dynamic imports, and
-cycles between source modules are rejected. A missing or invalid imported
+wildcard imports, conditional or function-local imports, and dynamic imports
+are rejected. A missing or invalid imported
 declaration is reported with its file and source location. Files reached through
 symlinks must stay inside the project root; ambiguous paths and case collisions
-are rejected. Ordinary recursion within a module remains supported.
+are rejected. Recursion is supported both within a module and across imports.
+
+## Mutually recursive files
+
+Two source files can call each other using ordinary imports:
+
+```python
+# even.algo
+from odd import is_odd
+
+def is_even(n: Int) -> Bool:
+    if n <= 0:
+        return True
+    return is_odd(n - 1)
+```
+
+```python
+# odd.algo
+from even import is_even
+
+def is_odd(n: Int) -> Bool:
+    if n <= 0:
+        return False
+    return is_even(n - 1)
+```
+
+The compiler groups mutually dependent modules, collects their declarations,
+and emits one shared implementation for each group. The group contains one
+transition relation and the frames needed by its functions. Its generated Lean
+imports have no cycle. Dependencies outside the group remain separately
+compiled and are called through their existing execution interfaces.
+
+Source-facing names stay unchanged: a proof imports `Algo.even.Generated` and
+uses `Algo.even.is_even.Call`, while another imports `Algo.odd.Generated` and
+uses `Algo.odd.is_odd.Call`. These generated files expose the shared
+implementation under each source module's own namespace. An unrelated caller
+can import just the function it needs without copying or reproving the group's
+implementation. Internal names of the generated group are compiler details.
+
+Group membership and generated definitions are independent of the entry module
+and the order in which imports are visited. Editing a member's algorithm
+invalidates the group; editing its line labels changes only the named-location
+interface. A function-call cycle does not require a termination argument just
+to compile: terminating calls, finite prefixes, and diverging computations use
+the existing transcript semantics.
+
+Mutual recursion in source code does not justify circular proofs. Establish
+the functions' contracts together, usually with a simultaneous induction, then
+export the individual call theorems for clients. Lean companion analyses must
+still form an acyclic import graph. The weighted parity example in
+[`examples/mutual_recursion`](../examples/mutual_recursion/README.md) shows the
+source organization and a separate client.
 
 ## Compile and check
 
@@ -61,11 +117,14 @@ For a source module `pkg.example`, project compilation exports:
 | `Algo.pkg.example.Points` | `Algo/pkg/example/Points.lean` | Named source locations |
 | `Algo.pkg.example.Facts` | `Algo/pkg/example/Facts.lean` | Optional checked execution facts and determinism helpers |
 
-The declarations live in namespace `Algo.pkg.example`; generated transition
-definitions live in its `Algo2LeanGenerated` namespace. Changing a named label
-changes Points without changing Generated. `--check` checks Generated and Points
-throughout the source dependency graph. Facts are checked when an analysis
-imports them.
+The public declarations live in namespace `Algo.pkg.example`. An independently
+compiled module defines its transitions in that namespace's `Algo2LeanGenerated`
+namespace. A member of a recursive group instead exposes aliases to the group's
+shared transition definitions; its public function names stay in the source
+namespace. A caller of several group members uses one shared execution wrapper
+for the group. Changing a named label changes Points without changing Generated.
+`--check` checks Generated and Points throughout the source dependency graph.
+Facts are checked when an analysis imports them.
 
 Without `--output-dir`, compile prints the entry module's Generated text. Use
 `--output-dir` to obtain the other files and imported dependencies. Project mode
@@ -152,10 +211,15 @@ passes an imported concrete object; the compiler checks its method signatures
 and builds the binding. Two calls may use different implementations of the same
 generic module without duplicating its compiled body.
 
-Bindings are module-wide. Every export of a generic module shares its
+Bindings are shared within a compilation unit: an independent module or a
+recursive group. Every export of a generic unit shares its
 dependencies, including a helper that does not call an interface itself; place
 such a helper in a separate module to make it independently callable. A wrapper
 can bind some dependencies and forward the others to its own callers.
+When selecting a concrete interface implementation inside a recursive group,
+import the backend from outside that group. A class defined in the same group
+cannot currently serve as that binding's concrete backend. Ordinary calls to
+local classes and methods remain supported.
 
 A generic generated module exposes `Dependencies`, with one `Code` field per
 used interface. Its relations take that value first:
@@ -187,6 +251,11 @@ opens a standalone document; use **Open project** for imports. The browser reads
 that folder through its folder picker; the server does not receive a filesystem
 root. Use **Module** to switch sources and their companion analyses. The generated definitions and
 named-location interface remain in the two existing output panes.
+For a module in a recursive group, the **Public interface** / **Shared execution**
+selector switches those panes between the source module's interfaces and the
+group's underlying implementation. Browsing the shared execution does not
+change the source-facing names or the analysis's imports. Exported projects
+include both the public interfaces and the shared implementation.
 
 To try imports immediately, choose a **Dijkstra … (imports)** entry from
 **Examples**. It opens an editable project containing the selected algorithm,

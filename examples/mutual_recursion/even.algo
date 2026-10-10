@@ -1,0 +1,10 @@
+from odd import is_odd
+
+
+# Each invocation charges two units, including the nonpositive base case.
+def is_even(n: Int) -> Bool:
+    tick("work", 2)
+    # @base_case
+    if n <= 0:
+        return True
+    return is_odd(n - 1)

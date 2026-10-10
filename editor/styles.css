@@ -44,15 +44,15 @@ pre, code, kbd { font-family: var(--mono); }
 .identity h1 { font-size: 25px; letter-spacing: -.8px; font-weight: 650; line-height: 1.2; }
 .identity p { font-size: 13px; color: #c6d7e8; margin-top: 5px; }
 .workspace { max-width: 1840px; padding: 24px 32px 14px; margin: 0 auto; }
-.document-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; min-height: 44px; }
+.document-toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 16px; min-height: 44px; }
 .file-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .document-toolbar .file-controls { flex-wrap: wrap; }
 .project-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 20px; margin-bottom: 16px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 7px; background: var(--paper); }
 .project-identity, .project-module-field, .project-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .project-identity strong { color: var(--ink); overflow-wrap: anywhere; }
 .project-module-field { flex: 1; }
-.project-module-field label { color: var(--muted); font-size: 13px; }
-.project-module-field select { width: 100%; max-width: 380px; min-width: 120px; min-height: 44px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 8px 12px; color: var(--ink); font-family: var(--mono); font-size: 12px; }
+.project-module-field label { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.project-module-field select { width: 100%; max-width: 480px; min-width: 120px; min-height: 44px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); padding: 8px 12px; color: var(--ink); font-family: var(--mono); font-size: 13px; }
 .project-toolbar .button { min-height: 44px; }
 #project-help { flex-basis: 100%; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .filename-field input[readonly] { cursor: default; color: var(--muted); }
@@ -71,8 +71,19 @@ pre, code, kbd { font-family: var(--mono); }
 .button-primary:hover:not(:disabled) { background: #284b71; border-color: #284b71; }
 .button-primary:active { background: #102139; }
 .button-primary kbd { color: #c6d7e8; font-size: 11px; font-weight: 400; margin-left: 12px; }
-.example-control { display: flex; align-items: center; gap: 12px; }
-.example-control select { min-height: 40px; max-width: 215px; border: 1px solid #becddd; border-radius: 5px; background: var(--paper); padding: 8px 30px 8px 12px; color: var(--ink); font-size: 13px; }
+.example-control { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-width: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.example-control select { min-height: 44px; width: 370px; max-width: 100%; min-width: 0; border: 1px solid #becddd; border-radius: 5px; background: var(--paper); padding: 8px 30px 8px 12px; color: var(--ink); font-size: 13px; }
+#examples-help { color: var(--muted); font-size: 12px; }
+.new-file-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--border); border-radius: 7px; background: var(--paper); }
+.new-file-field { display: flex; align-items: center; flex: 1; gap: 12px; min-width: 0; }
+.new-file-field label { color: var(--muted); white-space: nowrap; }
+.new-file-field input { width: 100%; min-width: 0; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 5px; font-family: var(--mono); background: var(--surface); }
+.new-file-field input[aria-invalid="true"] { border-color: var(--error); }
+.new-file-actions { display: flex; gap: 8px; }
+#new-file-help { flex-basis: 100%; color: var(--muted); font-size: 12px; }
+#new-file-help.error { color: var(--error); }
+@media (max-width: 800px) { .document-toolbar .example-control { margin-left: 0; } }
+@media (max-width: 500px) { .document-toolbar .example-control { justify-content: flex-start; } .document-toolbar .example-control select { flex: 1; width: auto; } #examples-help { flex-basis: 100%; } .new-file-field { flex-basis: 100%; } .new-file-field input { font-size: 16px; } .project-module-field select { font-size: 16px; } }
 .draft-picker { margin-bottom: 16px; padding: 14px 18px; border: 1px solid var(--border); border-radius: 7px; background: var(--paper); }
 .draft-picker > summary { color: var(--ink); font-weight: 600; }
 #draft-count { margin-left: 8px; color: var(--muted); font-weight: 400; }
@@ -134,6 +145,9 @@ pre, code, kbd { font-family: var(--mono); }
 .generated-panes .output-container { height: clamp(200px, 27vh, 360px); min-height: 200px; }
 .points-pane { border-top: 1px solid #bdcbdc; }
 .output-description { padding: 9px 18px; color: var(--muted); font-size: 12px; line-height: 1.6; border-bottom: 1px solid #e5edf5; }
+.generated-view-control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 18px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.generated-view-control select { min-height: 40px; min-width: 0; max-width: 100%; border: 1px solid var(--border); border-radius: 5px; padding: 8px 12px; background: var(--paper); color: var(--ink); }
+.generated-view-control p { flex-basis: 100%; }
 .generated-panes .output-empty { padding-top: 24px; padding-bottom: 24px; max-width: 440px; }
 .generated-panes .output-empty svg { display: none; }
 .generated-panes .output-empty span { margin-top: 12px; }

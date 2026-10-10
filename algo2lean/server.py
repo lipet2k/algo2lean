@@ -138,8 +138,6 @@ class EditorHandler(BaseHTTPRequestHandler):
                 analysis_path = ROOT / "examples" / "analysis" / (filename.stem + ".lean")
                 analysis = analysis_path.read_text(encoding="utf-8") if analysis_path.is_file() else None
                 name = filename.stem.replace("_", " ").title()
-                if filename.stem in {"dijkstra", "dijkstra_fibonacci"}:
-                    name += " (single file)"
                 examples.append({"name": name, "filename": filename.name,
                                  "description": description, "source": source, "analysis": analysis,
                                  "module": generated_module_name(filename.name),
@@ -396,6 +394,7 @@ def project_response(compilation):
     from .emitter import public_types
     from .public_names import interface_metadata
     entry = compilation.entry
+    implementation = getattr(entry, "implementation", None)
     functions = []
     for function in entry.functions.values():
         inputs, output = public_types(function)
@@ -411,6 +410,9 @@ def project_response(compilation):
             "points_lean": entry.points_lean, "points_module": entry.points_module,
             "shared_lean": "", "stats": entry.stats, "functions": functions,
             "diagnostics": [], "module": entry.lean_module, "namespace": entry.namespace,
+            "implementation_module": implementation.lean_module if implementation else None,
+            "implementation_points_module": implementation.points_module if implementation else None,
+            "implementation_facts_module": implementation.facts_module if implementation else None,
             "project_files": compilation.files,
             "project_modules": [{"name": module.name,
                 "filename": "/".join(module.name.split(".")) + ".algo",

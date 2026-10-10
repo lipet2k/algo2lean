@@ -1,6 +1,19 @@
 # Algo2Lean examples
 
-Open any `.algo` file in the local editor, or choose it from the **Examples** menu. Each file is a complete, independent compilation unit.
+Choose a single file or a project folder from the editor's **Examples** menu.
+Single files compile on their own. Projects load related source files, imports,
+and companion proofs together; use **Project file** to switch between them.
+
+| Project folder | What it demonstrates |
+| --- | --- |
+| [modules/](modules/README.md) | Reusable calls, sorting and searching, and passing algorithms as arguments. |
+| [interfaces/](interfaces/README.md) | One abstract interface with interchangeable implementations and reusable proofs. |
+| [mutual_recursion/](mutual_recursion/README.md) | Recursive imports, shared execution, and a caller that reuses the parity proof. |
+| [composable_dijkstra/](composable_dijkstra/README.md) | One Dijkstra algorithm with binary-heap and Fibonacci-heap implementations and analyses. |
+
+**New file** creates a standalone file or adds one to the open project. Use
+**Open project** for a folder from your computer and **Download project** to
+keep all source and proof edits together.
 
 ```sh
 python3 -m algo2lean serve --open

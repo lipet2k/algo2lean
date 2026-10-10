@@ -1,7 +1,7 @@
 import Algo.composable_dijkstra.dijkstra_binary.Generated
 import Algo.composable_dijkstra.dijkstra_binary.Facts
 import Algo.composable_dijkstra.dijkstra.Analysis
-import Algo.composable_dijkstra.binary_queue.Analysis
+import Algo.composable_dijkstra.support.binary_queue.Analysis
 
 /-! The concrete wrapper constructs a queue and client arrays, then applies the
     unchanged generic Dijkstra theorem and the independent queue contract. -/

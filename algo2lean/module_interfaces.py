@@ -25,9 +25,9 @@ class Environment:
     facts: dict
 
 
-def prepare_interfaces(project, owner, infos, names, classes, origins, functions, calls):
+def prepare_interfaces(project, owner, infos, names, classes, origins, functions, calls, *, members=()):
     from .modular import ImportedCall, namespace
-    available = set(project.transitive_dependencies(owner)) | {owner.name}
+    available = set(project.transitive_dependencies(owner)) | {owner.name} | set(members)
     for index, (symbol, info) in enumerate(infos.items()):
         if symbol.module not in available:
             continue
@@ -77,23 +77,30 @@ def resolve_interfaces(owner, module, all_functions, all_calls, compiled, infos)
     def fail(node, message):
         raise ProjectError(message, owner.path, getattr(node, 'lineno', 1), getattr(node, 'col_offset', 0) + 1)
 
-    def interface_type(typ):
+    def interface_type(typ, node=None):
         element = sequence_element(typ)
         if element is not None:
-            if interface_type(element):
-                fail(owner.tree, 'Sequences of abstract interface references are not supported yet; use concrete element classes.')
+            if interface_type(element, node):
+                fail(node or owner.tree, 'Sequences of abstract interface references are not supported yet; use concrete element classes.')
             return None
         origin = module.class_origins.get(typ.rstrip('?'))
         return origin if origin and origin.kind == 'interface' else None
 
     needed = set()
+    field_annotations = {
+        (declaration.name, member.target.id): member.annotation
+        for declaration in owner.tree.body if isinstance(declaration, ast.ClassDef)
+        for member in declaration.body
+        if isinstance(member, ast.AnnAssign) and isinstance(member.target, ast.Name)
+    }
     for definition in module.classes.values():
-        for typ in definition.fields.values():
-            if interface_type(typ):
-                fail(owner.tree, 'Abstract interface references are not supported in object fields yet; pass them as function parameters.')
+        for field, typ in definition.fields.items():
+            annotation = field_annotations.get((definition.name, field), owner.tree)
+            if interface_type(typ, annotation):
+                fail(annotation, 'Abstract interface references are not supported in object fields yet; pass them as function parameters.')
     for function in module.functions.values():
         for typ in [function.return_type, *function.variables.values(), *function.expression_types.values()]:
-            origin = interface_type(typ)
+            origin = interface_type(typ, function.node)
             if origin:
                 needed.add(origin)
     for origin in sorted(needed, key=lambda item: item.canonical_name):
@@ -122,7 +129,7 @@ def resolve_interfaces(owner, module, all_functions, all_calls, compiled, infos)
         for expression in ast.walk(function.node):
             expected = getattr(expression, 'expected_type', None)
             actual = function.expression_types.get(id(expression))
-            if (expected and actual != expected and interface_type(expected)
+            if (expected and actual != expected and interface_type(expected, expression)
                     and id(expression) not in permitted_coercions):
                 fail(expression, 'Pass concrete objects directly to an imported generic function; storing an interface conversion is not supported yet.')
         for node in ast.walk(function.node):
@@ -137,7 +144,7 @@ def resolve_interfaces(owner, module, all_functions, all_calls, compiled, infos)
             if code is None:
                 for arg, (_, expected) in zip(args, target.parameters):
                     actual = function.expression_types[id(arg)]
-                    if interface_type(expected) and actual != expected:
+                    if interface_type(expected, arg) and actual != expected:
                         fail(node, 'Instantiate a generic algorithm from another module; local calls keep the current interface implementation.')
                 continue
             if code.interface_code:
@@ -150,11 +157,11 @@ def resolve_interfaces(owner, module, all_functions, all_calls, compiled, infos)
             if not dependency.dependencies:
                 used_calls[resolved] = code
                 continue
-            if interface_type(target.return_type):
+            if interface_type(target.return_type, node):
                 fail(node, 'Returning an abstract interface from an instantiated call is not supported yet; return ordinary values or a concrete class.')
             selected = {}
             for arg, (_, expected) in zip(args, target.parameters):
-                origin = interface_type(expected)
+                origin = interface_type(expected, arg)
                 if origin is None:
                     continue
                 actual = function.expression_types[id(arg)].rstrip('?')
@@ -172,6 +179,8 @@ def resolve_interfaces(owner, module, all_functions, all_calls, compiled, infos)
                     continue
                 if actual_origin is None or actual_origin.kind != 'class':
                     fail(node, 'Cannot infer implementation of interface %s; supply an object parameter.' % origin.name)
+                if actual_origin.module in module.group_members:
+                    fail(node, 'Import concrete interface implementations from outside the recursive compilation group.')
                 if actual_origin.module == owner.name:
                     fail(node, 'Import concrete interface implementations from a separate module.')
                 backend = compiled[actual_origin.module]

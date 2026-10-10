@@ -22,7 +22,8 @@ class ExampleCatalogTests(unittest.TestCase):
     def test_new_examples_are_discovered_after_curated_examples(self):
         with tempfile.TemporaryDirectory(prefix="algo2lean-example-order-") as temporary:
             root = Path(temporary)
-            for name in ("z_new.algo", "gcd.algo", "a_new.algo", "sum_loop.algo", "notes.md"):
+            for name in ("z_new.algo", "gcd.algo", "a_new.algo", "sum_loop.algo", "notes.md",
+                         "dijkstra.algo", "dijkstra_fibonacci.algo", "gcd 2.algo"):
                 (root / name).write_text("", encoding="utf-8")
             self.assertEqual([path.name for path in example_files(root)],
                              ["sum_loop.algo", "gcd.algo", "a_new.algo", "z_new.algo"])
@@ -115,25 +116,32 @@ class EditorImportRegressionTests(unittest.TestCase):
         examples = data["examples"]
         projects = [item for item in examples if "project_id" in item]
         self.assertEqual([item["project_id"] for item in projects], [
-            "dijkstra-generic", "dijkstra-binary", "dijkstra-fibonacci"])
+            "modules", "interfaces", "mutual-recursion-imports", "dijkstra"])
+        self.assertEqual([item["folder"] for item in projects], [
+            "modules", "interfaces", "mutual_recursion", "composable_dijkstra"])
         self.assertEqual(examples[-len(projects):], projects)
         files = [item for item in examples if "project_id" not in item]
         self.assertEqual([item["filename"] for item in files[:5]], [
             "sum_loop.algo", "range_sum.algo", "factorial.algo", "gcd.algo", "mutual_recursion.algo"])
-        self.assertEqual([item["filename"] for item in files[-5:]], [
-            "dijkstra.algo", "dijkstra_fibonacci.algo", "matrix_multiply.algo",
+        self.assertEqual([item["filename"] for item in files[-3:]], [
+            "matrix_multiply.algo",
             "matrix_recursive.algo", "matrix_strassen.algo"])
-        self.assertEqual({item["filename"] for item in files}, {path.name for path in EXAMPLES.glob("*.algo")})
+        self.assertEqual({item["filename"] for item in files},
+                         {path.name for path in EXAMPLES.glob("*.algo")
+                          if path.stem.isascii() and path.stem.isidentifier()} -
+                         {"dijkstra.algo", "dijkstra_fibonacci.algo"})
         self.assertEqual(len(files), len({item["filename"] for item in files}))
         self.assertTrue(all("sources" not in item for item in projects))
-        legacy = next(item for item in examples if item["filename"] == "dijkstra.algo")
-        self.assertIn("single file", legacy["name"])
+        self.assertNotIn("dijkstra.algo", {item["filename"] for item in files})
+        self.assertNotIn("dijkstra_fibonacci.algo", {item["filename"] for item in files})
 
     def test_example_project_includes_its_imports_and_compiles(self):
-        status, project = self.request("GET", "/api/example-project/dijkstra-binary")
+        status, project = self.request("GET", "/api/example-project/dijkstra")
         self.assertEqual(status, 200)
         self.assertIn("graph.algo", project["sources"])
         self.assertIn("indexed_heap.algo", project["sources"])
+        self.assertIn("fibonacci_heap.algo", project["sources"])
+        self.assertIn("Algo.composable_dijkstra.dijkstra_fibonacci.Analysis", project["analyses"])
         self.assertIn("Algo.composable_dijkstra.dijkstra_binary.Analysis", project["analyses"])
         source = project["sources"][project["entry"]]
         status, result = self.request("POST", "/api/compile", {
@@ -155,7 +163,7 @@ class EditorImportRegressionTests(unittest.TestCase):
                       LeanSetupError("Could not find proof module 'Algo.queue.Analysis'.")):
             with self.subTest(error=type(error).__name__), patch(
                     "algo2lean.editor_examples.load_example_project", side_effect=error):
-                status, result = self.request("GET", "/api/example-project/dijkstra-binary")
+                status, result = self.request("GET", "/api/example-project/dijkstra")
                 self.assertEqual(status, 400)
                 self.assertFalse(result["ok"])
                 self.assertIn(str(error), result["message"])

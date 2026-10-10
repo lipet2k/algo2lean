@@ -1,4 +1,4 @@
-import Algo.composable_dijkstra.binary.Analysis
+import Algo.composable_dijkstra.support.binary_heap.Analysis
 import Algo.composable_dijkstra.priority_queue.Analysis
 import Algo2LeanLib.FiniteIndex
 import Algo2LeanLib.FiniteMap

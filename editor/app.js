@@ -117,19 +117,29 @@
     $("standalone-button").hidden = Boolean(currentProject);
     if (!currentProject) return;
     $("project-name").textContent = currentProject.name;
-    $("project-count").textContent = `${Object.keys(currentProject.files).length} modules`;
+    $("project-count").textContent = `${Object.keys(currentProject.files).length} files`;
     $("project-module").replaceChildren();
+    const folders = new Map();
     for (const path of Object.keys(currentProject.files).sort()) {
+      const separator = path.lastIndexOf("/");
+      const folder = path.slice(0, separator + 1);
+      if (!folders.has(folder)) {
+        const group = document.createElement("optgroup");
+        group.label = folder || "Project root";
+        folders.set(folder, group);
+      }
       const option = document.createElement("option");
       option.value = path;
-      option.textContent = path;
-      $("project-module").append(option);
+      option.textContent = path.slice(separator + 1);
+      folders.get(folder).append(option);
     }
+    for (const folder of [...folders.keys()].sort()) $("project-module").append(folders.get(folder));
     $("project-module").value = currentProject.selected;
   }
 
   function selectProjectModule(path, { save = true, compileNow = true } = {}) {
     if (!currentProject || !Object.hasOwn(currentProject.files, path)) return;
+    closeNewFileForm(false);
     if (save) projectSnapshot();
     currentProject.selected = path;
     const file = currentProject.files[path];
@@ -156,6 +166,107 @@
     projectControls();
     scheduleDraft();
     if (compileNow) compile(false);
+  }
+
+  function closeNewFileForm(focusButton = true) {
+    $("new-file-form").hidden = true;
+    $("new-file-button").setAttribute("aria-expanded", "false");
+    if (focusButton) $("new-file-button").focus();
+  }
+
+  function newFileMessage(message, failed = false) {
+    $("new-file-help").textContent = message;
+    $("new-file-help").classList.toggle("error", failed);
+    $("new-file-name").setAttribute("aria-invalid", String(failed));
+  }
+
+  function newFileError(path) {
+    if (!validProjectPath(path, ".algo") || (!currentProject && path.includes("/"))) {
+      return currentProject
+        ? "Use a .algo filename with letters, numbers, and underscores, such as helpers/search.algo. Start each folder and filename with a letter or underscore."
+        : "Use a .algo filename with letters, numbers, and underscores, such as search.algo. Start with a letter or underscore.";
+    }
+    if (path.split("/")[0].replace(/\.algo$/, "").toLowerCase() === "_a2l_groups") {
+      return "The name _a2l_groups is reserved for generated files. Choose another name.";
+    }
+    if (!currentProject) return null;
+    if (Object.hasOwn(currentProject.files, path)) return "A file with this name already exists. Choose another name.";
+    const module = projectModule(path) + ".Analysis";
+    if (Object.hasOwn(currentProject.analyses, module)) return "An analysis already uses this file's name. Choose another name to keep that proof intact.";
+    const names = [...Object.keys(currentProject.files).map(projectModule),
+      ...Object.keys(currentProject.analyses).map((name) => name.slice(0, -9))];
+    const parts = projectModule(path).split(".");
+    for (let length = 2; length <= parts.length; length += 1) {
+      const prefix = parts.slice(0, length).join(".");
+      if (names.some((name) => {
+        const existing = name.split(".").slice(0, length).join(".");
+        return existing.toLowerCase() === prefix.toLowerCase() && existing !== prefix;
+      })) return "A file or folder already uses this name with different letter case. Use the same folder spelling and a unique filename.";
+    }
+    if (Object.keys(currentProject.files).length >= 256) return "A project can contain at most 256 source files.";
+    if (new Set([...Object.keys(currentProject.analyses), ...Object.keys(currentProject.files).map((name) => projectModule(name) + ".Analysis"), module]).size > 256) {
+      return "A project can contain at most 256 analysis files, including one companion for each source file.";
+    }
+    return null;
+  }
+
+  function openNewFileForm() {
+    const folder = currentProject ? currentProject.selected.slice(0, currentProject.selected.lastIndexOf("/") + 1) : "";
+    const used = new Set(currentProject ? Object.keys(currentProject.files) : [filename.value]);
+    if (!currentProject) {
+      try { for (const draft of draftStore?.list() || []) used.add(draft.filename); } catch (_) { /* A name can still be chosen without storage. */ }
+    } else {
+      for (const name of Object.keys(currentProject.analyses)) used.add(name.slice(5, -9).replace(/\./g, "/") + ".algo");
+    }
+    let name = folder + "untitled.algo";
+    for (let index = 2; [...used].some((path) => path.toLowerCase() === name.toLowerCase()); index += 1) name = `${folder}untitled_${index}.algo`;
+    $("new-file-name").value = name;
+    newFileMessage(currentProject ? "Add a .algo file to this project. Use / to create a folder." : "Create a standalone .algo file. Your current edits stay in Browser drafts.");
+    $("new-file-form").hidden = false;
+    $("new-file-button").setAttribute("aria-expanded", "true");
+    $("new-file-name").focus();
+    $("new-file-name").setSelectionRange(folder.length, name.length - 5);
+  }
+
+  function createNewFile(event) {
+    event.preventDefault();
+    let name = $("new-file-name").value.trim();
+    if (name && !name.endsWith(".algo")) name += ".algo";
+    const error = newFileError(name);
+    if (error) { newFileMessage(error, true); return; }
+    writeDraft();
+    if (!currentProject && workspaceDirty() && !hasDraftBackup()) {
+      newFileMessage("The current source and analysis could not be backed up. Save both files before creating a new file.", true);
+      return;
+    }
+    if (currentProject) {
+      const proof = starterAnalysis(projectModule(name) + ".Generated");
+      const proofName = "analysis/" + name.replace(/\.algo$/, ".lean");
+      const file = { source: "", filename: name, savedSource: "", savedFilename: name,
+        analysis: proof, analysisFilename: proofName, savedAnalysis: "", savedAnalysisFilename: proofName };
+      const data = projectSnapshot();
+      const proofs = { ...data.analyses, [projectModule(name) + ".Analysis"]: proof };
+      for (const [path, document] of Object.entries(data.files)) proofs[projectModule(path) + ".Analysis"] = document.analysis;
+      if (new Blob([...Object.values(data.files).map((document) => document.source), ...Object.values(proofs)]).size > PROJECT_BYTES) {
+        newFileMessage("This project is too large to add a file. Download it and open a smaller project folder.", true);
+        return;
+      }
+      currentProject.files[name] = file;
+      selectProjectModule(name, { save: false, compileNow: false });
+    } else {
+      loadDocument("", name, "New file");
+      // A new file gets its own draft immediately, even before the first edit.
+      savedFilename = "";
+      savedAnalysis = "";
+      updateSaveState();
+      updateAnalysisSaveState();
+    }
+    projectOpening += 1;
+    closeNewFileForm(false);
+    const saved = writeDraft();
+    fileMessage(saved ? (currentProject ? `Created ${name}. Download project to save all files together.` : `Created ${name}. Use Save .algo to download it.`)
+      : `Created ${name}. Browser backup is unavailable; save your files before closing this page.`, !saved);
+    source.focus();
   }
 
   function loadProject(data, record = null) {
@@ -720,6 +831,8 @@
     for (const id of ["export-button", "copy-button"]) $(id).disabled = !enabled;
     for (const id of ["export-points-button", "copy-points-button"]) $(id).disabled = !enabled || !lastResult?.points;
     for (const id of ["library-button", "standalone-button"]) $(id).disabled = !enabled || !lastResult?.shared;
+    $("generated-view").disabled = !enabled;
+    $("generated-view-control").hidden = !lastResult || Object.keys(lastResult.views || {}).length < 2;
   }
 
   function rejectOutput() {
@@ -813,6 +926,7 @@
 
   function loadDocument(text, name, label, { draft = null, example = null } = {}) {
     clearTimeout(draftTimer);
+    closeNewFileForm(false);
     currentProject = null;
     standaloneDocument = null;
     projectControls();
@@ -922,30 +1036,60 @@
 
   function showGenerated(result, snapshot) {
     const module = result.module || moduleForFilename(snapshot.filename);
+    const pointsModule = result.points_module || `${module}Points`;
+    const previousView = lastResult?.publicModule === module ? lastResult.view : "public";
+    const views = { public: { lean: result.lean, points: result.points_lean || "", module, pointsModule } };
+    const implementation = result.implementation_module;
+    const implementationPoints = result.implementation_points_module;
+    if (typeof result.project_files?.[implementation] === "string" && typeof result.project_files?.[implementationPoints] === "string") {
+      views.execution = { lean: result.project_files[implementation], points: result.project_files[implementationPoints],
+        module: implementation, pointsModule: implementationPoints };
+    }
     lastResult = { lean: result.lean, shared: result.shared_lean || "", program: result.program_lean || "",
-      points: result.points_lean || "", pointsModule: result.points_module || `${module}Points`,
-      module, source: snapshot.source, filename: snapshot.filename, revision: snapshot.revision, available: true };
-    setModule(lastResult.module, lastResult.pointsModule);
+      points: result.points_lean || "", pointsModule, module, publicModule: module, views,
+      source: snapshot.source, filename: snapshot.filename, revision: snapshot.revision, available: true };
+    // Browsing the shared implementation does not change an analysis's imports
+    // or the source-facing names in its interface list.
+    setModule(module, pointsModule);
+    $("generated-view").replaceChildren();
+    for (const [value, label] of [["public", "Public interface"], ["execution", "Shared execution"]]) {
+      if (!views[value]) continue;
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      $("generated-view").append(option);
+    }
+    selectGeneratedView(views[previousView] ? previousView : "public");
+    $("shared-details").hidden = !lastResult.shared;
+    $("shared-code").textContent = "";
+    $("shared-summary").textContent = `Shared Lean library · ${result.stats?.shared_lines || 0} reusable lines`;
+    if ($("shared-details").open) $("shared-code").innerHTML = highlight(lastResult.shared, true);
+    showRelations(result.functions);
+  }
+
+  function selectGeneratedView(view) {
+    if (!lastResult?.views[view]) return;
+    Object.assign(lastResult, lastResult.views[view], { view });
+    $("generated-view").value = view;
     // Reserve the final empty line so selecting to EOF never scrolls the textarea
     // independently of its measuring/highlight layer.
-    $("lean-code").innerHTML = highlight(result.lean + "\n", true);
-    $("lean-selection").value = result.lean;
+    $("lean-code").innerHTML = highlight(lastResult.lean + "\n", true);
+    $("lean-selection").value = lastResult.lean;
     $("lean-output").hidden = false;
     $("output-empty").hidden = true;
     $("points-code").innerHTML = highlight(lastResult.points + "\n", true);
     $("points-selection").value = lastResult.points;
     $("points-output").hidden = !lastResult.points;
     $("points-empty").hidden = Boolean(lastResult.points);
+    for (const id of ["lean-output", "points-output"]) {
+      $(id).scrollTop = 0;
+      $(id).scrollLeft = 0;
+    }
     setOutputActions(true);
-    $("shared-details").hidden = !lastResult.shared;
-    $("shared-code").textContent = "";
-    $("shared-summary").textContent = `Shared Lean library · ${result.stats?.shared_lines || 0} reusable lines`;
-    if ($("shared-details").open) $("shared-code").innerHTML = highlight(lastResult.shared, true);
     const modulePath = (name) => currentProject ? name.replace(/\./g, "/") : name;
-    $("output-summary").textContent = `${result.stats?.program_lines || result.lean.trimEnd().split("\n").length} program lines · ${modulePath(lastResult.module)}.lean`;
-    const pointsLines = result.stats?.points_lines ?? (lastResult.points ? lastResult.points.trimEnd().split("\n").length : 0);
+    $("output-summary").textContent = `${lastResult.lean.trimEnd().split("\n").length} program lines · ${modulePath(lastResult.module)}.lean`;
+    const pointsLines = lastResult.points ? lastResult.points.trimEnd().split("\n").length : 0;
     $("points-summary").textContent = `${pointsLines} interface lines · ${modulePath(lastResult.pointsModule)}.lean`;
-    showRelations(result.functions);
   }
 
   async function compile(check = false) {
@@ -1332,6 +1476,12 @@
   $("compile-button").addEventListener("click", () => compile(false));
   $("check-button").addEventListener("click", () => compile(true));
   $("save-button").addEventListener("click", saveSource);
+  $("new-file-button").addEventListener("click", openNewFileForm);
+  $("cancel-new-file-button").addEventListener("click", () => closeNewFileForm());
+  $("new-file-form").addEventListener("submit", createNewFile);
+  $("new-file-form").addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); closeNewFileForm(); }
+  });
   $("open-project-button").addEventListener("click", openProjectFolder);
   $("project-picker").addEventListener("change", async (event) => {
     const chosen = Array.from(event.target.files || []);
@@ -1408,6 +1558,9 @@
     const name = leanFilename();
     try { download(lastResult.lean, name); fileMessage(`Downloaded algorithm definitions ${name}. Include Algo2Lean.lean in your Lean project; export ${lastResult.pointsModule}.lean separately for named-line helpers.`); }
     catch (error) { fileMessage(`Could not export Lean: ${error.message}`, true); }
+  });
+  $("generated-view").addEventListener("change", (event) => {
+    if (currentOutput()) selectGeneratedView(event.target.value);
   });
   $("export-points-button").addEventListener("click", () => {
     if (!currentOutput() || !lastResult.points) { fileMessage("Compile the current source before exporting the named-line interface.", true); return; }
@@ -1632,13 +1785,19 @@
       const data = await response.json();
       examples = (data.examples || []).filter((item) => typeof item.source === "string");
       proofOutline.setExamples(examples.map((example) => example.analysis).filter((text) => typeof text === "string"));
-      examples.forEach((example, index) => {
-        const option = document.createElement("option");
-        option.value = String(index);
-        option.textContent = example.name || example.filename;
-        if (example.description) option.title = example.description;
-        $("examples").append(option);
-      });
+      for (const [label, isProject] of [["Project folders", true], ["Single files", false]]) {
+        const group = document.createElement("optgroup");
+        group.label = label;
+        examples.forEach((example, index) => {
+          if (Boolean(example.project_id) !== isProject) return;
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent = (example.name || example.filename) + (example.folder ? ` · ${example.folder}/` : "");
+          if (example.description) option.title = example.description;
+          group.append(option);
+        });
+        if (group.childElementCount) $("examples").append(group);
+      }
       const restoredExample = restoredDocument && examples.find((example) => !example.project_id && example.filename === initialDocument.filename);
       if (!currentProject && restoredExample && source.value === initialDocument.source &&
           filename.value === initialDocument.filename && analysis.value === initialDocument.analysis) {

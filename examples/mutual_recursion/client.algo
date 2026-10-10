@@ -1,0 +1,6 @@
+from even import is_even as parity
+
+
+# An ordinary client imports one function from the mutually recursive group.
+def classify(n: Int) -> Bool:
+    return parity(n)

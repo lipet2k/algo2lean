@@ -1,0 +1,9 @@
+from even import is_even
+
+
+# The companion function shares the same heap and weighted clock.
+def is_odd(n: Int) -> Bool:
+    tick("work", 2)
+    if n <= 0:
+        return False
+    return is_even(n - 1)

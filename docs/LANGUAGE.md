@@ -133,7 +133,9 @@ The above is valid. `forever.Returns x y` is false for every `x` and `y` because
 Top-level Python-style module imports, named imports, and aliases are supported
 in algorithm projects. Imports resolve statically within the project root;
 relative, wildcard, conditional, function-local, and dynamic imports are not
-supported, and source-module import cycles are rejected. See the
+supported. Mutually dependent source modules are compiled together, allowing
+cross-file mutual recursion without cyclic Lean imports. Their public module
+and function names remain unchanged. See the
 [module guide](MODULES.md) for file naming, reexports, and proof reuse.
 There are no exceptions, I/O, `break`, `continue`, loop `else` clauses, or
 comprehensions. Comments beginning with `#` and blank lines are allowed.
@@ -179,7 +181,14 @@ aliases. If the output has one of those types, `my_output` is
 | Two `x: Int, a: Seq` | `Int × Seq` | `f.Returns (3, a) result` |
 | Three `x: Int, y: Int, z: Int` | `Int × Int × Int` | `f.Returns (1, 2, 3) result` |
 
-Internal state records and one inductive `Step` relation encode program control flow and call results, threading the shared heap through calls. The shared `Algo2LeanCore.Valid` relation checks finite lists of configurations. Only transcripts ending in a completed root return can construct an output proof. No execution occurs during compilation, and compilation does not require a termination argument.
+Internal state records and an inductive `Step` relation encode program control
+flow and call results, threading the shared heap through calls. Each independent
+module or mutually dependent group has one such relation. Calls outside that
+unit delegate to the imported unit's transitions. The shared
+`Algo2LeanCore.Valid` relation checks finite lists of configurations. Only
+transcripts ending in a completed root return can construct an output proof.
+No execution occurs during compilation, and compilation does not require a
+termination argument.
 
 Lean accepts these finite-derivation definitions through its ordinary [inductive type rules](https://lean-lang.org/doc/reference/latest/find/?domain=Verso.Genre.Manual.section&name=inductive-datatypes-parameters-and-indices). This avoids using Lean's `partial` functions as the logical meaning of a potentially nonterminating algorithm; see Lean's [recursive definitions reference](https://lean-lang.org/doc/reference/latest/Definitions/Recursive-Definitions/).
 
@@ -192,7 +201,10 @@ references and typed non-integer sequences use `CollectionRef`.
 Project compilation gives each source module its own Lean namespace and
 Generated, Points, and optional Facts modules. Imported declarations retain the
 identity of their defining module, and callers can reuse its companion Lean
-analysis unchanged. Use the project workflow in [the module guide](MODULES.md)
+analysis unchanged. Members of a recursive group expose their public interfaces
+through these source-named files while sharing one generated implementation.
+The source module root `_a2l_groups` is reserved for compiler-generated files.
+Use the project workflow in [the module guide](MODULES.md)
 to combine algorithms. Standalone compilation remains available, but pasting
 several default standalone outputs into one namespace can cause name collisions.
 
@@ -207,7 +219,7 @@ The separate `Points.lean` companion imports the algorithm file and contains onl
 named locations and getters. Editing line names leaves the general file unchanged.
 The library is reusable across algorithms and contains no algorithm-specific
 interpreter. The compiler emits direct constructors for each lowered instruction
-in one `Step` relation.
+in the module's or recursive group's `Step` relation.
 
 A configuration is either an active function frame (program counter and local
 variables), heap, and suspended caller stack, or a completed result and heap.

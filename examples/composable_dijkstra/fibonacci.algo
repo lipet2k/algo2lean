@@ -1,2 +1,0 @@
-# Re-export the Fibonacci heap for static priority-queue binding.
-from fibonacci_heap import FibonacciHeap

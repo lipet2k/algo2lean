@@ -86,7 +86,7 @@ interface separately.
 - **Mathematical data:** arbitrary integers and shared mutable sequences indexed
   by every integer, including negative indices. An integer sequence has infinite
   contents of type `Int → Int`; these are never materialized as an array.
-- **Control flow:** conditionals, recursion, mutual recursion, `while`, and integer
+- **Control flow:** conditionals, recursion, mutual recursion across files, `while`, and integer
   `range` loops. Programs may diverge; a diverging execution has no completed
   output, but finite prefixes remain available for analysis.
 - **Data structures:** typed classes, constructors, methods, nullable links, and
@@ -139,8 +139,18 @@ Drag the lower-right corner of a code box to resize it. Click inside a code box
 to scroll it; press **Esc** or click outside to scroll the page. Use **Find** or
 **⌘/Ctrl F** in the analysis pane to search a proof.
 
-Use **Open project** for algorithms with imports and **Module** to switch among
-their sources and analyses. Browser drafts recover source and analysis together;
+The **Examples** menu separates single files from **Project folders**. Projects
+include reusable algorithms, abstract interfaces, mutual recursion, and Dijkstra
+with both binary and Fibonacci heaps. Opening a project loads its sources and
+proofs together; **Project file** groups its files by folder.
+
+Use **Open project** to open your own folder. Use **New file** to create a
+standalone `.algo` file, or to add a file to the currently open project. Project
+file names may include subfolders, such as `sorting/helpers.algo`. Existing
+source and analysis edits are preserved when creating a file. **Download
+project** saves all project sources and proofs together.
+
+Browser drafts recover source and analysis together;
 **Browser drafts** lets you recover or discard them, and **Clear all drafts**
 removes saved recovery copies. Bundled examples reopen their current version on
 reload, while edited copies remain recoverable. Save source and analysis files
@@ -152,6 +162,7 @@ for durable copies; browser storage is not a substitute for saving them.
 - [Named locations and stable theorem statements](docs/NAMED_POINTS.md).
 - [Classes](docs/CLASSES.md), [typed sequences](docs/COLLECTIONS.md), and [cost counters](docs/COSTS.md).
 - [Project imports](docs/MODULES.md) and [reusing an existing analysis](docs/REUSING_ANALYSES.md).
+- [Cross-file mutual recursion with reusable correctness and cost proofs](examples/mutual_recursion/README.md).
 - [Browser hosting, version archives, and generation verification](docs/HOSTING.md).
 - [Examples](examples/README.md) and [their proved guarantees](examples/analysis/README.md).
 - [Merge sort followed by binary search](examples/modules/GENERAL_SORT_THEN_SEARCH.md).

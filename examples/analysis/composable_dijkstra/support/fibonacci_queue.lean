@@ -1,4 +1,4 @@
-import Algo.composable_dijkstra.fibonacci.Analysis
+import Algo.composable_dijkstra.support.fibonacci_heap.Analysis
 import Algo.composable_dijkstra.priority_queue.Analysis
 
 /-! The Fibonacci implementation supplies the abstract queue contract once.

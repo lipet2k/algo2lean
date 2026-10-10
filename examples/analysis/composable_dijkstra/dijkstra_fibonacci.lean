@@ -1,7 +1,7 @@
 import Algo.composable_dijkstra.dijkstra_fibonacci.Generated
 import Algo.composable_dijkstra.dijkstra_fibonacci.Facts
 import Algo.composable_dijkstra.dijkstra.Analysis
-import Algo.composable_dijkstra.fibonacci_queue.Analysis
+import Algo.composable_dijkstra.support.fibonacci_queue.Analysis
 
 /-! The concrete wrapper constructs a queue and client arrays, then applies the
     unchanged generic Dijkstra theorem and the independent queue contract. -/

@@ -1,5 +1,16 @@
 # Change log
 
+## 0.1.2 — 2026-10-10
+
+- Support mutual recursion across imported source files while preserving reusable public Lean interfaces, mutable state, and tick costs.
+- Add a checked cross-file parity example whose caller reuses correctness and exact runtime proofs.
+- Group examples and project files by folder; include reusable algorithms, abstract interfaces, mutual recursion, and both Dijkstra variants.
+- Add New file for standalone documents and open projects, preserving existing source and proof edits.
+- Remove redundant Dijkstra source wrappers and group reusable heap proofs and queue contracts under a support folder.
+- Keep the general algorithm definitions unchanged when named-line annotations change.
+
+Validation: 486 Python cases complete successfully (114 skips in the run without Lean); all 181 JavaScript tests and 11 focused Lean integration tests pass. Offline Pyodide/native generation parity passes, including recursive imports, both Dijkstra variants, and downloaded projects.
+
 ## CI maintenance — 2026-10-10
 
 - Allow five minutes per example-analysis integration test, including dependency builds, so slower GitHub runners can finish checking the Fibonacci Dijkstra proof. Compiler behavior, proofs, and interactive checker limits are unchanged.

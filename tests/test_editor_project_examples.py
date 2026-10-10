@@ -16,49 +16,105 @@ class EditorProjectExamplesTests(unittest.TestCase):
         with patch("algo2lean.editor_examples.compile_project", side_effect=AssertionError("unexpected compile")):
             entries = project_examples()
         self.assertEqual({entry["project_id"] for entry in entries},
-                         {"dijkstra-binary", "dijkstra-fibonacci", "dijkstra-generic"})
+                         {"modules", "interfaces", "dijkstra", "mutual-recursion-imports"})
+        self.assertEqual({entry["folder"] for entry in entries},
+                         {"modules", "interfaces", "composable_dijkstra", "mutual_recursion"})
+        dijkstra, = [entry for entry in entries if entry["project_id"] == "dijkstra"]
+        self.assertEqual(dijkstra["name"], "Dijkstra")
+        self.assertEqual(dijkstra["filename"], "composable_dijkstra/dijkstra_binary.algo")
         for entry in entries:
-            self.assertIn("imports", entry["name"])
+            root = EXAMPLES if entry["project_id"] == "dijkstra" else EXAMPLES / entry["folder"]
             self.assertIn("from ", entry["source"])
             self.assertNotIn("analyses", entry)
-            self.assertEqual(entry["source"], (EXAMPLES / entry["filename"]).read_text(encoding="utf-8"))
+            self.assertEqual(entry["source"], (root / entry["filename"]).read_text(encoding="utf-8"))
+
+    def test_folder_projects_include_every_module_and_reusable_proof(self):
+        for identifier, folder, entry in (
+            ("modules", "modules", "pipeline.algo"),
+            ("interfaces", "interfaces", "use_direct.algo"),
+            ("mutual-recursion-imports", "mutual_recursion", "client.algo"),
+        ):
+            with self.subTest(project=identifier), tempfile.TemporaryDirectory() as directory:
+                root = EXAMPLES / folder
+                bundle = load_example_project(identifier)
+                self.assertEqual(bundle["entry"], entry)
+                source_paths = {path.relative_to(root).as_posix() for path in root.rglob("*.algo")
+                                if all(part.isascii() and part.isidentifier()
+                                       for part in path.relative_to(root).with_suffix("").parts)}
+                self.assertEqual(set(bundle["sources"]), source_paths)
+                for path, source in bundle["sources"].items():
+                    self.assertEqual(source, (root / path).read_text(encoding="utf-8"))
+                    # Every file offered in the editor is independently selectable.
+                    compile_project(path, root=directory, sources=bundle["sources"])
+                for module, source in bundle["analyses"].items():
+                    path = Path(*module.split(".")[1:-1]).with_suffix(".lean")
+                    self.assertEqual(source, (root / "analysis" / path).read_text(encoding="utf-8"))
+                compiled = compile_project(entry, root=directory, sources=bundle["sources"])
+                resolved = project_lean_sources(compiled, proof_sources=bundle["analyses"],
+                    analysis_modules=tuple(bundle["analyses"]))
+                self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},
+                                 bundle["analyses"])
+        self.assertIn("general_sort_then_search.algo", load_example_project("modules")["sources"])
+        self.assertIn("Algo.callable_client.Analysis", load_example_project("modules")["analyses"])
+        self.assertIn("both.algo", load_example_project("interfaces")["sources"])
+        self.assertIn("consumer/advance_twice.algo", load_example_project("interfaces")["sources"])
+
+    def test_recursive_example_preserves_its_source_root_and_reusable_analysis(self):
+        bundle = load_example_project("mutual-recursion-imports")
+        root = EXAMPLES / "mutual_recursion"
+        self.assertEqual(bundle["entry"], "client.algo")
+        self.assertEqual(set(bundle["sources"]), {"client.algo", "even.algo", "odd.algo"})
+        self.assertEqual(set(bundle["analyses"]), {"Algo.client.Analysis", "Algo.parity.Analysis"})
+        for path, text in bundle["sources"].items():
+            self.assertEqual(text, (root / path).read_text(encoding="utf-8"))
+        for module, text in bundle["analyses"].items():
+            path = Path(*module.split(".")[1:-1]).with_suffix(".lean")
+            self.assertEqual(text, (root / "analysis" / path).read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            compiled = compile_project(bundle["entry"], root=directory, sources=bundle["sources"])
+            resolved = project_lean_sources(compiled, proof_sources=bundle["analyses"],
+                analysis_modules=("Algo.client.Analysis",))
+            self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},
+                             bundle["analyses"])
 
     def test_only_fixed_example_ids_are_accepted(self):
-        for identifier in ("", "dijkstra", "../dijkstra-binary", "/etc/passwd", "dijkstra-binary.algo"):
+        for identifier in ("", "dijkstra-generic", "dijkstra-binary", "dijkstra-fibonacci",
+                           "../dijkstra", "/etc/passwd", "dijkstra.algo"):
             with self.subTest(identifier=identifier), self.assertRaises(KeyError):
                 load_example_project(identifier)
 
-    def test_all_bundles_resolve_in_an_empty_directory_with_unchanged_proofs(self):
-        for identifier in ("dijkstra-binary", "dijkstra-fibonacci", "dijkstra-generic"):
-            with self.subTest(identifier=identifier), tempfile.TemporaryDirectory() as directory:
-                bundle = load_example_project(identifier)
-                self.assertIn(bundle["entry"], bundle["sources"])
-                for path, source in bundle["sources"].items():
-                    self.assertEqual(source, (EXAMPLES / path).read_text(encoding="utf-8"))
-                for module, source in bundle["analyses"].items():
-                    path = Path(*module.split(".")[1:-1]).with_suffix(".lean")
-                    self.assertEqual(source, (EXAMPLES / "analysis" / path).read_text(encoding="utf-8"))
-                compiled = compile_project(bundle["entry"], root=directory, sources=bundle["sources"])
-                analysis_module = "Algo." + compiled.project.entry + ".Analysis"
-                resolved = project_lean_sources(compiled, proof_sources=bundle["analyses"],
-                    analysis_modules=(analysis_module,))
-                self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},
-                                 bundle["analyses"])
-                self.assertIn("Algo.composable_dijkstra.dijkstra.Analysis", bundle["analyses"])
-                self.assertIn("Algo.composable_dijkstra.priority_queue.Analysis", bundle["analyses"])
-                # Resolving one project includes only its imported analyses,
-                # excluding unrelated single-file proofs and alternate heaps.
-                if identifier != "dijkstra-fibonacci":
-                    self.assertNotIn("fibonacci_heap.algo", bundle["sources"])
-                if identifier != "dijkstra-binary":
-                    self.assertNotIn("indexed_heap.algo", bundle["sources"])
+    def test_dijkstra_bundle_resolves_both_heaps_with_unchanged_proofs(self):
+        bundle = load_example_project("dijkstra")
+        self.assertEqual(bundle["entry"], "composable_dijkstra/dijkstra_binary.algo")
+        self.assertEqual(set(bundle["sources"]), {
+            "composable_dijkstra/dijkstra.algo", "composable_dijkstra/priority_queue.algo",
+            "composable_dijkstra/dijkstra_binary.algo", "composable_dijkstra/dijkstra_fibonacci.algo",
+            "graph.algo", "indexed_heap.algo", "fibonacci_heap.algo",
+        })
+        for path, source in bundle["sources"].items():
+            self.assertEqual(source, (EXAMPLES / path).read_text(encoding="utf-8"))
+        for module, source in bundle["analyses"].items():
+            path = Path(*module.split(".")[1:-1]).with_suffix(".lean")
+            self.assertEqual(source, (EXAMPLES / "analysis" / path).read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            compiled = compile_project(bundle["entry"], root=directory, sources=bundle["sources"])
+            resolved = project_lean_sources(compiled, proof_sources=bundle["analyses"],
+                analysis_modules=tuple("Algo.composable_dijkstra.dijkstra_" + backend + ".Analysis"
+                                       for backend in ("binary", "fibonacci")))
+            self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},
+                             bundle["analyses"])
+        self.assertIn("Algo.composable_dijkstra.dijkstra.Analysis", bundle["analyses"])
+        self.assertIn("Algo.composable_dijkstra.priority_queue.Analysis", bundle["analyses"])
+        self.assertNotIn("Algo.dijkstra.Analysis", bundle["analyses"])
+        self.assertNotIn("Algo.dijkstra_fibonacci.Analysis", bundle["analyses"])
 
     @unittest.skipUnless(shutil.which("lean"), "Lean 4 is not installed")
     def test_bundled_imports_and_existing_correctness_and_runtime_analyses_check(self):
-        for identifier in ("dijkstra-binary", "dijkstra-fibonacci", "dijkstra-generic"):
-            with self.subTest(identifier=identifier), tempfile.TemporaryDirectory() as directory:
-                bundle = load_example_project(identifier)
-                compiled = compile_project(bundle["entry"], root=directory, sources=bundle["sources"])
+        bundle = load_example_project("dijkstra")
+        for entry in ("dijkstra", "dijkstra_binary", "dijkstra_fibonacci"):
+            with self.subTest(entry=entry), tempfile.TemporaryDirectory() as directory:
+                compiled = compile_project("composable_dijkstra/" + entry + ".algo",
+                                           root=directory, sources=bundle["sources"])
                 checked = check_project(compiled, proof_sources=bundle["analyses"],
                     analysis_module="Algo." + compiled.project.entry + ".Analysis")
                 self.assertTrue(checked.ok, checked.output)

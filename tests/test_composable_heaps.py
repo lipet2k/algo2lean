@@ -60,23 +60,25 @@ class ComposableHeapTests(unittest.TestCase):
                     self.assertEqual(_fingerprint(Lowerer(earlier[function])),
                                      _fingerprint(Lowerer(later[function])), function)
 
-    def test_editor_reexports_reuse_the_original_heap_module(self):
+    def test_dijkstra_imports_real_heap_modules_without_reexport_shims(self):
         for package, source, _ in PACKAGES:
             with self.subTest(package=package):
                 original = compile_project(source, root=ROOT / "examples")
-                reexport = compile_project("composable_dijkstra." + package,
-                                           root=ROOT / "examples")
-                self.assertEqual(set(reexport.modules), {source, "composable_dijkstra." + package})
-                self.assertEqual(reexport.modules[source].lean, original.entry.lean)
-                self.assertEqual(reexport.modules[source].points_lean, original.entry.points_lean)
+                client = compile_project("composable_dijkstra.dijkstra_" + package,
+                                         root=ROOT / "examples")
+                self.assertNotIn("composable_dijkstra." + package, client.modules)
+                self.assertFalse((ROOT / "examples/composable_dijkstra" /
+                                  (package + ".algo")).exists())
+                self.assertEqual(client.modules[source].lean, original.entry.lean)
+                self.assertEqual(client.modules[source].points_lean, original.entry.points_lean)
 
     @unittest.skipUnless(shutil.which("lean"), "Lean 4 is not installed")
     def test_complete_migrated_proofs_are_reusable_by_canonical_import(self):
-        for package, _, _ in PACKAGES:
+        for package, source, _ in PACKAGES:
             with self.subTest(package=package):
-                compiled = compile_project("composable_dijkstra." + package, root=ROOT / "examples")
+                compiled = compile_project(source, root=ROOT / "examples")
                 checked = check_project(compiled,
-                    analysis_module="Algo.composable_dijkstra." + package + ".Analysis")
+                    analysis_module="Algo.composable_dijkstra.support." + package + "_heap.Analysis")
                 self.assertTrue(checked.ok, checked.output)
                 self.assertNotIn("warning", checked.output)
 
@@ -85,7 +87,7 @@ class ComposableHeapTests(unittest.TestCase):
         for package, source, namespace in PACKAGES:
             with self.subTest(package=package):
                 compiled = compile_project(source, root=ROOT / "examples")
-                analysis = (f"import Algo.composable_dijkstra.{package}_queue.Analysis\n"
+                analysis = (f"import Algo.composable_dijkstra.support.{package}_queue.Analysis\n"
                             f"#print axioms {namespace}.contracts\n"
                             f"#print axioms {namespace}.constructor_rep\n")
                 checked = check_project(compiled, analysis=analysis)

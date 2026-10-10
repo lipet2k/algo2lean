@@ -178,10 +178,10 @@ class ProjectResolutionTests(unittest.TestCase):
         other = load_project("main", root=self.root, sources={"main": "import pkg.tool\n", "pkg/tool.algo": FUNCTION})
         self.assertIn("pkg.tool", other.modules)
 
-    def test_cycle_diagnostic_identifies_importing_file_and_line(self):
-        self.write("a", "import b\n")
-        self.write("b", "# comment\nimport a\n")
-        with self.assertRaisesRegex(ProjectError, "a -> b -> a") as raised:
+    def test_unresolved_cycle_diagnostic_identifies_importing_file_and_line(self):
+        self.write("a", "from b import f\n")
+        self.write("b", "# comment\nfrom a import f\n")
+        with self.assertRaisesRegex(ProjectError, "Unresolved cyclic re-export") as raised:
             load_project("a", root=self.root)
         self.assertIsInstance(raised.exception, CompileError)
         self.assertEqual(raised.exception.line, 2)

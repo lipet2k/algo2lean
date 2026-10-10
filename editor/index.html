@@ -44,10 +44,12 @@
       </ol>
     </section>
     <section id="editor" class="document-toolbar" aria-label="Document controls">
+      <div class="example-control"><label for="examples">Examples</label><select id="examples" aria-label="Load an example" aria-describedby="examples-help"><option value="">Choose an example…</option></select><span id="examples-help">Choose a single file or a complete project folder.</span></div>
       <div class="file-controls">
         <div class="filename-field"><label for="filename">File</label><input id="filename" value="merge_sort.algo" maxlength="255" spellcheck="false" autocomplete="off" aria-describedby="save-state"></div>
         <span id="save-state" class="save-state">Example</span>
         <span class="toolbar-divider" aria-hidden="true"></span>
+        <button id="new-file-button" class="button button-quiet" type="button" aria-controls="new-file-form" aria-expanded="false">New file</button>
         <button id="open-button" class="button button-quiet" type="button">Open</button>
         <button id="open-project-button" class="button button-quiet" type="button">Open project</button>
         <button id="save-button" class="button button-quiet" type="button" title="Save source file (⌘ / Ctrl S)">Save .algo</button>
@@ -55,14 +57,19 @@
         <input id="file-picker" class="visually-hidden" type="file" accept=".algo,text/plain" tabindex="-1">
         <input id="project-picker" class="visually-hidden" type="file" webkitdirectory multiple tabindex="-1" aria-label="Choose a project folder">
       </div>
-      <div class="example-control"><label for="examples">Examples</label><select id="examples" aria-label="Load an example"><option value="">Choose an example…</option></select></div>
     </section>
 
-    <section id="project-toolbar" class="project-toolbar" aria-label="Project modules" hidden>
+    <form id="new-file-form" class="new-file-form" aria-label="Create a source file" hidden novalidate>
+      <div class="new-file-field"><label for="new-file-name">File name</label><input id="new-file-name" maxlength="255" spellcheck="false" autocomplete="off" aria-describedby="new-file-help" placeholder="untitled.algo"></div>
+      <div class="new-file-actions"><button class="button button-primary" type="submit">Create file</button><button id="cancel-new-file-button" class="button button-quiet" type="button">Cancel</button></div>
+      <p id="new-file-help" role="status" aria-live="polite">Choose a name ending in .algo.</p>
+    </form>
+
+    <section id="project-toolbar" class="project-toolbar" aria-label="Project files" hidden>
       <div class="project-identity"><span class="subtle-label">Project</span><strong id="project-name"></strong><span id="project-count" class="save-state"></span></div>
-      <div class="project-module-field"><label for="project-module">Module</label><select id="project-module" aria-describedby="project-help"></select></div>
+      <div class="project-module-field"><label for="project-module">Project file</label><select id="project-module" aria-describedby="project-help"></select></div>
       <div class="project-actions"><button id="project-export-button" class="button button-quiet" type="button">Download project</button><button id="close-project-button" class="button button-quiet" type="button">Close project</button></div>
-      <p id="project-help">Edits stay in this browser. Switch modules to edit their source and analysis; download the project to keep every file together.</p>
+      <p id="project-help">Files are grouped by folder. Switch files to edit their source and analysis, or use New file to add one. Download the project to keep all your changes.</p>
     </section>
 
     <details id="draft-picker" class="draft-picker" hidden>
@@ -99,6 +106,11 @@
           <div class="output-actions"><button id="copy-button" class="button button-quiet" type="button" disabled>Copy</button><button id="export-button" class="button button-quiet" type="button" disabled>Export .lean</button></div>
         </div>
         <p class="output-description">Outputs and execution semantics. This file stays identical when only line names change.</p>
+        <div id="generated-view-control" class="generated-view-control" hidden>
+          <label for="generated-view">Show</label>
+          <select id="generated-view" aria-describedby="generated-view-help"></select>
+          <p id="generated-view-help">Mutually recursive files share an execution definition. Your analysis imports the public interface.</p>
+        </div>
         <div class="output-container">
           <div id="output-empty" class="output-empty"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M11 9h21l6 6v24H11V9Z" stroke="currentColor" stroke-width="1.5"/><path d="M31 9v8h7M18 25h13M18 31h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><h3>A precise meaning for the algorithm</h3><p>Compile to generate an output relation for each function. Nonterminating executions have no valid output.</p></div>
           <div id="lean-output" class="lean-output code-viewport" hidden>
