@@ -1,5 +1,8 @@
 import Std
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 Finite circular doubly linked lists for Fibonacci-heap pointer proofs.
 

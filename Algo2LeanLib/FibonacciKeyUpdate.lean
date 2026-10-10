@@ -1,4 +1,7 @@
 import Algo2LeanLib.FibonacciDecrease
+
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
 namespace Algo2Lean.Fibonacci
 
 /-- Exact replacement of one queue entry; all other entries are unchanged. -/
@@ -31,7 +34,7 @@ theorem Ancestors.key_change (context : List Ancestor) (node : Node) (rest : For
   refine ⟨node.children.flatMap Node.entries ++ Ancestors.surrounding context ++ rest.entries, ?_, ?_⟩
   · simpa [Forest.entries, Node.entries_head, List.append_assoc] using
       (Ancestors.entries_surrounding context node).append_right rest.entries
-  · simpa [Forest.entries, Node.entries_head, List.append_assoc] using
+  · simpa [Forest.entries, Node.entries_head, List.append_assoc] using!
       (Ancestors.entries_surrounding context (node.withKey key)).append_right rest.entries
 
 theorem EntryChange.vertices {before after : List (Int × Int)} {vertex oldKey newKey : Int}
@@ -348,7 +351,7 @@ theorem represented_lower_cut {state : Snapshot} {context : List Ancestor} {fram
   have valid : Forest.Valid ((node.withKey key).withMark false ::
       cascadeForest (frame.plug node) (frame.before ++ frame.after) context ++ rest) := by
     simpa only [Node.withMark, Node.withKey, Node.vertex, Node.key, Node.marked, Node.children]
-      using oldValid.decrease_root key decreased
+      using! oldValid.decrease_root key decreased
   obtain ⟨outputForest, order, output⟩ := canonical.close valid
   have content := cascadeForest_entries context (frame.plug (node.withKey key))
     (frame.before ++ frame.after) (node.withKey key).entries
@@ -466,7 +469,7 @@ theorem Represented.decrease {state : Snapshot} {forest : Forest}
   · have entryPermutation := permutation.flatMap_right Node.entries
     rw [located] at entryPermutation
     have complete := changed.perm_before entryPermutation.symm
-    simpa only [address, value, readKey, located] using complete
+    simpa only [address, value, readKey, located] using! complete
   · have counts := Forest.counts_perm permutation
     rw [located] at counts
     rw [located, ← counts]

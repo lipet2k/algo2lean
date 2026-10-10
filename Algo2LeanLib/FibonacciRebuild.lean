@@ -1,6 +1,9 @@
 import Algo2LeanLib.FibonacciConsolidation
 import Algo2LeanLib.FibonacciRootInsertion
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2Lean.Fibonacci
 
 /-- Move one detached tree into the pending root ring at its actual cursor. -/
@@ -122,7 +125,7 @@ theorem SplitRepresented.rebuild_step {state : Snapshot} {pending detached : For
     refine ⟨pending, detached, ?_, ?_, ?_, List.Perm.refl _, by simp [empty]⟩
     · simpa only [Snapshot.rebuildAt, if_pos empty] using represented.table_write degree (-1)
     · simpa only [Snapshot.rebuildAt, if_pos empty] using unchanged
-    · simpa only [Snapshot.rebuildAt, if_pos empty] using least
+    · simpa only [Snapshot.rebuildAt, if_pos empty] using! least
   · have occupied : 0 ≤ state.table degree := by omega
     obtain ⟨root, member, readDegree, readVertex⟩ := buckets.complete degree occupied
     obtain ⟨front, back, located⟩ := List.mem_iff_append.mp member

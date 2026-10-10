@@ -1,5 +1,9 @@
 import ClassesGenerated
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `counter_alias_observes_increment`: Shared-object mutation.
@@ -117,7 +121,7 @@ theorem linked_node_summary (heap : Heap) (node tail : Ref_Node) (value total : 
   apply Reaches.prepend (Step.Node_sum_pc9_false _ _ _ (by simp [next]))
   apply Reaches.prepend (Step.Node_sum_pc8 _ _ _ (by simp [stored]))
   apply Reaches.prepend (Step.Node_sum_pc7 _ _ _)
-  apply Reaches.prepend (Step.Node_sum_pc6 _ _ _ (by simpa [next] using tailSummary.1))
+  apply Reaches.prepend (Step.Node_sum_pc6 _ _ _ (by simpa [next] using! tailSummary.1))
   apply Reaches.prepend (Step.Node_sum_pc5 _ _ _)
   simp only [next, Option.getD_some]
   apply Reaches.trans (tailSummary.2 _)

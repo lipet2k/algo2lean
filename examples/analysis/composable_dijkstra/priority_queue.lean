@@ -1,5 +1,9 @@
 import Algo.composable_dijkstra.priority_queue.Generated
 import Algo2LeanLib.CallCost
+import Algo2LeanLib.Footprint
+
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
 
 /-!
 The priority-queue contract mentions only public operations, abstract contents,
@@ -13,11 +17,14 @@ namespace PriorityQueueAnalysis
 open Algo2LeanGenerated
 open Algo.composable_dijkstra.priority_queue
 
-/-- Client locations and object classes that a queue operation must preserve. -/
+/-- Queue calls preserve the listed client locations. The caller snapshot marks
+    all storage that existed before the private queue and work arrays were
+    allocated; its contents remain an invariant of the represented queue. -/
 structure Protected where
   sequences : List SeqRef
   objectClasses : List String
   collections : List CollectionRef
+  caller : Heap := {}
 
 /-- Allocation is allowed; every previously allocated protected value survives. -/
 structure Frame (protection : Protected) (before after : Heap) : Prop where
@@ -40,6 +47,8 @@ structure Model (code : PriorityQueue.Code) (queue : ObjectRef) (protection : Pr
   entries : State → List (Int × Int)
   Rep : Heap → State → Prop
   capacity : Int
+  /-- Representation invariants retain every location from the caller snapshot. -/
+  callerPreserved : ∀ {heap state}, Rep heap state → protection.caller.Footprint heap [] [] []
   unique : ∀ {heap state}, Rep heap state → (entries state |>.map Prod.fst).Nodup
   bounded : ∀ {heap state}, Rep heap state → ∀ vertex key, (vertex,key) ∈ entries state →
     0 ≤ vertex ∧ vertex < capacity

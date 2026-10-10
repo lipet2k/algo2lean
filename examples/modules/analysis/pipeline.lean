@@ -2,6 +2,10 @@ import Algo.pipeline.Generated
 import Algo.pipeline.Facts
 import Algo.twice.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable four-increment contract.

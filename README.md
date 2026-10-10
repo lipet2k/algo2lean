@@ -28,7 +28,7 @@ server. To choose another port, add `--port 8766`.
 
 Compilation requires only Python. Proof checking requires
 [Lean 4 via elan](https://lean-lang.org/install/). The repository pins Lean
-**4.26.0** in `lean-toolchain`; run commands here to use that version. The generated
+**4.33.1** in `lean-toolchain`, matching Prove2Me's default environment; run commands here to use that version. The generated
 code and included analyses use Lean/Std and do not require Mathlib.
 
 The [browser hosting guide](docs/HOSTING.md) explains how to build a static

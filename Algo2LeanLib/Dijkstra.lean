@@ -1,5 +1,8 @@
 import Std
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 Reusable shortest-path mathematics for Dijkstra implementations.
 

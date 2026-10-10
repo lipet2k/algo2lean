@@ -22,7 +22,7 @@ class SortSearchModuleTests(unittest.TestCase):
                 self.assertEqual(independent.entry.lean, combined.modules[name].lean)
                 checked = check_project(independent, analysis_module="Algo." + name + ".Analysis")
                 self.assertTrue(checked.ok, checked.output)
-                self.assertNotIn("declaration uses 'sorry'", checked.output)
+                self.assertNotIn("declaration uses `sorry`", checked.output)
 
     def test_negative_indices_duplicates_and_absent_keys(self):
         compiled = compile_project("sorted_search_three", root=EXAMPLES)

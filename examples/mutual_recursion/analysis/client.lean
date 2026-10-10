@@ -2,6 +2,10 @@ import Algo.client.Generated
 import Algo.client.Facts
 import Algo.parity.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 The client imports one function from a mutually recursive source group.
 Its proof reuses the group's call theorem without examining either recursive

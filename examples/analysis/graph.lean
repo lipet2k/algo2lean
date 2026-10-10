@@ -1,6 +1,9 @@
 import GraphGeneratedPoints
 import Algo2LeanLib.Dijkstra
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-! Shared mutable adjacency-list graph contracts for both Dijkstra backends. -/
 
 namespace GraphAnalysis
@@ -128,7 +131,7 @@ theorem add_edge_summary (heap : Heap) (graph : Ref_Graph) (size : Int) (heads :
   apply Reaches.trans ((edge_constructor_summary heap target weight next nextValid).2 _)
   apply Reaches.prepend (Step.Graph_add_edge_pc5 _ _ _ (by simp [newHeads]))
   apply Reaches.prepend (Step.Graph_add_edge_pc4 _ _ _)
-  apply Reaches.prepend (Step.Graph_add_edge_pc3 _ _ _ (by simpa [newHeads] using headsValid))
+  apply Reaches.prepend (Step.Graph_add_edge_pc3 _ _ _ (by simpa [newHeads] using! headsValid))
   apply Reaches.prepend (Step.Graph_add_edge_pc2 _ _ _)
   simpa [addedEdgeHeap, newHeads] using Reaches.single (Step.Graph_add_edge_pc1 _ _ caller)
 
@@ -332,7 +335,7 @@ theorem graph_initialization_summary (heap : Heap) (graph : Ref_Graph) (size : I
     apply Reaches.prepend (Step.Graph___init___pc3 _ _ _
       (by simpa [is_Graph, set_Graph_size] using valid))
     apply Reaches.prepend (Step.Graph___init___pc2 _ _ _)
-    simpa [initializedGraphHeap, sizedGraphHeap, negative] using
+    simpa [initializedGraphHeap, sizedGraphHeap, negative] using!
       Reaches.single (Step.Graph___init___pc1 _ _ caller)
   · apply Reaches.prepend (Step.Graph___init___pc8_false _ _ _ (by simp [negative]))
     apply Reaches.prepend (Step.Graph___init___pc6 _ _ _)
@@ -341,7 +344,7 @@ theorem graph_initialization_summary (heap : Heap) (graph : Ref_Graph) (size : I
     apply Reaches.prepend (Step.Graph___init___pc3 _ _ _
       (by simpa [is_Graph, set_Graph_size] using valid))
     apply Reaches.prepend (Step.Graph___init___pc2 _ _ _)
-    simpa [initializedGraphHeap, sizedGraphHeap, negative] using
+    simpa [initializedGraphHeap, sizedGraphHeap, negative] using!
       Reaches.single (Step.Graph___init___pc1 _ _ caller)
 
 theorem graph_constructor_summary (heap : Heap) (size : Int) :

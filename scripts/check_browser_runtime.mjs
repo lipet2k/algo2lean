@@ -63,7 +63,7 @@ add("mutually recursive imports", {"filename": recursive["entry"],
     "source": recursive["sources"][recursive["entry"]], "project_sources": recursive["sources"]}, True)
 
 catalogs = {identifier: load_example_project(identifier)
-            for identifier in ("modules", "interfaces", "mutual-recursion-imports", "dijkstra")}
+            for identifier in ("modules", "interfaces", "mutual-recursion-imports", "dijkstra", "kruskal")}
 for identifier in ("modules", "interfaces"):
     project = catalogs[identifier]
     add(identifier + " project folder", {"filename": project["entry"],
@@ -74,6 +74,10 @@ for backend in ("binary", "fibonacci"):
     entry = "composable_dijkstra/dijkstra_" + backend + ".algo"
     add(backend + " Dijkstra imports", {"filename": entry, "source": catalog["sources"][entry],
                                      "project_sources": catalog["sources"]}, True)
+catalog = load_example_project("kruskal")
+entry = catalog["entry"]
+add("Kruskal imports", {"filename": entry, "source": catalog["sources"][entry],
+                        "project_sources": catalog["sources"]}, True)
 (target / "fixtures.json").write_text(json.dumps({"runtime": runtime["version"],
     "fixtures": fixtures, "catalogs": catalogs}), encoding="utf-8")
 `;
@@ -156,7 +160,10 @@ def _archive_summary(encoded):
       console.log(`PASS ${fixture.name}: ${Object.keys(data.files).length} generated files match native bytes`);
     }
 
-    for (const fixture of [configuration.fixtures[1], configuration.fixtures.at(-1)]) {
+    const graphProjects = configuration.fixtures.filter(fixture =>
+      fixture.name === "fibonacci Dijkstra imports" || fixture.name === "Kruskal imports");
+    assert.equal(graphProjects.length, 2, "Both graph project export fixtures are present");
+    for (const fixture of [configuration.fixtures[1], ...graphProjects]) {
       const response = call("/api/generation", { ...fixture.body, archive: true }, fixture.project);
       ok(response, fixture.name + " archive");
       assert.equal(response.encoding, "base64");
@@ -172,10 +179,11 @@ def _archive_summary(encoded):
       assert.deepEqual(archive.manifest.outputs, fixture.expected.manifest.outputs);
       console.log(`PASS ${fixture.name}: generation ZIP contents and manifest`);
     }
-    const projectFixture = configuration.fixtures.at(-1);
-    const projectExport = call("/api/project-export", projectFixture.body, true);
-    ok(projectExport, "Project export");
-    assert.equal(projectExport.encoding, "base64");
+    for (const fixture of graphProjects) {
+      const projectExport = call("/api/project-export", fixture.body, true);
+      ok(projectExport, fixture.name + " project export");
+      assert.equal(projectExport.encoding, "base64");
+    }
     const invalid = call("/api/compile", { source: "import os\n" });
     assert.equal(invalid.status, 400);
     const traversal = call("/api/compile", { filename: "main.algo", source: "def f() -> Int:\n    return 0\n",

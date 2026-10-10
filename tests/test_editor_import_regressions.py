@@ -116,9 +116,9 @@ class EditorImportRegressionTests(unittest.TestCase):
         examples = data["examples"]
         projects = [item for item in examples if "project_id" in item]
         self.assertEqual([item["project_id"] for item in projects], [
-            "modules", "interfaces", "mutual-recursion-imports", "dijkstra"])
+            "modules", "interfaces", "mutual-recursion-imports", "kruskal", "dijkstra"])
         self.assertEqual([item["folder"] for item in projects], [
-            "modules", "interfaces", "mutual_recursion", "composable_dijkstra"])
+            "modules", "interfaces", "mutual_recursion", "kruskal", "composable_dijkstra"])
         self.assertEqual(examples[-len(projects):], projects)
         files = [item for item in examples if "project_id" not in item]
         self.assertEqual([item["filename"] for item in files[:5]], [
@@ -151,6 +151,24 @@ class EditorImportRegressionTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(result["ok"])
         self.assertIn("Algo.indexed_heap.Generated", result["project_files"])
+
+    def test_kruskal_example_project_has_an_independent_root_and_compiles(self):
+        status, project = self.request("GET", "/api/example-project/kruskal")
+        self.assertEqual(status, 200)
+        self.assertEqual(project["entry"], "kruskal.algo")
+        self.assertEqual(set(project["sources"]), {
+            "indexed_heap.algo", "union_find.algo", "sort_indices.algo", "kruskal.algo",
+        })
+        self.assertIn("Algo.sort_indices.Analysis", project["analyses"])
+        self.assertIn("Algo.union_find.Analysis", project["analyses"])
+        status, result = self.request("POST", "/api/compile", {
+            "filename": project["entry"], "source": project["sources"][project["entry"]],
+            "project_sources": project["sources"], "project_analyses": project["analyses"]},
+            {"X-Algo2Lean-Project": "1"})
+        self.assertEqual(status, 200)
+        self.assertTrue(result["ok"])
+        for module in ("indexed_heap", "union_find", "sort_indices", "kruskal"):
+            self.assertIn("Algo." + module + ".Generated", result["project_files"])
 
     def test_unknown_example_project_cannot_read_arbitrary_paths(self):
         for name in ("missing", "../../AGENTS.md", "%2e%2e%2fAGENTS.md"):

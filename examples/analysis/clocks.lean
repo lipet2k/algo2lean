@@ -1,5 +1,9 @@
 import ClocksGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `counted_summary`: Reusable call contract.

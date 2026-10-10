@@ -1,5 +1,8 @@
 import Algo2LeanLib.HeapFrame
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2LeanGenerated
 
 /-- Allocation-aware framing. Every previously allocated location outside the
@@ -47,6 +50,46 @@ theorem trans (first : before.Footprint middle sequences objects collections)
     fun ref old outside =>
       (second.otherCollections ref (Nat.lt_of_lt_of_le old first.nextCollection) outside).trans
         (first.otherCollections ref old outside)⟩
+
+/-- A callee may mutate private storage created after a caller snapshot while
+    preserving every location that already existed in that snapshot. -/
+theorem trans_fresh {caller : Heap}
+    (preserved : caller.Footprint before [] [] [])
+    (changed : before.Footprint after sequences objects collections)
+    (freshSequences : ∀ ref ∈ sequences, caller.nextRef ≤ ref)
+    (freshObjects : ∀ ref ∈ objects, caller.nextObject ≤ ref)
+    (freshCollections : ∀ ref ∈ collections, caller.nextCollection ≤ ref) :
+    caller.Footprint after [] [] [] := by
+  refine ⟨Nat.le_trans preserved.nextRef changed.nextRef,
+    Nat.le_trans preserved.nextObject changed.nextObject,
+    Nat.le_trans preserved.nextCollection changed.nextCollection, ?_, ?_, ?_, ?_, ?_⟩
+  · intro ref old
+    exact (changed.classes ref (Nat.lt_of_lt_of_le old preserved.nextObject)).trans
+      (preserved.classes ref old)
+  · intro ref old
+    exact (changed.types ref (Nat.lt_of_lt_of_le old preserved.nextCollection)).trans
+      (preserved.types ref old)
+  · intro ref old outside
+    have absent : ref ∉ sequences := by
+      intro member
+      have fresh := freshSequences ref member
+      omega
+    exact (changed.otherSequences ref (Nat.lt_of_lt_of_le old preserved.nextRef) absent).trans
+      (preserved.otherSequences ref old outside)
+  · intro ref old outside
+    have absent : ref ∉ objects := by
+      intro member
+      have fresh := freshObjects ref member
+      omega
+    exact (changed.otherObjects ref (Nat.lt_of_lt_of_le old preserved.nextObject) absent).trans
+      (preserved.otherObjects ref old outside)
+  · intro ref old outside
+    have absent : ref ∉ collections := by
+      intro member
+      have fresh := freshCollections ref member
+      omega
+    exact (changed.otherCollections ref (Nat.lt_of_lt_of_le old preserved.nextCollection) absent).trans
+      (preserved.otherCollections ref old outside)
 
 /-- A caller may reserve more locations than a callee actually changes. -/
 theorem weaken (frame : before.Footprint after sequences objects collections)

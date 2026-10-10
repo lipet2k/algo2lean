@@ -202,7 +202,7 @@ class ModularCheckingTests(unittest.TestCase):
                 result = subprocess.run(["lean", "--root=" + directory, "-o", str(path.with_suffix(".olean")), str(path)],
                     cwd=ROOT, env=environment, capture_output=True, text=True, timeout=90)
                 self.assertEqual(result.returncode, 0, name + "\n" + result.stdout + result.stderr)
-                self.assertNotIn("declaration uses 'sorry'", result.stdout + result.stderr)
+                self.assertNotIn("declaration uses `sorry`", result.stdout + result.stderr)
             return compiled
 
     def test_all_import_forms_reexports_diamond_and_recursive_calls_check(self):

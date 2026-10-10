@@ -16,9 +16,15 @@ class EditorProjectExamplesTests(unittest.TestCase):
         with patch("algo2lean.editor_examples.compile_project", side_effect=AssertionError("unexpected compile")):
             entries = project_examples()
         self.assertEqual({entry["project_id"] for entry in entries},
-                         {"modules", "interfaces", "dijkstra", "mutual-recursion-imports"})
+                         {"modules", "interfaces", "kruskal", "dijkstra", "mutual-recursion-imports"})
         self.assertEqual({entry["folder"] for entry in entries},
-                         {"modules", "interfaces", "composable_dijkstra", "mutual_recursion"})
+                         {"modules", "interfaces", "kruskal", "composable_dijkstra", "mutual_recursion"})
+        self.assertLess([entry["project_id"] for entry in entries].index("kruskal"),
+                        [entry["project_id"] for entry in entries].index("dijkstra"))
+        kruskal, = [entry for entry in entries if entry["project_id"] == "kruskal"]
+        self.assertEqual(kruskal["name"], "Kruskal")
+        self.assertEqual(kruskal["filename"], "kruskal.algo")
+        self.assertEqual(kruskal["folder"], "kruskal")
         dijkstra, = [entry for entry in entries if entry["project_id"] == "dijkstra"]
         self.assertEqual(dijkstra["name"], "Dijkstra")
         self.assertEqual(dijkstra["filename"], "composable_dijkstra/dijkstra_binary.algo")
@@ -33,6 +39,7 @@ class EditorProjectExamplesTests(unittest.TestCase):
             ("modules", "modules", "pipeline.algo"),
             ("interfaces", "interfaces", "use_direct.algo"),
             ("mutual-recursion-imports", "mutual_recursion", "client.algo"),
+            ("kruskal", "kruskal", "kruskal.algo"),
         ):
             with self.subTest(project=identifier), tempfile.TemporaryDirectory() as directory:
                 root = EXAMPLES / folder
@@ -77,6 +84,29 @@ class EditorProjectExamplesTests(unittest.TestCase):
             self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},
                              bundle["analyses"])
 
+    def test_kruskal_bundle_contains_its_four_sources_and_independent_proofs(self):
+        bundle = load_example_project("kruskal")
+        self.assertEqual(bundle["entry"], "kruskal.algo")
+        self.assertEqual(set(bundle["sources"]), {
+            "indexed_heap.algo", "union_find.algo", "sort_indices.algo", "kruskal.algo",
+        })
+        self.assertTrue({
+            "Algo.indexed_heap.Analysis", "Algo.union_find.Analysis",
+            "Algo.union_find_init.Analysis", "Algo.sort_indices.Analysis",
+            "Algo.kruskal_input.Analysis", "Algo.kruskal_scan.Analysis",
+        }.issubset(bundle["analyses"]))
+        root = EXAMPLES / "kruskal"
+        for path, source in bundle["sources"].items():
+            self.assertEqual(source, (root / path).read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            compiled = compile_project(bundle["entry"], root=directory, sources=bundle["sources"])
+            self.assertEqual(set(compiled.project.modules),
+                             {"indexed_heap", "union_find", "sort_indices", "kruskal"})
+            resolved = project_lean_sources(compiled, proof_sources=bundle["analyses"],
+                analysis_modules=tuple(bundle["analyses"]))
+            self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},
+                             bundle["analyses"])
+
     def test_only_fixed_example_ids_are_accepted(self):
         for identifier in ("", "dijkstra-generic", "dijkstra-binary", "dijkstra-fibonacci",
                            "../dijkstra", "/etc/passwd", "dijkstra.algo"):
@@ -118,7 +148,7 @@ class EditorProjectExamplesTests(unittest.TestCase):
                 checked = check_project(compiled, proof_sources=bundle["analyses"],
                     analysis_module="Algo." + compiled.project.entry + ".Analysis")
                 self.assertTrue(checked.ok, checked.output)
-                self.assertNotIn("declaration uses 'sorry'", checked.output)
+                self.assertNotIn("declaration uses `sorry`", checked.output)
 
 
 if __name__ == "__main__":

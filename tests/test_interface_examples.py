@@ -41,6 +41,26 @@ class InterfaceExamplesTests(unittest.TestCase):
         checked = check_project(both, check_facts=True)
         self.assertTrue(checked.ok, checked.output)
 
+    def test_repeated_calls_preserve_unrelated_caller_storage(self):
+        project = compile_project('consumer.advance_twice', root=ROOT)
+        proof = """import Algo.consumer.advance_twice.Analysis
+open Algo2LeanGenerated Algo.consumer.advance_twice
+
+example {before after : Heap} {counter other : ObjectRef} {value output : Int}
+    (represented : DirectAnalysis.Represents before counter value)
+    (execution : advance_twice.Run before counter after output)
+    (different : other ≠ counter) :
+    after.store = before.store ∧ after.objects other = before.objects other ∧
+      after.collections = before.collections ∧ after.nextRef = before.nextRef ∧
+      after.nextObject = before.nextObject ∧ after.nextCollection = before.nextCollection := by
+  obtain ⟨result, updated, cost, frame⟩ := CounterConsumerAnalysis.correct represented execution
+  exact ⟨funext (fun ref => frame.otherSequences ref (by simp)),
+    frame.otherObjects other (by simpa using different), frame.collections,
+    frame.nextRef, frame.nextObject, frame.nextCollection⟩
+"""
+        checked = check_project(project, analysis=proof, analysis_module='Algo.FrameClient.Analysis')
+        self.assertTrue(checked.ok, checked.output)
+
     def test_concrete_theorems_have_no_contract_axiom(self):
         for backend, prefix in [('direct', 'Direct'), ('negated', 'Negated')]:
             name = 'use_' + backend

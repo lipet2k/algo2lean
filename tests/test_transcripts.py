@@ -120,7 +120,7 @@ class TranscriptInterfaceTests(unittest.TestCase):
                                  "import " + generated.points_module + "\nopen Algo2LeanGenerated\n" + constructor_tactic(generated.lean) + proof,
                                  generated.module, points_lean=generated.points_lean, timeout=120)
         self.assertTrue(checked.ok, checked.output)
-        self.assertNotIn("declaration uses 'sorry'", checked.output)
+        self.assertNotIn("declaration uses `sorry`", checked.output)
 
     @unittest.skipUnless(shutil.which("lean"), "Lean 4 is not installed")
     def test_source_names_do_not_collide_with_lean_constructors(self):
@@ -143,7 +143,7 @@ def rec(recOn: Int) -> Int:
         result = compile_source(source, filename="interface.algo")
         checked = check_analysis(result.lean, proof, result.module, points_lean=result.points_lean, timeout=120)
         self.assertTrue(checked.ok, checked.output)
-        self.assertNotIn("declaration uses 'sorry'", checked.output)
+        self.assertNotIn("declaration uses `sorry`", checked.output)
 
     @unittest.skipUnless(shutil.which("lean"), "Lean 4 is not installed")
     def test_fixed_specification_survives_replaced_point_module(self):
@@ -166,7 +166,7 @@ def rec(recOn: Int) -> Int:
                     ["lean", "--root=" + directory, "-o", str(path.with_suffix(".olean")), str(path)],
                     cwd=ROOT, env=environment, capture_output=True, text=True, timeout=120)
                 self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
-                self.assertNotIn("declaration uses 'sorry'", checked.stdout + checked.stderr)
+                self.assertNotIn("declaration uses `sorry`", checked.stdout + checked.stderr)
 
             build(first.module, first.lean)
             build("Specification", "import FixedAlgorithm\ndef Correct : Prop := ∀ n, f.Returns n 1\n")

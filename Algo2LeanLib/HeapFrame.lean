@@ -1,5 +1,8 @@
 import Algo2Lean
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2LeanGenerated
 
 /-- A local storage footprint: only the listed sequences and objects may change.

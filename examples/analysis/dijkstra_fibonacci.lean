@@ -3,10 +3,15 @@ import DijkstraFibonacciDeterminism
 import Algo2LeanLib.Dijkstra
 import Algo2LeanLib.DijkstraExecution
 import Algo2LeanLib.HeapFrame
+import Algo2LeanLib.Footprint
+import Algo2LeanLib.CallCost
 import Algo2LeanExamples.FibonacciHeap
 import FibonacciHeapIntoDijkstra
 import Algo2LeanExamples.Graph
 import GraphIntoDijkstraFibonacci
+
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
 
 /-!
 Fibonacci-heap Dijkstra: terminating execution, shortest-path correctness, and
@@ -16,6 +21,8 @@ Dijkstra. The standalone heap proofs supply all three local QueueContracts
 through a checked compilation-unit embedding. The final public theorems need
 only a represented graph and, for shortest distances, a valid source vertex.
 No theorem assumes whole-program correctness, a search run, or termination.
+`dijkstra_call_contract` also supplies fresh allocated output, preservation of
+all existing caller storage, and exact clock increments for reuse by callers.
 -/
 
 namespace DijkstraFibonacciAnalysis
@@ -268,7 +275,7 @@ theorem final_extraction_summary (state : Configuration) (heap poppedHeap : Heap
   apply Reaches.prepend (Step.dijkstra_pc4 _ _ _ (by simp [readQueue, queueSize]))
   apply Reaches.prepend (Step.dijkstra_pc3_true _ _ _ (by simp [readQueue, queueSize]))
   apply Reaches.prepend (Step.dijkstra_pc28 _ _ _)
-  apply Reaches.prepend (Step.dijkstra_pc27 _ _ _ (by simpa [readQueue] using pop.1))
+  apply Reaches.prepend (Step.dijkstra_pc27 _ _ _ (by simpa [readQueue] using! pop.1))
   apply Reaches.prepend (Step.dijkstra_pc26 _ _ _)
   simp only [readQueue]
   apply Reaches.trans (pop.2 _)
@@ -319,7 +326,7 @@ theorem extraction_to_edges (state : Configuration) (heap poppedHeap finalHeap :
   apply Reaches.prepend (Step.dijkstra_pc4 _ _ _ (by simp [readQueue, queueSize]))
   apply Reaches.prepend (Step.dijkstra_pc3_true _ _ _ (by simp [readQueue, queueSize, nonempty]))
   apply Reaches.prepend (Step.dijkstra_pc28 _ _ _)
-  apply Reaches.prepend (Step.dijkstra_pc27 _ _ _ (by simpa [readQueue] using pop.1))
+  apply Reaches.prepend (Step.dijkstra_pc27 _ _ _ (by simpa [readQueue] using! pop.1))
   apply Reaches.prepend (Step.dijkstra_pc26 _ _ _)
   simp only [readQueue]
   apply Reaches.trans (pop.2 _)
@@ -404,7 +411,7 @@ theorem improve_edge_continue (state : Configuration) (heap queuedHeap finalHeap
   apply Reaches.prepend (Step.dijkstra_pc14 _ _ _ (by simpa [readDistance] using distanceAllocated))
   apply Reaches.prepend (Step.dijkstra_pc13 _ _ _)
   apply Reaches.prepend (Step.dijkstra_pc12 _ _ _
-    (by simpa [relaxationHeap, readQueue] using insertion.1))
+    (by simpa [relaxationHeap, readQueue] using! insertion.1))
   apply Reaches.prepend (Step.dijkstra_pc11 _ _ _)
   apply Reaches.prepend (Step.dijkstra_pc10 _ _ _)
   apply Reaches.prepend (Step.dijkstra_pc9 _ _ _)
@@ -541,6 +548,8 @@ structure Client where
   distance : SeqRef
   settled : SeqRef
   queue : Ref_FibonacciHeap
+  /-- Caller storage before allocating the private distance, flags, and queue. -/
+  origin : Heap
 
 structure QueueState where
   heap : Heap
@@ -558,6 +567,11 @@ structure Storage (client : Client) (state : QueueState) : Prop where
   separate : client.distance ≠ client.settled
   distanceSeparate : client.distance ∉ state.layout.refs
   settledSeparate : client.settled ∉ state.layout.refs
+  caller : client.origin.Footprint state.heap [] [] []
+  distanceFresh : client.origin.nextRef ≤ client.distance
+  settledFresh : client.origin.nextRef ≤ client.settled
+  queueFresh : client.origin.nextObject ≤ client.queue
+  refsFresh : ∀ ref ∈ state.layout.refs, client.origin.nextRef ≤ ref
 
 def QueueState.tick (state : QueueState) (name : String) : QueueState :=
   {state with heap := state.heap.tick name}
@@ -570,10 +584,13 @@ theorem Storage.tick {client : Client} {state : QueueState} (storage : Storage c
   exact ⟨storage.graph.preserved (GraphAnalysis.graph_frame_tick _ _ _ name 1),
     ⟨FibonacciHeapAnalysis.Layout.Valid.tick _ _ _ storage.queue.layoutValid name 1,
       storage.queue.represented⟩, storage.distanceAllocated, storage.settledAllocated,
-    storage.separate, storage.distanceSeparate, storage.settledSeparate⟩
+    storage.separate, storage.distanceSeparate, storage.settledSeparate,
+    storage.caller.tick name, storage.distanceFresh, storage.settledFresh,
+    storage.queueFresh, storage.refsFresh⟩
 
 theorem Storage.write {client : Client} {state : QueueState} (storage : Storage client state)
-    (ref : SeqRef) (index value : Int) (separate : ref ∉ state.layout.refs) :
+    (ref : SeqRef) (index value : Int) (separate : ref ∉ state.layout.refs)
+    (fresh : client.origin.nextRef ≤ ref) :
     Storage client (state.write ref index value) := by
   have read (r : SeqRef) (member : r ∈ state.layout.refs) :
       (state.heap.write ref index value).read r = state.heap.read r := by
@@ -586,7 +603,9 @@ theorem Storage.write {client : Client} {state : QueueState} (storage : Storage 
   refine ⟨storage.graph.preserved (GraphAnalysis.graph_frame_write _ _ _ ref index value),
     ⟨FibonacciHeapAnalysis.Layout.Valid.write _ _ _ storage.queue.layoutValid ref index value, ?_⟩,
     storage.distanceAllocated, storage.settledAllocated, storage.separate,
-    storage.distanceSeparate, storage.settledSeparate⟩
+    storage.distanceSeparate, storage.settledSeparate,
+    storage.caller.write ref index value (Or.inr fresh), storage.distanceFresh,
+    storage.settledFresh, storage.queueFresh, storage.refsFresh⟩
   change Algo2Lean.Fibonacci.Represented (FibonacciHeapAnalysis.snapshot _ _) _
   dsimp only [QueueState.write]
   rw [snapshot]
@@ -634,13 +653,14 @@ structure QueueExtracted (client : Client) (before after : QueueState) (vertex k
     assumes that Dijkstra terminates, produces shortest paths, or has a search run.
     The `verifiedQueueContracts` instance supplies every field. -/
 structure QueueContracts : Prop where
-  constructor : ∀ (heap : Heap) (graph : Ref_Graph) (size : Int) (heads : CollectionRef)
+  constructor : ∀ (origin heap : Heap) (graph : Ref_Graph) (size : Int) (heads : CollectionRef)
     (adjacency : Adjacency) (distance settled : SeqRef),
     GraphRep heap graph size heads adjacency → distance < heap.nextRef →
     settled < heap.nextRef → distance ≠ settled →
+    origin.Footprint heap [] [] [] → origin.nextRef ≤ distance → origin.nextRef ≤ settled →
     ∃ after layout,
       FibonacciHeap.Call heap () after heap.nextObject ∧
-      Storage ⟨graph,size,heads,adjacency,distance,settled,heap.nextObject⟩ ⟨after,layout,[]⟩ ∧
+      Storage ⟨graph,size,heads,adjacency,distance,settled,heap.nextObject,origin⟩ ⟨after,layout,[]⟩ ∧
       after.read distance = heap.read distance ∧ after.read settled = heap.read settled ∧
       after.clocks = heap.clocks
   update : ∀ client before vertex key, Storage client before → 0 ≤ vertex →
@@ -810,7 +830,7 @@ theorem advance_edge_of_queue_contracts (contracts : QueueContracts)
       have candidateNonnegative : 0 ≤ candidate := by dsimp [candidate]; omega
       let prepared := (state.tick "edges").write client.distance target candidate
       have preparedStorage : Storage client prepared :=
-        (storage.tick "edges").write _ target candidate storage.distanceSeparate
+        (storage.tick "edges").write _ target candidate storage.distanceSeparate storage.distanceFresh
       obtain ⟨after, updated⟩ := contracts.update client prepared target candidate preparedStorage targetLower (by
         intro old member
         have key := (matching target old).mp member
@@ -950,7 +970,7 @@ theorem extraction_progress_of_queue_contracts (contracts : QueueContracts)
         have read := invariant.storage.queue.layoutValid.readSize
         have zero : state.layout.size = 0 := by
           simpa [FibonacciHeapAnalysis.snapshot, empty, Algo2Lean.Fibonacci.Forest.entries] using size
-        simpa only [zero] using read
+        simpa only [zero] using! read
       · exact invariant.storage.distanceAllocated
   · have inRange (vertex key) (member : (vertex,key) ∈ state.forest.entries) :
         0 ≤ vertex ∧ vertex < client.size :=
@@ -961,7 +981,8 @@ theorem extraction_progress_of_queue_contracts (contracts : QueueContracts)
     have member : vertex ∈ remaining := (invariant.members vertex).mpr ⟨lower,upper,selected.1⟩
     let settled := (popped.write client.settled vertex 1).tick "settlements"
     have stored : Storage client settled :=
-      (extracted.storage.write _ vertex 1 extracted.storage.settledSeparate).tick "settlements"
+      (extracted.storage.write _ vertex 1 extracted.storage.settledSeparate
+        extracted.storage.settledFresh).tick "settlements"
     have distanceSame : settled.heap.read client.distance = state.heap.read client.distance := by
       change (popped.heap.write client.settled vertex 1).read client.distance = _
       rw [show (popped.heap.write client.settled vertex 1).read client.distance =
@@ -1015,7 +1036,7 @@ theorem extraction_progress_of_queue_contracts (contracts : QueueContracts)
         have entry := (invariant.matching v (state.heap.read client.distance v)).mpr
           ⟨by simpa [executionInterface] using unsettled,finite,rfl⟩
         have least := extracted.least v _ entry
-        simpa [selected.2.2] using least
+        simpa [selected.2.2] using! least
     · intro target weight
       simp [representedEdges,lower,upper]
     · have run := scanned.scan
@@ -1031,7 +1052,7 @@ theorem extraction_progress_of_queue_contracts (contracts : QueueContracts)
         extracted.storage.settledAllocated stored.graph.readHeads readHead
       intro edgeState edgeLocated
       exact scanned.execution final.heap client.distance continuation edgeState edgeLocated
-    · simpa using (extracted_settled_cost extracted).trans scanned.costs
+    · simpa using! (extracted_settled_cost extracted).trans scanned.costs
 
 /-- Conditional termination, logical search trace, and measured amortized cost
     of the entire extraction loop. Queue correctness is confined to local calls. -/
@@ -1062,10 +1083,10 @@ theorem CostBounds.runtime {before after : QueueState} {vertices edges size : Na
   simp only [Nat.add_mul, Nat.one_mul]
   omega
 
-/-- Full compiled execution and shortest distances, conditional only on the
-    three public queue-method contracts. The cost charges actual clock deltas
-    and is O(E + V log V); the final forest potential can only strengthen it. -/
-theorem dijkstra_correct_of_queue_contracts (contracts : QueueContracts)
+/-- Full compiled execution, shortest distances, fresh output allocation, and
+    preservation of caller storage, conditional only on three local queue-method
+    contracts. The O(E + V log V) cost charges actual clock deltas. -/
+theorem dijkstra_call_contract_of_queue_contracts (contracts : QueueContracts)
     (heap : Heap) (graph : Ref_Graph) (size source : Int) (heads : CollectionRef)
     (adjacency : Adjacency) (representation : GraphRep heap graph size heads adjacency)
     (sourceLower : 0 ≤ source) (sourceUpper : source < size) :
@@ -1073,6 +1094,7 @@ theorem dijkstra_correct_of_queue_contracts (contracts : QueueContracts)
       dijkstra.Call heap (graph,source) after heap.nextRef ∧
       GraphRep after graph size heads adjacency ∧
       ShortestDistances (representedEdges size adjacency) source (after.read heap.nextRef) ∧
+      heap.nextRef < after.nextRef ∧ heap.Footprint after [] [] [] ∧
       runtimeWork heap after ≤ 22 * (edgeBudget adjacency (vertexRange size) + 1) +
         (popBudget size + 1) * size.toNat := by
   let allocated := (heap.allocate (fun _ => -1)).allocate (fun _ => 0)
@@ -1080,11 +1102,13 @@ theorem dijkstra_correct_of_queue_contracts (contracts : QueueContracts)
     representation.preserved ((GraphAnalysis.graph_frame_allocate heap graph heads (fun _ => -1)).trans
       (GraphAnalysis.graph_frame_allocate _ graph heads (fun _ => 0)))
   obtain ⟨queueHeap, layout, constructor, storage, distances, flags, clocks⟩ := contracts.constructor
-    allocated graph size heads adjacency heap.nextRef (heap.nextRef + 1) allocatedGraph
+    heap allocated graph size heads adjacency heap.nextRef (heap.nextRef + 1) allocatedGraph
     (show heap.nextRef < heap.nextRef + 1 + 1 from Nat.lt_succ_of_le (Nat.le_succ _))
     (by simp [allocated, Heap.allocate])
     (Nat.ne_of_lt (Nat.lt_succ_self _))
-  let client : Client := ⟨graph,size,heads,adjacency,heap.nextRef,heap.nextRef+1,heap.nextObject⟩
+    (((Heap.Footprint.refl heap [] [] []).allocate (fun _ => -1)).allocate (fun _ => 0))
+    (Nat.le_refl _) (Nat.le_succ _)
+  let client : Client := ⟨graph,size,heads,adjacency,heap.nextRef,heap.nextRef+1,heap.nextObject,heap⟩
   let empty : QueueState := ⟨queueHeap,layout,[]⟩
   have stored : Storage client empty := storage
   have originalDistances : queueHeap.read heap.nextRef = fun _ => -1 := by
@@ -1097,7 +1121,7 @@ theorem dijkstra_correct_of_queue_contracts (contracts : QueueContracts)
     simp [allocated, Heap.read, Heap.allocate]
   let prepared := empty.write client.distance source 0
   have preparedStorage : Storage client prepared :=
-    stored.write _ source 0 stored.distanceSeparate
+    stored.write _ source 0 stored.distanceSeparate stored.distanceFresh
   obtain ⟨initial, inserted⟩ := contracts.update client prepared source 0 preparedStorage sourceLower (by
     intro key member
     simp [prepared,empty,QueueState.write,Algo2Lean.Fibonacci.Forest.entries] at member)
@@ -1156,7 +1180,8 @@ theorem dijkstra_correct_of_queue_contracts (contracts : QueueContracts)
         prepared,empty,QueueState.write,Algo2Lean.Fibonacci.Forest.counts,
         Algo2Lean.Fibonacci.scaledPotential,Algo2Lean.Fibonacci.potential,
         Algo2Lean.Fibonacci.Forest.marks] using work
-  refine ⟨after.heap, ?_, finalInvariant.storage.graph, correct, ?_⟩
+  refine ⟨after.heap, ?_, finalInvariant.storage.graph, correct,
+    finalInvariant.storage.distanceAllocated, finalInvariant.storage.caller, ?_⟩
   · apply initialize_summary heap queueHeap initial.heap after.heap graph heap.nextObject source size heap.nextRef
       representation.valid representation.readSize sourceLower sourceUpper constructor
       stored.distanceAllocated inserted.execution
@@ -1165,6 +1190,22 @@ theorem dijkstra_correct_of_queue_contracts (contracts : QueueContracts)
     simpa [QueueState.potential,Algo2Lean.Fibonacci.Forest.counts,
       Algo2Lean.Fibonacci.scaledPotential,Algo2Lean.Fibonacci.potential,Algo2Lean.Fibonacci.Forest.marks,
       vertexRange, popBudget, Nat.add_comm] using cost
+
+/-- The shorter correctness statement is a projection of the reusable contract. -/
+theorem dijkstra_correct_of_queue_contracts (contracts : QueueContracts)
+    (heap : Heap) (graph : Ref_Graph) (size source : Int) (heads : CollectionRef)
+    (adjacency : Adjacency) (representation : GraphRep heap graph size heads adjacency)
+    (sourceLower : 0 ≤ source) (sourceUpper : source < size) :
+    ∃ after,
+      dijkstra.Call heap (graph,source) after heap.nextRef ∧
+      GraphRep after graph size heads adjacency ∧
+      ShortestDistances (representedEdges size adjacency) source (after.read heap.nextRef) ∧
+      runtimeWork heap after ≤ 22 * (edgeBudget adjacency (vertexRange size) + 1) +
+        (popBudget size + 1) * size.toNat := by
+  obtain ⟨after, execution, graphRep, shortest, _, _, cost⟩ :=
+    dijkstra_call_contract_of_queue_contracts contracts heap graph size source heads adjacency
+      representation sourceLower sourceUpper
+  exact ⟨after, execution, graphRep, shortest, cost⟩
 
 /-- The explicit clocks are added with unit weight. This is the cost model
     implemented by the source's tick statements, not wall-clock time. -/
@@ -1285,12 +1326,16 @@ theorem Storage.of_modifies {client : Client} {before after : QueueState}
     (refs : after.layout.refs = before.layout.refs)
     (queue : FibonacciHeapAnalysis.QueueRep after.heap client.queue after.layout after.forest) :
     Storage client after := by
+  have caller := storage.caller.trans_fresh frame.footprint storage.refsFresh
+    (by simpa using storage.queueFresh) (by simp)
   refine ⟨storage.graph.preserved (graph_frame_of_modifies client.graph client.heads client.queue
-    before.layout.refs storage.queue.layoutValid.object frame),queue,?_,?_,storage.separate,?_,?_⟩
+    before.layout.refs storage.queue.layoutValid.object frame),queue,?_,?_,storage.separate,?_,?_,
+    caller, storage.distanceFresh, storage.settledFresh, storage.queueFresh, ?_⟩
   · rw [frame.nextRef]; exact storage.distanceAllocated
   · rw [frame.nextRef]; exact storage.settledAllocated
   · rw [refs]; exact storage.distanceSeparate
   · rw [refs]; exact storage.settledSeparate
+  · rw [refs]; exact storage.refsFresh
 
 theorem Storage.clients_unchanged {client : Client} {before after : QueueState}
     (storage : Storage client before)
@@ -1320,6 +1365,18 @@ theorem queue_constructor_next_ref (heap : Heap) :
     (FibonacciHeapAnalysis.newHeap heap).nextRef = heap.nextRef + 9 := by
   simp [FibonacciHeapAnalysis.newHeap,FibonacciHeapAnalysis.initializedHeap,
     FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_keys, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_parents, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_children, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_left, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_right, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_degrees, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_marks, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_present, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_table, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_minimum, FibonacciHeapLibrary.Algo2LeanGenerated.set_FibonacciHeap_size,Nat.add_assoc]
+
+/-- The queue constructor initializes fresh arrays and one fresh object while
+    preserving every location already owned by its caller. -/
+theorem queue_constructor_footprint (heap : Heap) :
+    heap.Footprint (FibonacciHeapAnalysis.newHeap heap) [] [] [] := by
+  refine ⟨?_, Nat.le_succ _, Nat.le_refl _, ?_, fun _ _ => rfl,
+    fun ref old _ => queue_constructor_old_sequence heap ref old,
+    fun ref old _ => queue_constructor_old_object heap ref old, fun _ _ _ => rfl⟩
+  · rw [queue_constructor_next_ref]
+    omega
+  · intro ref old
+    simp only [Heap.objectClass, queue_constructor_old_object heap ref old]
 
 /-- The new object's fresh class and the untouched old stores preserve the
     graph representation, including all shared adjacency-list tails. -/
@@ -1354,21 +1411,23 @@ theorem queue_constructor_graph_frame (heap : Heap) (graph : Ref_Graph) (heads :
       simp [field_Edge_next,edgeAfter,validEdge,Heap.readField,oldObjects]
 
 /-- This discharges the constructor field of QueueContracts unconditionally. -/
-theorem queue_constructor_verified (heap : Heap) (graph : Ref_Graph) (size : Int)
+theorem queue_constructor_verified (origin heap : Heap) (graph : Ref_Graph) (size : Int)
     (heads : CollectionRef) (adjacency : Adjacency) (distance settled : SeqRef)
     (graphRep : GraphRep heap graph size heads adjacency)
     (distanceAllocated : distance < heap.nextRef) (settledAllocated : settled < heap.nextRef)
-    (separate : distance ≠ settled) :
+    (separate : distance ≠ settled) (caller : origin.Footprint heap [] [] [])
+    (distanceFresh : origin.nextRef ≤ distance) (settledFresh : origin.nextRef ≤ settled) :
     ∃ after layout,
       FibonacciHeap.Call heap () after heap.nextObject ∧
-      Storage ⟨graph,size,heads,adjacency,distance,settled,heap.nextObject⟩ ⟨after,layout,[]⟩ ∧
+      Storage ⟨graph,size,heads,adjacency,distance,settled,heap.nextObject,origin⟩ ⟨after,layout,[]⟩ ∧
       after.read distance = heap.read distance ∧ after.read settled = heap.read settled ∧
       after.clocks = heap.clocks := by
   refine ⟨FibonacciHeapAnalysis.newHeap heap,FibonacciHeapAnalysis.emptyLayout heap,
     Queue.constructor_summary heap,?_,queue_constructor_old_sequence heap distance distanceAllocated,
     queue_constructor_old_sequence heap settled settledAllocated,rfl⟩
   refine ⟨graphRep.preserved (queue_constructor_graph_frame heap graph heads graphRep.valid),
-    FibonacciHeapAnalysis.new_heap_representation heap,?_,?_,separate,?_,?_⟩
+    FibonacciHeapAnalysis.new_heap_representation heap,?_,?_,separate,?_,?_,
+    caller.trans (queue_constructor_footprint heap), distanceFresh, settledFresh, caller.nextObject, ?_⟩
   · change distance < (FibonacciHeapAnalysis.newHeap heap).nextRef
     rw [queue_constructor_next_ref]
     exact Nat.lt_of_lt_of_le distanceAllocated (Nat.le_add_right _ _)
@@ -1383,6 +1442,12 @@ theorem queue_constructor_verified (heap : Heap) (graph : Ref_Graph) (size : Int
       Nat.ne_of_lt (Nat.lt_of_lt_of_le settledAllocated (Nat.le_add_right _ _))
     simp [FibonacciHeapAnalysis.emptyLayout,FibonacciHeapAnalysis.Layout.refs,different,
       Nat.ne_of_lt settledAllocated]
+  · intro ref member
+    change origin.nextRef ≤ ref
+    have lower := caller.nextRef
+    simp only [FibonacciHeapAnalysis.emptyLayout, FibonacciHeapAnalysis.Layout.refs,
+      List.mem_cons, List.not_mem_nil, or_false] at member
+    rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> omega
 /-- Unique active handles within the graph range bound the queue's cardinality,
     independently of the internal tree or ring shape. -/
 theorem queue_cardinality_bound {client : Client} {state : QueueState}
@@ -1498,6 +1563,49 @@ def verifiedQueueContracts : QueueContracts where
   update := queue_update_verified
   extract := queue_extract_verified
 
+/-- Every clock is nondecreasing along the same compiled call, including all
+    nested heap methods. Initial counters may contain arbitrary prior work. -/
+theorem execution_clocks_monotone (heap after : Heap) (graph : Ref_Graph)
+    (source : Int) (result : SeqRef)
+    (execution : dijkstra.Call heap (graph, source) after result) :
+    heap.ClocksMonotone after := by
+  intro name
+  have resumeHeap (h : Heap) (result : Result) (stack : Stack) :
+      (resumeConfig h result stack).heap = h := by
+    cases stack <;> rfl
+  have stepClock (before after : Configuration) (transition : Step before after) :
+      before.heap.clocks name ≤ after.heap.clocks name := by
+    cases transition <;> first
+      | exact Nat.le_refl _
+      | exact Heap.clocks_le_tick ..
+      | rw [resumeHeap]; exact Nat.le_refl _
+  exact execution.2.root.invariant (fun state => heap.clocks name ≤ state.heap.clocks name)
+    (Nat.le_refl _) (fun before after transition bound =>
+      Nat.le_trans bound (stepClock before after transition))
+
+-- Main result: Correctness and running time
+/-- The reusable call contract returns a fresh allocated distance sequence,
+    preserves every previously allocated caller location and the represented
+    graph, and bounds the actual increments of all ten instrumented clocks.
+    The same call witness supplies shortest paths, storage, and runtime. -/
+theorem dijkstra_call_contract (heap : Heap) (graph : Ref_Graph) (size source : Int)
+    (heads : CollectionRef) (adjacency : Adjacency)
+    (representation : GraphRep heap graph size heads adjacency)
+    (sourceLower : 0 ≤ source) (sourceUpper : source < size) :
+    ∃ after,
+      dijkstra.Call heap (graph,source) after heap.nextRef ∧
+      GraphRep after graph size heads adjacency ∧
+      ShortestDistances (representedEdges size adjacency) source (after.read heap.nextRef) ∧
+      heap.nextRef < after.nextRef ∧ heap.Footprint after [] [] [] ∧
+      heap.Increments after (Heap.cost heap after) ∧
+      clockWork (Heap.cost heap after) ≤ 22 * (edgeBudget adjacency (vertexRange size) + 1) +
+        (popBudget size + 1) * size.toNat := by
+  obtain ⟨after, execution, graphRep, shortest, allocated, frame, bound⟩ :=
+    dijkstra_call_contract_of_queue_contracts verifiedQueueContracts heap graph size source heads
+      adjacency representation sourceLower sourceUpper
+  exact ⟨after, execution, graphRep, shortest, allocated, frame,
+    (execution_clocks_monotone heap after graph source heap.nextRef execution).increments, bound⟩
+
 /-- The compiled algorithm terminates with shortest distances and the combined
     measured runtime bound, using the verified Fibonacci heap implementation. -/
 theorem dijkstra_correct (heap : Heap) (graph : Ref_Graph) (size source : Int)
@@ -1509,9 +1617,10 @@ theorem dijkstra_correct (heap : Heap) (graph : Ref_Graph) (size source : Int)
       GraphRep after graph size heads adjacency ∧
       ShortestDistances (representedEdges size adjacency) source (after.read heap.nextRef) ∧
       runtimeWork heap after ≤ 22 * (edgeBudget adjacency (vertexRange size) + 1) +
-        (popBudget size + 1) * size.toNat :=
-  dijkstra_correct_of_queue_contracts verifiedQueueContracts heap graph size source heads adjacency
-    representation sourceLower sourceUpper
+        (popBudget size + 1) * size.toNat := by
+  obtain ⟨after, execution, graphRep, shortest, _, _, _, bound⟩ :=
+    dijkstra_call_contract heap graph size source heads adjacency representation sourceLower sourceUpper
+  exact ⟨after, execution, graphRep, shortest, bound⟩
 
 /-- A valid source has an ordinary distance-sequence output and a bounded sum
     of the ten instrumented clocks. -/

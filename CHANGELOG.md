@@ -1,5 +1,19 @@
 # Change log
 
+## 0.1.3 — 2026-10-10
+
+- Move the complete Algo2Lean project, shared libraries, examples, and proof-checking tools to Lean 4.33.1.
+- Repair proof elaboration for Lean 4.33.1 while preserving theorem statements, including the Chapter 4 matrix proofs, reusable module compositions, and abstract-interface backends.
+- Recognize Lean's updated diagnostics for unfinished proofs so the local checkers continue to reject them reliably.
+- Add Kruskal minimum-spanning-forest correctness and running-time proofs, with separately verified union by rank and full path compression.
+- Prove reusable inverse-Ackermann amortized union-find bounds and compose them with edge sorting in Kruskal.
+- Strengthen reusable Call contracts, including Dijkstra, with caller storage preservation, output allocation, and costs measured from arbitrary initial counters.
+- Include Kruskal in the project browser and offline native/browser compiler-parity checks, and update the public guides for the new Lean toolchain.
+
+Named operation counters measure the stated algorithm events; they do not measure wall-clock time or every machine instruction. The compiler is tested but is not itself formally verified for semantics preservation.
+
+Validation: all 181 JavaScript tests pass. Offline Pyodide/native generation parity passes for 12 fixtures, including both Dijkstra variants and Kruskal; generation ZIP contents and manifests are also checked. A fresh Lean 4.33.1 site preview builds successfully and preserves all 132 files in the earlier version archives byte-for-byte. The full run and focused reruns cover all 512 Python test cases, with one filesystem-dependent skip; all 26 standalone analyses and the final 98-test regression pass on Lean 4.33.1.
+
 ## 0.1.2 — 2026-10-10
 
 - Support mutual recursion across imported source files while preserving reusable public Lean interfaces, mutable state, and tick costs.

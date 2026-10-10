@@ -1,5 +1,9 @@
 import Std
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Cost mathematics for balanced merge sort.
 

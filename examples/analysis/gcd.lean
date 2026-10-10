@@ -1,5 +1,9 @@
 import GcdGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Euclid's algorithm on all signed integers. The proof outline is sign
 normalization, one Euclidean reduction, well-founded induction on the second

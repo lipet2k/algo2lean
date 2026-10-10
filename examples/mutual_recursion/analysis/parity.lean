@@ -3,6 +3,10 @@ import Algo.odd.Generated
 import Algo.even.Facts
 import Algo.odd.Facts
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 open Algo2LeanCore _root_.Algo2LeanGenerated Algo.even Algo.odd
 
 namespace ParityAnalysis

@@ -23,11 +23,12 @@ class LibraryPreparationTests(unittest.TestCase):
         self.root.mkdir()
         self.source = self.root / "Algo2Lean.lean"
         self.source.write_text("import Std\n", encoding="utf-8")
-        self.version = "Lean (version 4.26.0, test-build)\n"
+        self.version = "Lean (version 4.33.1, test-build)\n"
         self.builds = 0
         self.built_modules = []
         self.generated_environments = []
         self.build_failure = False
+        self.build_warning = ""
         self.installation_failure = False
         for target, value in [
             ("algo2lean.checker.ROOT", self.root),
@@ -59,7 +60,7 @@ class LibraryPreparationTests(unittest.TestCase):
             self.assertEqual((build_root / relative).read_bytes(), (self.root / relative).read_bytes())
             self.built_modules.append(relative.as_posix())
             output.write_bytes(b"test Lean object")
-            return subprocess.CompletedProcess(command, 0, "", "")
+            return subprocess.CompletedProcess(command, 0, self.build_warning, "")
         self.generated_environments.append(kwargs["env"])
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -76,7 +77,7 @@ class LibraryPreparationTests(unittest.TestCase):
         first = prepare_lean_environment()
         self.source.write_text("import Std\ndef changed := 1\n", encoding="utf-8")
         second = prepare_lean_environment()
-        self.version = "Lean (version 4.26.0, different-build)\n"
+        self.version = "Lean (version 4.33.1, different-build)\n"
         third = prepare_lean_environment()
         self.assertEqual(self.builds, 3)
         self.assertEqual(len({env["LEAN_PATH"] for env in (first, second, third)}), 3)
@@ -168,6 +169,18 @@ import Algo2LeanLib.StringContent
         self.assertTrue(check_lean("import Algo2Lean\n").ok)
         environment, = self.generated_environments
         self.assertTrue((Path(environment["LEAN_PATH"].split(os.pathsep)[0]) / "Algo2Lean.olean").is_file())
+
+    def test_unfinished_library_is_rejected_for_both_lean_warning_formats(self):
+        for quoted in ("'sorry'", "`sorry`"):
+            with self.subTest(quoted=quoted):
+                self.build_warning = "Algo2Lean.lean:2:0: warning: declaration uses " + quoted
+                result = check_lean("import Algo2Lean\n")
+                self.assertFalse(result.ok)
+                self.assertIn("Lean rejected the shared library", result.output)
+                self.assertFalse(self.generated_environments)
+        self.build_warning = ""
+        self.assertTrue(check_lean("import Algo2Lean\n").ok)
+        self.assertEqual(self.builds, 3)
 
     def test_standalone_check_needs_no_library_or_build(self):
         self.source.unlink()

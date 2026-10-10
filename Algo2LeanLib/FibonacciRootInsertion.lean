@@ -1,5 +1,8 @@
 import Algo2LeanLib.FibonacciStorage
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2Lean.Fibonacci
 
 /-- Insert an existing detached tree into the root ring without changing its

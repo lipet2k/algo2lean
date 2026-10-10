@@ -103,7 +103,7 @@ class EmbeddingCheckingTests(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0, "A mismatched compiled target must reject the certificate")
                     return
                 self.assertEqual(result.returncode, 0, name + '\n' + result.stdout + result.stderr)
-                self.assertNotIn("declaration uses 'sorry'", result.stdout)
+                self.assertNotIn("declaration uses `sorry`", result.stdout)
 
     def check_embedding(self, source, target, *, source_module='LibraryGenerated',
                         source_namespace='Library', target_namespace=None):

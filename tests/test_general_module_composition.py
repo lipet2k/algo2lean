@@ -26,7 +26,7 @@ class GeneralModuleCompositionTests(unittest.TestCase):
                 self.assertEqual(independent.entry.lean, combined.modules[name].lean)
                 checked = check_project(independent, analysis_module="Algo." + name + ".Analysis", timeout=120)
                 self.assertTrue(checked.ok, checked.output)
-                self.assertNotIn("declaration uses 'sorry'", checked.output)
+                self.assertNotIn("declaration uses `sorry`", checked.output)
 
     def test_external_consumer_retains_correctness_storage_and_exact_sort_cost(self):
         compiled = compile_project("general_consumer", root=EXAMPLES)

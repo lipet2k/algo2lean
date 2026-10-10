@@ -1,5 +1,8 @@
 import Algo2LeanLib.FibonacciForest
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2Lean.Fibonacci
 
 /-- One ancestor records the siblings before and after the focused subtree.
@@ -178,7 +181,7 @@ theorem cascadeForest_entries (context : List Ancestor) (node : Node) (kept : Li
     (contents : node.entries.Perm ((node.withChildren kept).entries ++ removed)) :
     (Ancestors.plug context node).entries.Perm ((cascadeForest node kept context).entries ++ removed) := by
   induction context generalizing node kept removed with
-  | nil => simpa [cascadeForest, Forest.entries] using contents
+  | nil => simpa [cascadeForest, Forest.entries] using! contents
   | cons frame rest ih =>
     by_cases marked : node.marked = true
     · have cut := (frame.plug node).cut_entries frame.before frame.after node rfl

@@ -2,6 +2,10 @@ import Algo.general_lower_bound.Generated
 import Algo.general_lower_bound.Facts
 import Algo2LeanLib.SequenceModel
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable linear-search contract.
@@ -94,7 +98,7 @@ theorem count_summary (count : Nat) (heap : Heap) (ref : SeqRef) (first key : In
         refine ⟨by omega, by omega, ?_, ?_⟩
         · intro index low high
           by_cases equal : index = first
-          · simpa [equal] using miss
+          · simpa [equal] using! miss
           · exact before index (by omega) high
         · intro index low high
           exact after index low (by omega)

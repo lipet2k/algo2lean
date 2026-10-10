@@ -247,12 +247,12 @@ class ExampleLeanTests(unittest.TestCase):
             path = Path(directory) / "MergeSort.lean"
             path.write_text(generated + constructor_tactic(generated) + proofs, encoding="utf-8")
             result = subprocess.run(
-                ["lean", "+v4.26.0", str(path)], cwd=str(ROOT),
+                ["lean", str(path)], cwd=str(ROOT),
                 env=prepare_lean_environment(timeout=120),
                 capture_output=True, text=True, timeout=120,
             )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertNotIn("declaration uses 'sorry'", result.stdout + result.stderr)
+        self.assertNotIn("declaration uses `sorry`", result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

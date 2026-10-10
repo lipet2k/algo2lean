@@ -5,6 +5,9 @@ Execution of an independently compiled module inside another module.
 
 The caller has one frame constructor for each imported module instance. It stores the
 imported frame, its private control stack, and a continuation in the caller.
+
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
 The heap is shared. One caller transition delegates any imported transition;
 no imported instruction, frame, result, or proof is translated or regenerated.
 -/

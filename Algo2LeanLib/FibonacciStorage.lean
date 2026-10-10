@@ -1,6 +1,9 @@
 import Algo2LeanLib.FibonacciForest
 import Algo2LeanLib.FibonacciRings
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 The representation boundary between Fibonacci forests and mutable indexed storage.
 Snapshots contain ordinary array observations, not a compiler configuration or a
@@ -438,7 +441,7 @@ theorem Represented.insert_after_minimum {state : Snapshot} {root : Node} {rest 
         intro value member
         have same : value = vertex := by simpa [singleton, Node.entries] using member
         simpa only [same] using vertexFresh)
-    simpa [Forest.insertRoot, singleton, Node.withMark] using result
+    simpa [Forest.insertRoot, singleton, Node.withMark] using! result
   have oldRing : Rings.Ring state.left state.right (root.vertex :: rest.map Node.vertex) := by
     rcases represented.roots with impossible | ring
     · simp at impossible
@@ -1150,7 +1153,7 @@ theorem Rings.Ring.remove_head_pointer {left right : Int → Int} {head child : 
       match front ++ back with | [] => -1 | first :: _ => first := by
   cases front with
   | nil =>
-    have same : head = child := by simpa using readHead
+    have same : head = child := by simpa using! readHead
     rw [same, if_pos rfl]
     cases back with
     | nil => simp [ring.singleton_pointers.2]
@@ -1161,7 +1164,7 @@ theorem Rings.Ring.remove_head_pointer {left right : Int → Int} {head child : 
         exact (List.nodup_cons.mp ring.unique).1 (by simp [same])
       simp [pointers.1, different]
   | cons first rest =>
-    have same : head = first := by simpa using readHead
+    have same : head = first := by simpa using! readHead
     have different : first ≠ child := by
       intro same
       exact (List.nodup_cons.mp ring.unique).1 (by simp [same])
@@ -1231,7 +1234,7 @@ theorem Stored.removeChild {state : Snapshot} {outerParent : Int} {parent child 
           (by simpa only [List.map_append, List.map_cons] using readOriginal)
         change (Rings.write state.children vertex _ vertex) = _
         rw [Rings.write_same]
-        cases before <;> cases after <;> simpa using result
+        cases before <;> cases after <;> simpa using! result
       · have remaining := Rings.Ring.remove_from_decomposition
           (front := before.map Node.vertex) (back := after.map Node.vertex) child.vertex
           (by simpa only [List.map_append, List.map_cons] using original)

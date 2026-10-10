@@ -2,6 +2,10 @@ import Algo.increment.Generated
 import Algo.increment.Facts
 import Algo.counter.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable abstract-counter increment contract.
@@ -41,10 +45,11 @@ theorem summary (dependencies : Dependencies) (contract : CounterContract depend
     (represented : contract.Represents before ref value) :
     ∃ after, increment.Call dependencies before ref after (value + 1) ∧
       contract.Represents after ref (value + 1) ∧
-      before.Increments after (Clocks.single "counter_work" (contract.readCost + contract.writeCost)) := by
-  obtain ⟨middle, read, unchanged, readCost⟩ := contract.read represented
-  obtain ⟨after, write, updated, writeCost⟩ := contract.write (value + 1) unchanged
-  refine ⟨after, calls dependencies read write, updated, ?_⟩
+      before.Increments after (Clocks.single "counter_work" (contract.readCost + contract.writeCost)) ∧
+      before.Modifies after [] [ref] := by
+  obtain ⟨middle, read, unchanged, readCost, readFrame⟩ := contract.read represented
+  obtain ⟨after, write, updated, writeCost, writeFrame⟩ := contract.write (value + 1) unchanged
+  refine ⟨after, calls dependencies read write, updated, ?_, readFrame.trans writeFrame⟩
   have cost := readCost.trans writeCost
   intro clock
   have effect := cost clock
@@ -60,9 +65,10 @@ theorem correct (dependencies : Dependencies) (facts : DependencyFacts dependenc
     (represented : contract.Represents before ref value)
     (execution : increment.Run dependencies before ref after output) :
     output = value + 1 ∧ contract.Represents after ref (value + 1) ∧
-      before.Increments after (Clocks.single "counter_work" (contract.readCost + contract.writeCost)) := by
-  obtain ⟨finalHeap, run, updated, cost⟩ := summary dependencies contract represented
+      before.Increments after (Clocks.single "counter_work" (contract.readCost + contract.writeCost)) ∧
+      before.Modifies after [] [ref] := by
+  obtain ⟨finalHeap, run, updated, cost, frame⟩ := summary dependencies contract represented
   obtain ⟨rfl, rfl⟩ := increment.Run.eq_of_call facts execution run
-  exact ⟨rfl, updated, cost⟩
+  exact ⟨rfl, updated, cost, frame⟩
 
 end IncrementAnalysis

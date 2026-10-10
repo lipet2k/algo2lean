@@ -1,5 +1,9 @@
 import Algo2LeanLib.Interface
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable abstract-callable contract.

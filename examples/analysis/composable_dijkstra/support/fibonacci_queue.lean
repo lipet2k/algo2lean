@@ -1,6 +1,9 @@
 import Algo.composable_dijkstra.support.fibonacci_heap.Analysis
 import Algo.composable_dijkstra.priority_queue.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-! The Fibonacci implementation supplies the abstract queue contract once.
     The bridge is instantiated by generated interface-binding theorems; neither
     this module nor the heap proof imports a graph algorithm. -/
@@ -36,11 +39,16 @@ structure Rep (queue : ObjectRef) (protection : Protected) (capacity : Int)
   represented : QueueRep heap queue state.layout state.forest
   separate : ∀ ref ∈ protection.sequences, ref ∉ state.layout.refs
   bounded : ∀ vertex key, (vertex, key) ∈ state.forest.entries → 0 ≤ vertex ∧ vertex < capacity
+  callerPreserved : protection.caller.Footprint heap [] [] []
+  privateSequences : ∀ ref ∈ state.layout.refs, protection.caller.nextRef ≤ ref
+  privateObject : protection.caller.nextObject ≤ queue
+  clientSequences : ∀ ref ∈ protection.sequences, protection.caller.nextRef ≤ ref
 
 theorem Rep.tick {queue protection capacity heap state}
     (rep : Rep queue protection capacity heap state) (clock : String) (amount : Nat) :
     Rep queue protection capacity (heap.tick clock amount) state := by
-  refine ⟨⟨Layout.Valid.tick _ _ _ rep.represented.layoutValid _ _, ?_⟩, rep.separate, rep.bounded⟩
+  refine ⟨⟨Layout.Valid.tick _ _ _ rep.represented.layoutValid _ _, ?_⟩, rep.separate, rep.bounded, rep.callerPreserved.tick clock amount,
+    rep.privateSequences, rep.privateObject, rep.clientSequences⟩
   simpa only [snapshot_tick] using rep.represented.represented
 
 theorem Rep.write {queue protection capacity heap state}
@@ -56,7 +64,9 @@ theorem Rep.write {queue protection capacity heap state}
   have unchanged : snapshot (heap.write ref index value) state.layout = snapshot heap state.layout := by
     unfold snapshot
     congr 1 <;> apply read <;> simp [Layout.refs]
-  refine ⟨⟨Layout.Valid.write _ _ _ rep.represented.layoutValid _ _ _, ?_⟩, rep.separate, rep.bounded⟩
+  refine ⟨⟨Layout.Valid.write _ _ _ rep.represented.layoutValid _ _ _, ?_⟩, rep.separate, rep.bounded,
+    rep.callerPreserved.write ref index value (Or.inr (rep.clientSequences ref guarded)),
+    rep.privateSequences, rep.privateObject, rep.clientSequences⟩
   rw [unchanged]
   exact rep.represented.represented
 
@@ -73,6 +83,7 @@ def model (code : PriorityQueue.Code) (bridge : Bridge code) (queue : ObjectRef)
   entries := fun state => state.forest.entries
   Rep := Rep queue protection capacity
   capacity := capacity
+  callerPreserved := Rep.callerPreserved
   unique := fun rep => rep.represented.represented.valid.1
   bounded := fun rep => rep.bounded
   metric := metric
@@ -147,12 +158,16 @@ theorem contracts (code : PriorityQueue.Code) (bridge : Bridge code) (queue : Ob
       rep.represented.update vertex key lower improvement
     refine ⟨after, ⟨layout, forest⟩, bridge.update execution, ?_, contents,
       protected_frame rep.represented rep.separate classOutside changed, ?_, ?_⟩
-    · refine ⟨represented, ?_, ?_⟩
+    · refine ⟨represented, ?_, ?_,
+        Heap.Footprint.trans_fresh rep.callerPreserved changed.footprint rep.privateSequences
+          (by intro ref member; have same := List.mem_singleton.mp member; subst ref; exact rep.privateObject) (by simp),
+        ?_, rep.privateObject, rep.clientSequences⟩
       · simpa only [refs] using rep.separate
       · intro v k member
         rcases (contents v k).mp member with ⟨rfl, rfl⟩ | ⟨_, old⟩
         · exact ⟨lower, upper⟩
         · exact rep.bounded v k old
+      · simpa only [refs] using rep.privateSequences
     · intro name named
       exact clocks name (clockOutside name named)
     · simpa only [model, measured_work] using amortized
@@ -166,10 +181,14 @@ theorem contracts (code : PriorityQueue.Code) (bridge : Bridge code) (queue : Ob
       heap.read state.layout.keys state.layout.minimum, bridge.extract contract.execution, ?_,
       contract.contents.mem_iff.mp (by simp), ?_, contents,
       protected_frame rep.represented rep.separate classOutside contract.frame, ?_, ?_⟩
-    · refine ⟨contract.represented, ?_, ?_⟩
+    · refine ⟨contract.represented, ?_, ?_,
+        Heap.Footprint.trans_fresh rep.callerPreserved contract.frame.footprint rep.privateSequences
+          (by intro ref member; have same := List.mem_singleton.mp member; subst ref; exact rep.privateObject) (by simp),
+        ?_, rep.privateObject, rep.clientSequences⟩
       · simpa only [contract.refs] using rep.separate
       · intro v k member
         exact rep.bounded v k ((contents v k).mp member).2
+      · simpa only [contract.refs] using rep.privateSequences
     · intro v k member
       have stored := rep.represented.represented.entry member
       have present : heap.read state.layout.present v = 1 := stored.2
@@ -187,18 +206,6 @@ theorem contracts (code : PriorityQueue.Code) (bridge : Bridge code) (queue : Ob
 
 /-- The constructor gives an empty abstract state with fresh private sequences. -/
 def initialState (heap : Heap) : State := ⟨emptyLayout heap, []⟩
-
-theorem constructor_rep (heap : Heap) (protection : Protected) (capacity : Int)
-    (allocated : ∀ ref ∈ protection.sequences, ref < heap.nextRef) :
-    Rep heap.nextObject protection capacity (newHeap heap) (initialState heap) := by
-  refine ⟨new_heap_representation heap, ?_, ?_⟩
-  · intro ref member
-    have old := allocated ref member
-    have different (offset : Nat) : ref ≠ heap.nextRef + offset :=
-      Nat.ne_of_lt (Nat.lt_of_lt_of_le old (Nat.le_add_right _ _))
-    simp [initialState, emptyLayout, Layout.refs, different, Nat.ne_of_lt old]
-  · intro vertex key member
-    simp [initialState, Algo2Lean.Fibonacci.Forest.entries] at member
 
 private theorem constructor_old_object (heap : Heap) (ref : ObjectRef)
     (old : ref < heap.nextObject) : (newHeap heap).objects ref = heap.objects ref := by
@@ -229,6 +236,38 @@ theorem constructor_frame (heap : Heap) (protection : Protected) :
     exact constructor_old_sequence heap ref old
   · intro ref _ old _ _
     exact constructor_old_object heap ref old
+
+/-- Construction changes no previously allocated caller location. -/
+theorem constructor_footprint (heap : Heap) : heap.Footprint (newHeap heap) [] [] [] := by
+  have frame := constructor_frame heap ⟨[], [], [], {}⟩
+  refine ⟨frame.nextRef, frame.nextObject, frame.nextCollection, frame.classes, frame.types,
+    ?_, ?_, ?_⟩
+  · intro ref old _
+    exact constructor_old_sequence heap ref old
+  · intro ref old _
+    exact constructor_old_object heap ref old
+  · intro ref old _
+    rfl
+
+theorem constructor_rep (heap : Heap) (protection : Protected) (capacity : Int)
+    (allocated : ∀ ref ∈ protection.sequences, ref < heap.nextRef)
+    (preserved : protection.caller.Footprint heap [] [] [])
+    (clientFresh : ∀ ref ∈ protection.sequences, protection.caller.nextRef ≤ ref) :
+    Rep heap.nextObject protection capacity (newHeap heap) (initialState heap) := by
+  refine ⟨new_heap_representation heap, ?_, ?_, preserved.trans (constructor_footprint heap),
+    ?_, preserved.nextObject, clientFresh⟩
+  · intro ref member
+    have old := allocated ref member
+    have different (offset : Nat) : ref ≠ heap.nextRef + offset :=
+      Nat.ne_of_lt (Nat.lt_of_lt_of_le old (Nat.le_add_right _ _))
+    simp [initialState, emptyLayout, Layout.refs, different, Nat.ne_of_lt old]
+  · intro vertex key member
+    simp [initialState, Algo2Lean.Fibonacci.Forest.entries] at member
+
+  · intro ref member
+    have base := preserved.nextRef
+    simp only [initialState, emptyLayout, Layout.refs, List.mem_cons, List.not_mem_nil, or_false] at member
+    rcases member with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> omega
 
 theorem constructor_clocks (heap : Heap) : (newHeap heap).clocks = heap.clocks := rfl
 

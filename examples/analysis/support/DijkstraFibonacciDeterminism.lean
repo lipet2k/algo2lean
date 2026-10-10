@@ -1,5 +1,9 @@
 import DijkstraFibonacciGenerated
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-! A deterministic next-configuration projection is only a certificate.
 The theorem checks it against every actual compiled transition. -/
 

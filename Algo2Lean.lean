@@ -1,5 +1,8 @@
 import Std
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 -- Copyright 2026 Lunjia Hu and contributors.
 -- SPDX-License-Identifier: Apache-2.0
 
@@ -952,12 +955,12 @@ def copy (h : Heap) (ref : CollectionRef) : Heap × CollectionRef :=
 @[simp] theorem get_set_other_ref (h : Heap) (ref target : CollectionRef)
     (index position : Int) (value : α) (different : ref ≠ target) :
     type.get (type.set h target position value) ref index = type.get h ref index := by
-  simp [get, set, valid, different]
+  simp [get, set, valid, different] <;> rfl
 
 @[simp] theorem get_set_other_index (h : Heap) (ref : CollectionRef)
     (index position : Int) (value : α) (different : index ≠ position) :
     type.get (type.set h ref position value) ref index = type.get h ref index := by
-  simp [get, set, valid, different]
+  simp [get, set, valid, different] <;> rfl
 
 @[simp] theorem valid_create (h : Heap) (values : Int → α) :
     type.valid (type.create h values).1 (type.create h values).2 := by

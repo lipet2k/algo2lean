@@ -31,7 +31,7 @@ class ProjectCheckerTests(unittest.TestCase):
         }
         self.compilation = SimpleNamespace(files=self.files,
             project=SimpleNamespace(root=self.root, entry="client"))
-        self.version = "Lean (version 4.26.0, test-build)\n"
+        self.version = "Lean (version 4.33.1, test-build)\n"
         self.builds = []
         self.environments = []
         for target, value in [
@@ -60,7 +60,7 @@ class ProjectCheckerTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 1, str(source_path) + ":2:0: proof rejected\n", "")
         if "-- NO_OBJECT" not in source:
             Path(command[command.index("-o") + 1]).write_bytes(b"test object")
-        output = str(source_path) + ":2:0: warning: declaration uses 'sorry'\n" if "-- SORRY" in source else ""
+        output = str(source_path) + ":2:0: warning: declaration uses `sorry`\n" if "-- SORRY" in source else ""
         return subprocess.CompletedProcess(command, 0, output, "")
 
     def check(self, **kwargs):
@@ -101,7 +101,7 @@ class ProjectCheckerTests(unittest.TestCase):
         self.assertEqual(self.builds[count:], ["Algo.lib.Generated", "Algo.lib.Points",
                                                "Algo.client.Generated", "Algo.client.Points"])
         count = len(self.builds)
-        self.version = "Lean (version 4.26.0, changed-build)\n"
+        self.version = "Lean (version 4.33.1, changed-build)\n"
         self.check()
         self.assertEqual(self.builds[count:], ["Algo2Lean", "Algo.lib.Generated", "Algo.lib.Points",
                                                "Algo.client.Generated", "Algo.client.Points"])
@@ -206,6 +206,17 @@ class ProjectCheckerTests(unittest.TestCase):
         count = len(self.builds)
         self.check()
         self.assertEqual(self.builds[count:], ["Algo.lib.Generated"])
+
+    def test_cached_warnings_are_rechecked_after_diagnostic_format_changes(self):
+        analysis = "import Algo.client.Generated\n-- SORRY\n"
+        # Simulate an older checker that did not recognize the new warning.
+        with patch("algo2lean.checker.has_sorry_warning", return_value=False):
+            self.check(analysis=analysis)
+        count = len(self.builds)
+        rejected = check_project(self.compilation, analysis=analysis)
+        self.assertFalse(rejected.ok)
+        self.assertIn("incomplete", rejected.output)
+        self.assertEqual(self.builds[count:], ["Algo.client.Analysis"])
 
     def test_concurrent_requests_publish_one_complete_node(self):
         with ThreadPoolExecutor(max_workers=4) as pool:

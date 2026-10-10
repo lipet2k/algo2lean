@@ -1,5 +1,9 @@
 import DivergenceGenerated
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `endless_loop_has_no_output`: Loop has no terminating output.
@@ -25,6 +29,11 @@ theorem endless_loop_has_no_execution (initialHeap finalHeap : Heap) (input outp
     (by simp [looping, endless_loop.initial, start])
     (by intro before after transition inside; cases transition <;> simp_all [looping])
 
+/-- No caller can obtain a completed call from the endless loop. -/
+theorem endless_loop_has_no_call (initialHeap finalHeap : Heap) (input output : Int) :
+    ¬ endless_loop.Call initialHeap input finalHeap output :=
+  fun call => endless_loop_has_no_execution initialHeap finalHeap input output call.run
+
 theorem endless_loop_has_no_output (input output : Int) :
     ¬ endless_loop.Returns input output := by
   rintro ⟨finalHeap, execution⟩
@@ -41,6 +50,11 @@ theorem endless_recursion_has_no_execution (initialHeap finalHeap : Heap) (input
   exact execution.invariant recursing
     (by simp [recursing, endless_recursion.initial, start])
     (by intro before after transition inside; cases transition <;> simp_all [recursing])
+
+/-- The recursive function has no completed call under any caller stack. -/
+theorem endless_recursion_has_no_call (initialHeap finalHeap : Heap) (input output : Int) :
+    ¬ endless_recursion.Call initialHeap input finalHeap output :=
+  fun call => endless_recursion_has_no_execution initialHeap finalHeap input output call.run
 
 theorem endless_recursion_has_no_output (input output : Int) :
     ¬ endless_recursion.Returns input output := by

@@ -1,0 +1,27 @@
+# Minimum spanning forest for a finite undirected weighted graph.
+# Edge identifiers are 0, ..., count - 1; endpoint arrays contain vertices
+# in 0, ..., size - 1. Parallel edges, loops, and negative weights are allowed.
+from union_find import UnionFind
+from sort_indices import sort_indices
+
+
+def scan_edges(sets: UnionFind, sources: Seq, targets: Seq, order: Seq,
+               chosen: Seq, index: Int, count: Int) -> Seq:
+    # @scan
+    if index >= count:
+        return chosen
+    edge = order[index]
+    tick("kruskal")
+    # @join
+    if sets.union(sources[edge], targets[edge]):
+        # @select
+        chosen[edge] = 1
+    return scan_edges(sets, sources, targets, order, chosen, index + 1, count)
+
+
+def kruskal(size: Int, sources: Seq, targets: Seq, weights: Seq, count: Int) -> Seq:
+    order = sort_indices(weights, count)
+    sets = UnionFind(size)
+    chosen = const(0)
+    tick("kruskal")
+    return scan_edges(sets, sources, targets, order, chosen, 0, count)

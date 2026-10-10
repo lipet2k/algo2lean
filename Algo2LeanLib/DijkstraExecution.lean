@@ -1,5 +1,8 @@
 import Algo2LeanLib.Dijkstra
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 The finite Dijkstra driver shared by compiled queue backends. It composes
 verified local iterations; it does not assume a search transcript, shortest

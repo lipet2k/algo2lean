@@ -23,7 +23,7 @@ class SiteBuildTests(unittest.TestCase):
         for name, contents in {
             "algo2lean/__init__.py": "", "algo2lean/browser.py": "# bridge\n",
             "Algo2Lean.lean": "-- runtime\n", "Algo2LeanLib/Modules.lean": "-- modules\n",
-            "lean-toolchain": "leanprover/lean4:v4.26.0\n", "LICENSE": "License\n",
+            "lean-toolchain": "leanprover/lean4:v4.33.1\n", "LICENSE": "License\n",
             "publication.json": '{"version":"0.1.0"}', "CITATION.cff": "citation\n",
             "THIRD_PARTY_NOTICES.md": "notices\n", "licenses/runtime.txt": "runtime license\n",
             "examples/main.algo": "def f() -> Int:\n    return 1\n",

@@ -1,5 +1,8 @@
 import Algo2LeanLib.FibonacciStorage
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2Lean.Fibonacci
 
 /-- Detach the cursor root, keeping the remaining root ring as pending work. -/

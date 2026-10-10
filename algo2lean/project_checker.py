@@ -235,6 +235,7 @@ def _cached(directory, name, identity):
     try:
         manifest = json.loads((directory / "complete.json").read_text(encoding="utf-8"))
         return (manifest["module"] == name and manifest["identity"] == identity and
+                not checker.has_sorry_warning(manifest.get("output", "")) and
                 (directory / _module_path(name).with_suffix(".olean")).is_file() and
                 bool(manifest["objects"]) and
                 all((directory / part).is_file() for part in manifest["objects"]))
@@ -268,7 +269,7 @@ def _build(name, source, identity, environment, executable, deadline):
                     output = (result.stdout + result.stderr).replace(str(temporary) + os.sep, "").strip()
                     if result.returncode != 0:
                         raise LeanSetupError("Lean rejected project module '%s'.\n%s" % (name, output[:19000]))
-                    if "declaration uses 'sorry'" in output:
+                    if checker.has_sorry_warning(output):
                         raise LeanSetupError("Analysis is incomplete: replace every sorry with a proof.\n" + output[:19000])
                     if not compiled.is_file():
                         raise LeanSetupError("Lean did not produce an object file for '%s'." % name)

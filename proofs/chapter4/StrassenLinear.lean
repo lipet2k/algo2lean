@@ -1,5 +1,8 @@
 import MatrixStrassenGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 open Algo2LeanCore Algo2LeanGenerated
 
 namespace MatrixStrassenAnalysis

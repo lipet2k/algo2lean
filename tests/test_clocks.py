@@ -82,7 +82,7 @@ class ClockTests(unittest.TestCase):
             + constructor_tactic(generated.lean) + proof,
             generated.module, points_lean=generated.points_lean, timeout=120)
         self.assertTrue(checked.ok, checked.output)
-        self.assertNotIn("declaration uses 'sorry'", checked.output)
+        self.assertNotIn("declaration uses `sorry`", checked.output)
 
 
 if __name__ == "__main__":

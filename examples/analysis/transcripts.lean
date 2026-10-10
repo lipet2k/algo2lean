@@ -1,5 +1,9 @@
 import TranscriptsGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `assignment_sets_one`: Local assignment postcondition.
@@ -40,5 +44,29 @@ theorem assignment_fact_on_transcript {initial final : Configuration} {trace : T
     Valid (fun before after => assignment.At.set before → assignment.Local.a after = some 1)
       initial trace final := by
   exact valid.lift (fun _ _ transition location => (assignment_sets_one transition location).2)
+
+/-- The local-assignment example also exports a reusable complete call. Its
+    assignments change local variables only; storage and clocks are preserved. -/
+theorem assignment_summary (heap : Heap) (n : Int) :
+    assignment.Call heap n heap 1 := by
+  refine ⟨True.intro, ?_⟩
+  intro caller
+  apply Reaches.prepend (Step.assignment_pc5 ..)
+  apply Reaches.prepend (Step.assignment_pc4 ..)
+  apply Reaches.prepend (Step.assignment_pc3 ..)
+  apply Reaches.prepend (Step.assignment_pc2 ..)
+  exact Reaches.single (Step.assignment_pc1 ..)
+
+/-- A caller reuses the assignment contract without inspecting its transitions. -/
+theorem caller_summary (heap : Heap) (n : Int) :
+    caller.Call heap n heap 2 := by
+  refine ⟨True.intro, ?_⟩
+  intro stack
+  apply Reaches.prepend (Step.caller_pc5 ..)
+  apply Reaches.prepend (Step.caller_pc4 ..)
+  apply ((assignment_summary heap n).2 _).trans
+  apply Reaches.prepend (Step.caller_pc3 ..)
+  apply Reaches.prepend (Step.caller_pc2 ..)
+  exact Reaches.single (Step.caller_pc1 ..)
 
 end TranscriptsAnalysis

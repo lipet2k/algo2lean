@@ -1,5 +1,9 @@
 import FactorialGenerated
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `natural_summary`: Reusable factorial contract.
@@ -48,16 +52,20 @@ theorem natural_summary (heap : Heap) (n : Nat) :
     apply Reaches.trans (Reaches.single (Step.factorial_pc4 ..))
     exact Reaches.single (Step.factorial_pc3 ..)
 
+/-- Every integer input has a reusable call contract. The entire caller heap,
+    including existing storage and clocks, remains unchanged. -/
+theorem summary (heap : Heap) (n : Int) :
+    factorial.Call heap n heap (factorialValue n.toNat) := by
+  by_cases nonpositive : n ≤ 0
+  · simpa [Int.toNat_eq_zero.mpr nonpositive, factorialValue] using
+      nonpositive_summary heap n nonpositive
+  · simpa [Int.toNat_of_nonneg (by omega : 0 ≤ n)] using natural_summary heap n.toNat
+
 -- Main result: Correctness
 /-- All integer inputs have an output. Negative inputs are clamped to zero in the
     mathematical specification, matching the source's n ≤ 0 base case.
     This is an existence theorem; it does not assert output uniqueness. -/
 theorem output (n : Int) : factorial.Returns n (factorialValue n.toNat) := by
-  have specification : factorial.Call ({} : Heap) n {} (factorialValue n.toNat) := by
-    by_cases nonpositive : n ≤ 0
-    · simpa [Int.toNat_eq_zero.mpr nonpositive, factorialValue] using
-        nonpositive_summary {} n nonpositive
-    · simpa [Int.toNat_of_nonneg (by omega : 0 ≤ n)] using natural_summary {} n.toNat
-  exact ⟨{}, specification.1, specification.2.root⟩
+  exact ⟨{}, (summary {} n).run⟩
 
 end FactorialAnalysis

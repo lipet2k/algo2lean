@@ -44,7 +44,7 @@ class ModuleFactsTests(unittest.TestCase):
                                             "The kernel must reject a fabricated clock effect")
                         return
                     self.assertEqual(result.returncode, 0, name + "\n" + output)
-                    self.assertNotIn("declaration uses 'sorry'", output)
+                    self.assertNotIn("declaration uses `sorry`", output)
             return project
 
     def test_recursive_transitive_calls_and_reexports(self):

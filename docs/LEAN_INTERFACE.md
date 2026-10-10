@@ -643,7 +643,7 @@ finite observations inside a nonterminating call.
 
 ## 8. Checking the examples
 
-Run commands from the repository root with the pinned Lean 4.26 toolchain
+Run commands from the repository root with the pinned Lean 4.33.1 toolchain
 installed:
 
 For analyses maintained as separate importing modules:

@@ -1,5 +1,8 @@
 import Algo2LeanLib.Fibonacci
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 Finite logical forests for the mutable Fibonacci heap.
 
@@ -182,7 +185,7 @@ theorem ChildOrder.sublist {children kept : List Node} (ordered : ChildOrder chi
   induction remaining with
   | slnil => trivial
   | cons child remaining ih => exact ih ordered.2
-  | cons₂ child remaining ih => exact ⟨Nat.le_trans remaining.length_le ordered.1, ih ordered.2⟩
+  | _ child remaining ih => exact ⟨Nat.le_trans remaining.length_le ordered.1, ih ordered.2⟩
 
 theorem Node.Ordered.prune {node : Node} (ordered : node.Ordered) (kept : List Node)
     (remaining : kept.Sublist node.children) : (node.withChildren kept).Ordered := by

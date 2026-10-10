@@ -1,5 +1,9 @@
 import ObjectSequencesGenerated
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `shared_node_observed`: Shared object mutation is observable.
@@ -63,7 +67,7 @@ theorem shared_node_observed (heap : Heap) (nodes observer : CollectionRef)
     (shared : seq_Node.get heap observer otherIndex = some node)
     (nodeValid : is_Node heap node) :
     ∃ after, set_value.Call heap (nodes, index, value) after () ∧
-      read_value.Returns (after, (observer, otherIndex)) value := by
+      read_value.Call after (observer, otherIndex) after value := by
   refine ⟨set_Node_value heap node value,
     set_value_summary heap nodes index value node valid entry nodeValid, ?_⟩
   have valid' : seq_Node.valid (set_Node_value heap node value) observer := by
@@ -73,7 +77,7 @@ theorem shared_node_observed (heap : Heap) (nodes observer : CollectionRef)
       some node := by rw [entries_preserved, shared]
   have summary := read_value_summary (set_Node_value heap node value) observer
     otherIndex node value valid' entry' (field_Node_value_set heap node value nodeValid)
-  exact ⟨_, summary.1, summary.2.root⟩
+  exact summary
 
 -- A shallow copy has a concise heap specification using the shared descriptor.
 theorem shallow_copy_summary (heap : Heap) (nodes : CollectionRef)

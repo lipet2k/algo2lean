@@ -21,7 +21,7 @@ class ComposableDijkstraTests(unittest.TestCase):
                          {"graph", "composable_dijkstra.priority_queue", MODULE})
         checked = check_project(compiled, analysis_module="Algo." + MODULE + ".Analysis")
         self.assertTrue(checked.ok, checked.output)
-        self.assertNotIn("declaration uses 'sorry'", checked.output)
+        self.assertNotIn("declaration uses `sorry`", checked.output)
         proof = (EXAMPLES / "analysis/composable_dijkstra/dijkstra.lean").read_text()
         self.assertIn("Algo2Lean.Dijkstra.Execution.run", proof)
         self.assertIn("theorem every_execution", proof)
@@ -58,7 +58,7 @@ class ComposableDijkstraTests(unittest.TestCase):
                 self.assertEqual(compiled.modules[MODULE].facts_lean, generic.entry.facts_lean)
                 checked = check_project(compiled, analysis_module="Algo." + name + ".Analysis")
                 self.assertTrue(checked.ok, checked.output)
-                self.assertNotIn("declaration uses 'sorry'", checked.output)
+                self.assertNotIn("declaration uses `sorry`", checked.output)
 
     def test_concrete_public_theorems_have_only_standard_lean_axioms(self):
         for backend in ("fibonacci", "binary"):
@@ -118,11 +118,12 @@ example (heap : Heap) (graph : Ref_Graph) (size source vertex : Int)
     ∃ after, Algo.follow_client.lookup.Call heap (graph,source,vertex) after
         (after.read heap.nextRef vertex) ∧
       ShortestDistances (representedEdges size adjacency) source (after.read heap.nextRef) ∧
-      {namespace}.clockWork (Heap.cost heap after) ≤ {namespace}.runtimeBound size adjacency := by
-  obtain ⟨after,search,_,correct,_,bound,allocated⟩ := {namespace}.summary heap graph size source
+      {namespace}.clockWork (Heap.cost heap after) ≤ {namespace}.runtimeBound size adjacency ∧
+      heap.Footprint after [] [] [] := by
+  obtain ⟨after,search,_,correct,_,bound,allocated,preserved⟩ := {namespace}.summary heap graph size source
     heads adjacency represented lower upper
   have read := reader_summary after heap.nextRef vertex allocated
-  refine ⟨after,⟨represented.valid,?_⟩,correct,bound⟩
+  refine ⟨after,⟨represented.valid,?_⟩,correct,bound,preserved⟩
   open Algo.follow_client.Algo2LeanGenerated in
     intro caller
     apply Reaches.prepend (Step.lookup_pc8 _ _ caller)

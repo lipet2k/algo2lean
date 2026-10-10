@@ -14,7 +14,7 @@ from .project_checker import project_lean_sources
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 # Start with control flow and values, then mutation and familiar algorithms,
-# before proof observations, objects, costs, and the Dijkstra building blocks.
+# before proof observations, objects, costs, and the graph-algorithm projects.
 _SINGLE_FILE_ORDER = (
     "sum_loop", "range_sum", "factorial", "gcd",
     "mutual_recursion", "divergence", "sequences", "mutable_sequences",
@@ -39,6 +39,11 @@ _PROJECTS = {
         "client.algo",
         "Even and odd call each other across files; a client reuses their correctness and runtime proof.",
     ),
+    "kruskal": (
+        "Kruskal",
+        "kruskal.algo",
+        "Build a minimum spanning forest with reusable union-find, path compression, union by rank, and heap-based edge sorting.",
+    ),
     "dijkstra": (
         "Dijkstra",
         "composable_dijkstra/dijkstra_binary.algo",
@@ -49,6 +54,7 @@ _PROJECT_ROOTS = {
     "modules": "modules",
     "interfaces": "interfaces",
     "mutual-recursion-imports": "mutual_recursion",
+    "kruskal": "kruskal",
 }
 _PROJECT_EXTRA_ENTRIES = {
     "dijkstra": ("composable_dijkstra/dijkstra_fibonacci.algo",),

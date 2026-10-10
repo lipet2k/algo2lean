@@ -49,12 +49,12 @@ class LeanSemanticsTests(unittest.TestCase):
             path = Path(directory) / (name + ".lean")
             path.write_text(content, encoding="utf-8")
             result = subprocess.run(
-                ["lean", "+v4.26.0", str(path)],
+                ["lean", str(path)],
                 cwd=str(ROOT), env=self.lean_environment,
                 capture_output=True, text=True, timeout=120,
             )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertNotIn("declaration uses 'sorry'", result.stdout + result.stderr)
+        self.assertNotIn("declaration uses `sorry`", result.stdout + result.stderr)
 
     def test_examples_are_accepted_by_lean(self):
         for path in sorted((ROOT / "examples").glob("*.algo")):

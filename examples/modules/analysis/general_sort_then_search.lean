@@ -3,6 +3,10 @@ import Algo.general_sort_then_search.Facts
 import Algo.general_merge_sort.Analysis
 import Algo.general_binary_lower_bound.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable sort-and-search contract.
@@ -53,12 +57,10 @@ theorem compose (before middle after : Heap) (source ordered : SeqRef) (lo hi ke
 theorem summary (heap : Heap) (source : SeqRef) (lo hi key : Int) (valid : source < heap.nextRef) :
     ∃ after result, sort_then_search.Call heap (source, lo, hi, key) after result ∧
       ResultSpec heap after source lo hi key result := by
-  obtain ⟨middle, ordered, sort, preserved, allocated, sorted⟩ :=
-    GeneralMergeSortAnalysis.sort_summary heap source lo hi valid
+  obtain ⟨middle, ordered, sort, preserved, allocated, sorted, sortCost, sortOther⟩ :=
+    GeneralMergeSortAnalysis.summary heap source lo hi valid
   obtain ⟨result, search, partition⟩ :=
     GeneralBinaryLowerBoundAnalysis.normalized_summary middle ordered lo hi key allocated sorted.1
-  have sortCost := GeneralMergeSortAnalysis.execution_cost heap middle source ordered lo hi sort.run
-  have sortOther := GeneralMergeSortAnalysis.execution_clock_other heap middle source ordered lo hi sort.run
   exact ⟨middle, result, compose heap middle middle source ordered lo hi key result sort search,
     ordered, allocated, sorted, partition, preserved, sortCost, sortOther⟩
 

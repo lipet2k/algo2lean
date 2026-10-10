@@ -1,5 +1,9 @@
 import RangeSumGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `output`: Range sum output exists.
@@ -142,7 +146,7 @@ theorem natural_summary (heap : Heap) (n : Nat) :
     apply Reaches.trans (Reaches.single (Step.range_sum_pc7 _ _ _ (by simp)))
     apply Reaches.trans (Reaches.single (Step.range_sum_pc3_true _ _ _ (by simp)))
     apply Reaches.trans (Reaches.single (Step.range_sum_pc6 ..))
-    simpa using rest stack
+    simpa using! rest stack
 
 /-- A nonpositive stop makes `range(n)` empty. -/
 theorem nonpositive_summary (heap : Heap) (n : Int) (nonpositive : n ≤ 0) :
@@ -159,15 +163,19 @@ theorem nonpositive_summary (heap : Heap) (n : Int) (nonpositive : n ≤ 0) :
   apply Reaches.trans (Reaches.single (Step.range_sum_pc2 ..))
   exact Reaches.single (Step.range_sum_pc1 ..)
 
+/-- Every integer input has a reusable call contract. The entire caller heap,
+    including existing storage and clocks, remains unchanged. -/
+theorem summary (heap : Heap) (n : Int) :
+    range_sum.Call heap n heap (progressionSum 0 1 n.toNat) := by
+  by_cases nonpositive : n ≤ 0
+  · simpa [Int.toNat_eq_zero.mpr nonpositive, progressionSum] using
+      nonpositive_summary heap n nonpositive
+  · simpa [Int.toNat_of_nonneg (by omega : 0 ≤ n)] using natural_summary heap n.toNat
+
 /-- Every integer input has the specified finite sum as an output.
     The theorem asserts existence, not uniqueness. -/
-theorem output (n : Int) : range_sum.Returns n (progressionSum 0 1 n.toNat) := by
-  have specification : range_sum.Call ({} : Heap) n {} (progressionSum 0 1 n.toNat) := by
-    by_cases nonpositive : n ≤ 0
-    · simpa [Int.toNat_eq_zero.mpr nonpositive, progressionSum] using
-        nonpositive_summary {} n nonpositive
-    · simpa [Int.toNat_of_nonneg (by omega : 0 ≤ n)] using natural_summary {} n.toNat
-  exact ⟨{}, specification.1, specification.2.root⟩
+theorem output (n : Int) : range_sum.Returns n (progressionSum 0 1 n.toNat) :=
+  ⟨{}, (summary {} n).run⟩
 
 /-- Resume a reached, named stepped-range body. The public reachability premise
     supplies the once-evaluated range bounds; no private iterator appears in the
@@ -317,7 +325,7 @@ theorem stepped_summary (heap : Heap) (first step : Int) (count : Nat)
     apply Reaches.trans (Reaches.single (Step.stepped_sum_pc7 _ _ _ nonzero))
     apply Reaches.trans (Reaches.single (Step.stepped_sum_pc3_true _ _ _ condition))
     apply Reaches.trans (Reaches.single (Step.stepped_sum_pc6 ..))
-    simpa using rest stack
+    simpa using! rest stack
 
 -- Main result: Correctness
 /-- Ordinary-value consequence of the reusable stepped-range summary. -/
@@ -327,19 +335,30 @@ theorem stepped_output (first step : Int) (count : Nat) (nonzero : step ≠ 0) :
   have specification := stepped_summary {} first step count nonzero
   exact ⟨{}, specification.1, specification.2.root⟩
 
-/-- A zero step has no output, even when the bounds would describe an empty range. -/
-theorem zero_step_no_output (first stop output : Int) :
-    ¬ stepped_sum.Returns (first, stop, 0) output := by
-  rintro ⟨finalHeap, _, run⟩
+/-- A zero range step cannot complete, even when its bounds would be empty. -/
+theorem zero_step_no_execution (heap final : Heap) (first stop output : Int) :
+    ¬ stepped_sum.Run heap (first, stop, 0) final output := by
+  rintro ⟨_, run⟩
   let invariant : Configuration → Prop
     | .active _ (.fn_stepped_sum pc s) _ =>
         ((pc = 11 ∨ pc = 10 ∨ pc = 9 ∨ pc = 8) ∧ s.v2 = 0) ∨
         (pc = 7 ∧ s.t8 = 0)
     | _ => False
   apply run.invariant invariant
-  · simp [stepped_sum.initial, stepped_sum.load, start, invariant]
+  · simp [stepped_sum.initial, start, invariant]
   · intro before after transition hypothesis
     cases transition <;> simp_all [invariant]
+
+/-- The invalid-step behavior is reusable in any calling context. -/
+theorem zero_step_no_call (heap final : Heap) (first stop output : Int) :
+    ¬ stepped_sum.Call heap (first, stop, 0) final output :=
+  fun call => zero_step_no_execution heap final first stop output call.run
+
+/-- The ordinary value view cannot produce an output for a zero step. -/
+theorem zero_step_no_output (first stop output : Int) :
+    ¬ stepped_sum.Returns (first, stop, 0) output := by
+  rintro ⟨finalHeap, run⟩
+  exact zero_step_no_execution _ finalHeap first stop output run
 
 /-- Skipping an empty range preserves a previously bound loop variable. -/
 theorem empty_range_summary (heap : Heap) :

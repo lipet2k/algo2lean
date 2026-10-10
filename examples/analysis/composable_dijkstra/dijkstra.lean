@@ -3,6 +3,9 @@ import Algo.composable_dijkstra.dijkstra.Facts
 import Algo.composable_dijkstra.priority_queue.Analysis
 import Algo2LeanLib.DijkstraExecution
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 Analysis outline:
 - `dijkstra_correct`: Reusable generic Dijkstra contract.
@@ -393,9 +396,10 @@ structure Client where
   distance : SeqRef
   settled : SeqRef
   queue : ObjectRef
+  caller : Heap := {}
 
 def Client.protection (client : Client) : Protected :=
-  ⟨[client.distance, client.settled], ["graph.Graph", "graph.Edge"], [client.heads]⟩
+  ⟨[client.distance, client.settled], ["graph.Graph", "graph.Edge"], [client.heads], client.caller⟩
 
 def reservedClocks : List String :=
   ["queue_updates", "queue_pops", "queue_empty_checks", "edges", "improvements", "settlements"]
@@ -687,7 +691,7 @@ theorem extracted_settled_cost {state after : QueueState model} {vertex key : In
       work_tick_left model contracts _ _ "queue_empty_checks" (by simp [reservedClocks])] at bound
     change work model state.heap ((after.heap.write client.settled vertex 1).tick "settlements") + _ ≤ _
     rw [work_tick_right model contracts _ _ "settlements" (by simp [reservedClocks])]
-    simpa [QueueState.tick,QueueState.write] using bound
+    simpa [QueueState.tick,QueueState.write] using! bound
 
 structure EdgeAdvanced (before after : QueueState model)
     (selected target weight : Int) (edge : Ref_Edge) (next : Option Ref_Edge) : Prop where
@@ -895,7 +899,7 @@ theorem extraction_progress (capacity : client.size ≤ model.capacity)
     have settledValues (v : Int) : settled.heap.read client.settled v =
         if v = vertex then 1 else state.heap.read client.settled v := by
       change (popped.heap.write client.settled vertex 1).read client.settled v = _
-      simpa [Heap.read, Heap.write] using
+      simpa [Heap.read, Heap.write] using!
         congrArg (fun value => if v = vertex then 1 else value) (congrFun extracted.settled v)
     have matching : QueueMatches model settled := by
       intro v k
@@ -931,7 +935,7 @@ theorem extraction_progress (capacity : client.size ≤ model.capacity)
         have entry := (invariant.matching v (state.heap.read client.distance v)).mpr
           ⟨by simpa [executionInterface] using unsettled,finite,rfl⟩
         have least := extracted.least v _ entry
-        simpa [selected.2.2] using least
+        simpa [selected.2.2] using! least
     · intro target weight
       simp [representedEdges,lower,upper]
     · have run := scanned.scan
@@ -985,7 +989,8 @@ theorem dijkstra_complete (capacity : client.size ≤ model.capacity)
       OperationCounts before.heap after client.size.toNat (edgeBudget client.adjacency (vertexRange client.size)) ∧
       work model before.heap after ≤ before.potential model +
         model.updateBudget * (edgeBudget client.adjacency (vertexRange client.size) + 1) +
-        model.popBudget * client.size.toNat ∧ client.distance < after.nextRef := by
+        model.popBudget * client.size.toNat ∧ client.distance < after.nextRef ∧
+      client.caller.Footprint after [] [] [] := by
   let prepared := (before.write model client.distance source 0).tick model "queue_updates"
   have preparedStorage : Storage model prepared :=
     (storage.write model _ source 0 (by simp [Client.protection])).tick model "queue_updates"
@@ -1030,11 +1035,12 @@ theorem dijkstra_complete (capacity : client.size ≤ model.capacity)
   have correct := search.initial_correct storage.graph.nonnegative_edges
   have bounds : CostBounds model initial after client.size.toNat
       (edgeBudget client.adjacency (vertexRange client.size)) := by
-    simpa only [vertexRange_length] using completed.cost
+    simpa only [vertexRange_length] using! completed.cost
   have initialClocks (name) (member : name ∈ reservedClocks) := inserted.bookkeeping name member
   refine ⟨after.heap.tick "queue_empty_checks", ?_,
     finalInvariant.storage.graph.preserved (graph_frame_tick _ _ _ "queue_empty_checks" 1),correct,?_,?_,
-    finalInvariant.storage.distanceAllocated⟩
+    finalInvariant.storage.distanceAllocated,
+    (model.callerPreserved finalInvariant.storage.queue).tick "queue_empty_checks"⟩
   · exact initialize_summary dependencies before.heap initial.heap (after.heap.tick "queue_empty_checks")
       client.graph source client.queue client.distance client.settled
       ⟨storage.graph.valid,model.valid storage.queue,storage.distanceAllocated,storage.settledAllocated⟩
@@ -1074,7 +1080,8 @@ theorem dijkstra_complete (capacity : client.size ≤ model.capacity)
     simp only [Nat.mul_add,Nat.mul_one]
     omega
 
-/-- The ordinary summary omits only the auxiliary result-allocation witness. -/
+/-- A correctness-and-cost projection of `dijkstra_complete`; clients that need
+    result allocation or caller storage reuse the complete contract above. -/
 theorem dijkstra_correct (capacity : client.size ≤ model.capacity)
     (before : QueueState model) (source : Int) (storage : Storage model before)
     (empty : before.entries model = [])

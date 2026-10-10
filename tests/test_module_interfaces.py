@@ -78,7 +78,7 @@ class GenericInterfaceLeanTests(unittest.TestCase):
             compiled = compile_project(entry, root=directory, sources=sources)
             checked = check_project(compiled, check_facts=True, **options)
             self.assertTrue(checked.ok, checked.output)
-            self.assertNotIn("declaration uses 'sorry'", checked.output)
+            self.assertNotIn("declaration uses `sorry`", checked.output)
             return compiled
 
     def test_generic_client_and_concrete_wrapper_check_separately(self):

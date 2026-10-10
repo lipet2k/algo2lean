@@ -1,6 +1,9 @@
 import Algo2LeanLib.FibonacciStoredContext
 import Algo2LeanLib.FibonacciRootInsertion
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2Lean.Fibonacci
 
 /-- The two existing root addresses touched by `add_root` are actual roots. -/
@@ -329,7 +332,7 @@ theorem cascade_run_exists (context : List Ancestor) (node : Node) (kept : List 
         (state.cut node.vertex frame.vertex) ((node.withChildren kept).withMark false :: rest) cut.1 cut.2
       refine ⟨final, ?_, ?_, finalEndpoints⟩
       · have sourceRun : CascadeRun state final node.vertex (cascadeCuts (frame.plug node) ancestors + 1) :=
-          CascadeRun.cut (by omega) (by simp [marked] at readMark; omega) (by simpa only [parent] using run)
+          CascadeRun.cut (by omega) (by simp [marked] at readMark; omega) (by simpa only [parent] using! run)
         simpa only [cascadeCuts, marked, ↓reduceIte] using sourceRun
       · apply repaired.perm
         simp only [cascadeForest, marked, ↓reduceIte, List.cons_append]
@@ -338,7 +341,7 @@ theorem cascade_run_exists (context : List Ancestor) (node : Node) (kept : List 
       refine ⟨state.setMark node.vertex true, ?_, ?_, ?_⟩
       · simpa [cascadeCuts, unmarked] using CascadeRun.mark (by omega : 0 ≤ state.parents node.vertex)
           (by simpa [unmarked] using readMark)
-      · simpa [cascadeForest, unmarked] using forest.mark true
+      · simpa [cascadeForest, unmarked] using! forest.mark true
       · exact endpoints
 
 /-- One requested cut followed by its actual cascade produces the same finite

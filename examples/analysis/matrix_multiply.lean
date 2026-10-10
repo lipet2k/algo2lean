@@ -1,5 +1,9 @@
 import MatrixMultiplyGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Ordinary square-matrix multiplication, verified against the generated mutable
 sequence program. `dot_loop` verifies the inner loop; `cells_loop` composes those
@@ -281,15 +285,29 @@ theorem finalHeap_cost (h : Heap) (a b : SeqRef) (n : Nat) :
     simp [same, Heap.cost, finalHeap, Heap.tick, Heap.allocate, costs, Clocks.single,
     Nat.pow_succ]
 
+/-- A reusable contract exposes the product, fresh allocation, preservation of
+    old sequences, and the exact clock increments in one generated call. -/
+theorem call (heap : Heap) (a b : SeqRef) (n : Nat)
+    (left : a < heap.nextRef) (right : b < heap.nextRef) :
+    ∃ after, matrix_multiply.Call heap (a, b, n) after heap.nextRef ∧
+      after.store heap.nextRef = product (heap.store a) (heap.store b) n ∧
+      after.nextRef = heap.nextRef + 1 ∧
+      (∀ old, old < heap.nextRef → after.store old = heap.store old) ∧
+      Heap.cost heap after = costs n :=
+  ⟨finalHeap heap a b n, summary heap a b n left right,
+    finalHeap_result heap a b n, (finalHeap_preserves heap a b n).1,
+    (finalHeap_preserves heap a b n).2, finalHeap_cost heap a b n⟩
+
 /-- Total correctness and exact cost for every natural dimension, including the
     empty matrix, with unrestricted integer input entries. -/
 theorem output_with_cost (a b : Seq) (n : Nat) :
     matrix_multiply.ReturnsWithCost (a, b, n) (product a b n) (costs n) := by
   let h := (matrix_multiply.load (a, b, (n : Int))).1
-  have run := summary h 0 1 n (by simp [h, matrix_multiply.load, Heap.allocate]) (by simp [h, matrix_multiply.load, Heap.allocate])
-  refine ⟨finalHeap h 0 1 n, h.nextRef, ⟨run.1, run.2.root⟩, ?_, finalHeap_cost h 0 1 n⟩
-  rw [finalHeap_result]
-  rfl
+  obtain ⟨after, execution, productValue, allocated, preserved, cost⟩ :=
+    call h 0 1 n (by simp [h, matrix_multiply.load, Heap.allocate])
+      (by simp [h, matrix_multiply.load, Heap.allocate])
+  exact ⟨after, h.nextRef, execution.run, productValue, cost⟩
+
 
 theorem transitions_deterministic : Deterministic Step := by
   intro before left right first second

@@ -317,10 +317,10 @@ class CheckerTests(unittest.TestCase):
     def test_analysis_locations_with_lean_diagnostic_codes(self):
         diagnostics = analysis_diagnostics(
             "Analysis.lean:2:7: error(lean.unknownIdentifier): Unknown identifier `missing`\n"
-            "Analysis.lean:3:0: warning: declaration uses 'sorry'\n")
+            "Analysis.lean:3:0: warning: declaration uses `sorry`\n")
         self.assertEqual(diagnostics, [
             {"line": 2, "column": 8, "message": "Unknown identifier `missing`"},
-            {"line": 3, "column": 1, "message": "declaration uses 'sorry'"},
+            {"line": 3, "column": 1, "message": "declaration uses `sorry`"},
         ])
 
     def test_missing_binary(self):

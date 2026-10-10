@@ -1,5 +1,9 @@
 import RelaxEdgeGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `relax_summary`: Reusable edge-relaxation contract.
@@ -161,8 +165,8 @@ theorem output_with_cost (dist : Seq) (u v weight : Int) :
   have summary := relax_summary (({} : Heap).allocate dist) 0 u v weight (by simp [Heap.allocate])
   have costs := exact_costs (({} : Heap).allocate dist) 0 u v weight
   refine ⟨relaxedHeap (({} : Heap).allocate dist) 0 u v weight, ⟨summary.1, ?_⟩, ?_⟩
-  · simpa [Heap.read, Heap.allocate] using summary.2.root
-  · simpa [Heap.read, Heap.allocate] using costs
+  · simpa [Heap.read, Heap.allocate] using! summary.2.root
+  · simpa [Heap.read, Heap.allocate] using! costs
 
 -- Main result: Correctness and running time
 theorem output_with_cost_iff (dist : Seq) (u v weight : Int) (changed : Bool) (costs : Clocks) :
@@ -173,11 +177,11 @@ theorem output_with_cost_iff (dist : Seq) (u v weight : Int) (changed : Bool) (c
     obtain ⟨heapEffect, resultEffect⟩ := execution_correct
       (({} : Heap).allocate dist) finalHeap 0 u v weight changed execution
     have resultEffect' : changed = improves dist u v weight := by
-      simpa [Heap.read, Heap.allocate] using resultEffect
+      simpa [Heap.read, Heap.allocate] using! resultEffect
     refine ⟨resultEffect', ?_⟩
     rw [heapEffect] at cost
     have expected := cost.symm.trans (exact_costs (({} : Heap).allocate dist) 0 u v weight)
-    simpa [Heap.read, Heap.allocate, resultEffect'] using expected
+    simpa [Heap.read, Heap.allocate, resultEffect'] using! expected
   · rintro ⟨rfl, rfl⟩
     exact output_with_cost dist u v weight
 

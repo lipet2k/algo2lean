@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from algo2lean.checker import CheckResult, prepare_lean_environment
+from algo2lean.checker import CheckResult, prepare_lean_environment, has_sorry_warning
 from algo2lean.compiler import compile_source
 from scripts.build_chapter4_analysis import MODULES as MATRIX_MODULES
 
@@ -59,7 +59,7 @@ def check_proofs(timeout=120):
                 errors="replace", timeout=timeout,
             )
             output = checked.stdout + checked.stderr
-            if checked.returncode or "declaration uses 'sorry'" in output:
+            if checked.returncode or has_sorry_warning(output):
                 return CheckResult(False, True, name + ":\n" + output)
         audit = temporary / "Audit.lean"
         audit.write_text("import RecurrenceApplications\nimport SubstitutionExamples\n" +

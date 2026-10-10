@@ -1,5 +1,9 @@
 import MutableSequencesGenerated
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `overwrite_summary`: Reusable sequence-write contract.
@@ -48,17 +52,17 @@ theorem parameter_mutation_summary (heap : Heap) (a b : SeqRef)
 
 theorem shared_parameters_observe_write (heap : Heap) (object : SeqRef)
     (allocated : object < heap.nextRef) :
-    aliased_parameters.Run heap (object, object) (heap.write object 0 11) 11 := by
+    aliased_parameters.Call heap (object, object) (heap.write object 0 11) 11 := by
   have summary := parameter_mutation_summary heap object object allocated allocated
   simp only [ite_true] at summary
-  exact ⟨summary.1, summary.2.root⟩
+  exact summary
 
 theorem separate_parameters_preserve_read (heap : Heap) (a b : SeqRef)
     (aAllocated : a < heap.nextRef) (bAllocated : b < heap.nextRef) (distinct : b ≠ a) :
-    aliased_parameters.Run heap (a, b) (heap.write a 0 11) (heap.read b 0) := by
+    aliased_parameters.Call heap (a, b) (heap.write a 0 11) (heap.read b 0) := by
   have summary := parameter_mutation_summary heap a b aAllocated bAllocated
   simp only [if_neg distinct] at summary
-  exact ⟨summary.1, summary.2.root⟩
+  exact summary
 
 -- Value inputs allocate separate objects, even when their contents are equal.
 theorem ordinary_inputs_are_independent (xs ys : Algo2LeanGenerated.Seq) :
@@ -67,6 +71,6 @@ theorem ordinary_inputs_are_independent (xs ys : Algo2LeanGenerated.Seq) :
   have execution := separate_parameters_preserve_read heap 0 1
     (by simp [heap, Heap.allocate]) (by simp [heap, Heap.allocate]) (by decide)
   refine ⟨heap.write 0 0 11, ?_⟩
-  simpa [heap, Heap.read, Heap.allocate] using execution
+  simpa [heap, Heap.read, Heap.allocate] using! execution.run
 
 end MutableSequencesAnalysis

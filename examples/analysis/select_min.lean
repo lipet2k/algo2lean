@@ -1,5 +1,9 @@
 import SelectMinGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Linear minimum selection among reachable unsettled vertices, with exact scan cost.
 The proof outline is: preserve a prefix minimum, execute one scan, finish the
@@ -192,9 +196,9 @@ theorem remaining_summary (count : Nat) (heap : Heap) (distance settled : SeqRef
     let nextBest := choose (heap.read distance) (heap.read settled) best vertex
     obtain ⟨result, minimum, continued⟩ := ih (heap.tick "scans") (vertex + 1) nextBest
       (by simpa using distanceAllocated) (by simpa using settledAllocated) (by omega)
-      (by simpa [nextBest] using extend_minimum _ _ vertex best nonnegative previous)
+      (by simpa [nextBest] using! extend_minimum _ _ vertex best nonnegative previous)
     refine ⟨result, ?_, ?_⟩
-    · simpa [Int.add_assoc, Int.add_comm, Int.add_left_comm] using minimum
+    · simpa [Int.add_assoc, Int.add_comm, Int.add_left_comm] using! minimum
     · intro state located
       apply scan_step state heap (heap.tick "scans" (count + 1)) distance settled
         (vertex + ((count + 1 : Nat) : Int)) vertex best result located
@@ -280,7 +284,7 @@ theorem every_output_correct (distance settled : Seq) (n result : Int)
     Minimum distance settled n result := by
   obtain ⟨heap, execution⟩ := produces
   have correct := (execution_correct _ heap 0 1 n result execution).1
-  simpa [select_min.load, Heap.read, Heap.allocate] using correct
+  simpa [select_min.load, Heap.read, Heap.allocate] using! correct
 
 -- Main result: Correctness and running time
 /-- A human-facing complete contract: first minimum and exactly `max(n, 0)`

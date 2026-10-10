@@ -90,7 +90,7 @@ class InterfaceCheckingTests(unittest.TestCase):
         proof = (ROOT / "tests/proofs/interface.lean").read_text(encoding="utf-8")
         checked = check_lean(proof, module="InterfaceCoreTest", timeout=60)
         self.assertTrue(checked.ok, checked.output)
-        self.assertNotIn("declaration uses 'sorry'", checked.output)
+        self.assertNotIn("declaration uses `sorry`", checked.output)
 
     def test_generated_binding_and_summary_transfers_are_checked(self):
         with tempfile.TemporaryDirectory(prefix="algo2lean-interface-") as directory:
@@ -119,7 +119,7 @@ class InterfaceCheckingTests(unittest.TestCase):
                     cwd=ROOT, env=environment, capture_output=True, text=True, timeout=60)
                 output = result.stdout + result.stderr
                 self.assertEqual(result.returncode, 0, name + "\n" + output)
-                self.assertNotIn("declaration uses 'sorry'", output)
+                self.assertNotIn("declaration uses `sorry`", output)
 
 
 if __name__ == "__main__":

@@ -14,10 +14,14 @@
   cost theorem, without reopening either underlying implementation or proof.
 
 The analysis under `analysis/increment.lean` proves termination, the new value,
-and the sum of the two operation costs **once**. The linking analyses apply that
+the sum of the two operation costs, and preservation of unrelated storage **once**. The linking analyses apply that
 unchanged theorem and the independently checked backend analyses. Their
 `correct` theorems cover every completed execution and retain the post-state
-representation for the next caller. Initial heaps and clock values are arbitrary.
+representation for the next caller. Every returned contract also includes
+`before.Modifies after [] [counter]`: allocation, all sequences and collections,
+object classes, and every other object remain unchanged. These frame guarantees
+compose through both increments in `consumer/advance_twice.algo`. Initial heaps
+and clock values are arbitrary.
 
 ```sh
 python3 -m algo2lean analyze examples/interfaces/use_direct.algo \
@@ -41,7 +45,7 @@ also supplies a summary-transfer lemma for each bound method, so the linking
 proof applies the backend's original theorem without inspecting its transitions.
 
 Optional `Facts` imports provide determinism. Given a constructed summary,
-`execution.eq_of_summary summary` identifies the final heap and result of every
+`execution.eq_of_call summary` identifies the final heap and result of every
 completed execution. Generic clients take the corresponding `DependencyFacts`;
 concrete bindings supply these from checked backend facts.
 

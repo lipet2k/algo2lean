@@ -43,7 +43,7 @@ concrete wrapper. The returned reference is the supplied distance sequence.
 
 The proof at `../analysis/composable_dijkstra/dijkstra.lean` establishes:
 
-- A terminating summary of the actual compiled source and shortest distances.
+- A terminating generated `Call` for the actual compiled source and shortest distances.
 - At most `E + 1` insert/decrease calls and `V` extractions.
 - At most `V + 1` emptiness checks, `E` edge visits and improvements, and `V`
   settlements.
@@ -55,14 +55,15 @@ explicit source clocks, so initial heaps and counters may be arbitrary.
 Backend work is a finite weighted metric of separate implementation clocks.
 The correctness and cost bounds use the same queue-call witnesses.
 
-`PriorityQueueAnalysis.Contracts` specifies terminating method summaries,
+`PriorityQueueAnalysis.Contracts` specifies terminating method calls,
 abstract contents and minimum selection, protected client storage, and the
 amortized charge of each operation. A backend chooses its own representation
 and potential. `is_empty` preserves the heap; its call is counted by the client.
 The queue's bounded, unique vertex identifiers imply its size is at most the
 chosen capacity. The generic proof assumes capacity covers all graph vertices.
 
-`ComposableDijkstraAnalysis.dijkstra_correct` is the reusable summary theorem.
+`ComposableDijkstraAnalysis.dijkstra_complete` is the full reusable call theorem;
+`dijkstra_correct` is its compact correctness-and-cost view.
 `dijkstra_output_exists` provides ordinary sequence values and costs.
 `every_execution`, supplied with the generated dependency facts, establishes
 the same guarantees for every completed execution. The shortest-path and finite
@@ -85,7 +86,7 @@ python3 -m unittest tests.test_composable_dijkstra
 `dijkstra_fibonacci.algo` and `dijkstra_binary.algo` are small construction
 wrappers. Each imports its original queue source and calls the same generic
 Dijkstra module. Their companion proofs instantiate the independent queue
-contract through generated method-summary transfers. The heap proofs, queue
+contract through generated method-call transfers. The heap proofs, queue
 adapters, and generic Dijkstra proof are reused without caller-specific
 transition adapters or copied algorithm bodies.
 
@@ -106,12 +107,14 @@ respectively O(E + V log V) and O((E + V) log V), under the explicit tick model.
 Constructors add no ticks. The public `summary`, `output_exists`,
 `every_execution`, `output_with_cost_correct`, and `terminates` theorems require
 no queue representation or abstract-contract assumption from callers.
-Use `summary` when composing another call: it supplies the compiled call summary,
-preserved graph representation, shortest distances, operation counts, total
-clock bound, and proof that the returned sequence is allocated. Thus the result
-can immediately satisfy another sequence function's input-validity condition.
-Its mutable-state guarantee covers the represented graph and returned distance
-sequence; it does not claim preservation of every unrelated caller location.
+Use `summary` when composing another call: it supplies a generated `Call`,
+preserved graph representation, shortest distances, operation counts, a bound
+on actual clock increments, a freshly allocated result reference, and
+`heap.Footprint after [] [] []`. This footprint preserves the contents of every
+sequence, object, and typed collection allocated before the call. The valid
+result reference can immediately satisfy another sequence function's input
+condition. These guarantees apply with arbitrary initial heaps and counters;
+the ordinary output theorems are derived from the same call proof.
 
 ```sh
 python3 -m algo2lean analyze examples/composable_dijkstra/dijkstra_fibonacci.algo \

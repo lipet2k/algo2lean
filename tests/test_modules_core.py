@@ -16,7 +16,7 @@ class ModuleCoreTests(unittest.TestCase):
         proof = (ROOT / "tests/proofs/modules.lean").read_text(encoding="utf-8")
         checked = check_lean(proof, module="ModulesCoreTest", timeout=60)
         self.assertTrue(checked.ok, checked.output)
-        self.assertNotIn("declaration uses 'sorry'", checked.output)
+        self.assertNotIn("declaration uses `sorry`", checked.output)
 
 
 if __name__ == "__main__":

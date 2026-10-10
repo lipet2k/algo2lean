@@ -1,5 +1,9 @@
 import Algo.indexed_heap.Points
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `new_heap_rep`: Empty heap representation.
@@ -444,14 +448,14 @@ theorem insert_empty_summary (heap : Heap) (queue : Ref_MinHeap) (layout : Layou
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc7 _ _ _ valid.object)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc6 _ _ _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc5 _ _ _
-    (by simpa [is_MinHeap, set_MinHeap_size] using valid.object))
+    (by simpa [is_MinHeap, set_MinHeap_size] using! valid.object))
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc4 _ _ _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc3 _ _ _)
   simp only [vertices_write, positions_write, size_write,
     valid.readVertices, valid.readPositions, valid.readKeys, valid.readSize,
     Option.getD_some, empty, Int.zero_add]
   apply Reaches.trans ((sift_up_root_summary _ _
-    (by simpa [is_MinHeap, set_MinHeap_size] using valid.object)).2 _)
+    (by simpa [is_MinHeap, set_MinHeap_size] using! valid.object)).2 _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc2 _ _ _)
   exact Reaches.single (Step.MinHeap_push_or_decrease_pc1 _ _ _)
 
@@ -459,10 +463,10 @@ theorem inserted_layout (heap : Heap) (queue : Ref_MinHeap) (layout : Layout)
     (valid : layout.Valid heap queue) (vertex key : Int) :
     { layout with size := 1 }.Valid (insertedHeap heap queue layout vertex key) queue := by
   constructor
-  · simpa [insertedHeap, is_MinHeap, set_MinHeap_size] using valid.object
-  · simpa [insertedHeap, field_MinHeap_vertices, is_MinHeap, set_MinHeap_size] using valid.readVertices
-  · simpa [insertedHeap, field_MinHeap_positions, is_MinHeap, set_MinHeap_size] using valid.readPositions
-  · simpa [insertedHeap, field_MinHeap_keys, is_MinHeap, set_MinHeap_size] using valid.readKeys
+  · simpa [insertedHeap, is_MinHeap, set_MinHeap_size] using! valid.object
+  · simpa [insertedHeap, field_MinHeap_vertices, is_MinHeap, set_MinHeap_size] using! valid.readVertices
+  · simpa [insertedHeap, field_MinHeap_positions, is_MinHeap, set_MinHeap_size] using! valid.readPositions
+  · simpa [insertedHeap, field_MinHeap_keys, is_MinHeap, set_MinHeap_size] using! valid.readKeys
   · exact field_MinHeap_size_set _ _ _ valid.object
   · exact valid.verticesAllocated
   · exact valid.positionsAllocated
@@ -518,7 +522,7 @@ theorem pop_singleton_summary (heap : Heap) (queue : Ref_MinHeap) (layout : Layo
   apply Reaches.trans ((swap_summary heap queue layout valid 0 0).2 _)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc10 _ _ _ swappedValid.object)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc9 _ _ _
-    (by simpa [positions] using swappedValid.positionsAllocated))
+    (by simpa [positions] using! swappedValid.positionsAllocated))
   apply Reaches.prepend (Step.MinHeap_pop_min_pc8 _ _ _)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc7_false _ _ _ (by simp))
   apply Reaches.prepend (Step.MinHeap_pop_min_pc2 _ _ _)
@@ -941,7 +945,7 @@ theorem sift_up_continue (state : Configuration) (queue : Ref_MinHeap) (layout :
       (valid.tick "heap_comparisons") s.v1 parent).2 _)
     apply Reaches.prepend (Step.MinHeap_sift_up_pc5 _ _ _)
     simpa only [keys_tick, vertices_tick, valid.readKeys, valid.readVertices,
-      Option.getD_some, Heap.read_tick] using finish stack
+      Option.getD_some, Heap.read_tick] using! finish stack
 
 -- Reordering the integer arrays leaves object fields, typed collections, and
 -- all allocation counters unchanged. In particular, graph objects in a caller
@@ -1210,7 +1214,7 @@ theorem append_summary (heap finalHeap : Heap) (queue : Ref_MinHeap) (layout : L
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc7 _ _ _ valid.object)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc6 _ _ _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc5 _ _ _
-    (by simpa [is_MinHeap, set_MinHeap_size] using valid.object))
+    (by simpa [is_MinHeap, set_MinHeap_size] using! valid.object))
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc4 _ _ _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc3 _ _ _)
   simp only [vertices_write, positions_write, size_write,
@@ -1232,10 +1236,10 @@ theorem appended_layout (heap : Heap) (queue : Ref_MinHeap) (layout : Layout)
     (valid : layout.Valid heap queue) (vertex key : Int) :
     { layout with size := layout.size + 1 }.Valid (appendedHeap heap queue layout vertex key) queue := by
   constructor
-  · simpa [appendedHeap, is_MinHeap, set_MinHeap_size] using valid.object
-  · simpa [appendedHeap, field_MinHeap_vertices, is_MinHeap, set_MinHeap_size] using valid.readVertices
-  · simpa [appendedHeap, field_MinHeap_positions, is_MinHeap, set_MinHeap_size] using valid.readPositions
-  · simpa [appendedHeap, field_MinHeap_keys, is_MinHeap, set_MinHeap_size] using valid.readKeys
+  · simpa [appendedHeap, is_MinHeap, set_MinHeap_size] using! valid.object
+  · simpa [appendedHeap, field_MinHeap_vertices, is_MinHeap, set_MinHeap_size] using! valid.readVertices
+  · simpa [appendedHeap, field_MinHeap_positions, is_MinHeap, set_MinHeap_size] using! valid.readPositions
+  · simpa [appendedHeap, field_MinHeap_keys, is_MinHeap, set_MinHeap_size] using! valid.readKeys
   · exact field_MinHeap_size_set _ _ _ valid.object
   · exact valid.verticesAllocated
   · exact valid.positionsAllocated
@@ -1821,7 +1825,7 @@ theorem sift_down_continue (state : Configuration) (queue : Ref_MinHeap) (layout
       (valid.tick "heap_comparisons") s.v1 s.v2).2 _)
     apply Reaches.prepend (Step.MinHeap_sift_down_pc5 _ _ _)
     simpa only [keys_tick, vertices_tick, valid.readKeys, valid.readVertices,
-      Option.getD_some, Heap.read_tick] using finish stack
+      Option.getD_some, Heap.read_tick] using! finish stack
 
 theorem selectedChild_bounds (heap : Heap) (layout : Layout) (index : Int)
     (nonnegative : 0 ≤ index) (hasChild : 2 * index + 1 < layout.size) :
@@ -2204,7 +2208,7 @@ theorem pop_with_sift_summary (heap after : Heap) (queue : Ref_MinHeap) (layout 
   apply Reaches.prepend (Step.MinHeap_pop_min_pc10 _ _ _ valid.object)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc9 _ _ _
     (by simpa [swapHeap, set_MinHeap_size, field_MinHeap_positions, is_MinHeap,
-      valid.object, valid.readPositions] using
+      valid.object, valid.readPositions] using!
       show (field_MinHeap_positions heap queue).isSome = true ∧
         (field_MinHeap_positions heap queue).getD 0 < heap.nextRef from
       by simp [valid.readPositions, valid.positionsAllocated]))
@@ -2221,7 +2225,7 @@ theorem pop_with_sift_summary (heap after : Heap) (queue : Ref_MinHeap) (layout 
   have positions : field_MinHeap_positions
       (set_MinHeap_size (swapHeap heap layout 0 (layout.size - 1)) queue (layout.size - 1)) queue =
       some layout.positions := by
-    simpa [field_MinHeap_positions, set_MinHeap_size, is_MinHeap] using valid.readPositions
+    simpa [field_MinHeap_positions, set_MinHeap_size, is_MinHeap] using! valid.readPositions
   simp only [positions, Option.getD_some]
   apply Reaches.trans (sift.2 _)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc2 _ _ _)
@@ -2350,11 +2354,11 @@ theorem pop_multiple_correct (heap : Heap) (queue : Ref_MinHeap) (layout : Layou
       (Ne.symm representation.valid.positionsKeys) value]
     exact removed_keys heap queue layout value representation.valid.verticesKeys representation.valid.positionsKeys
   · simpa [Heap.cost, prepared, removedHeap, swapHeap, Heap.tick, Heap.write,
-      set_MinHeap_size, shorter, depth, Int.sub_sub] using comparisons
+      set_MinHeap_size, shorter, depth, Int.sub_sub] using! comparisons
   · have bound : after.clocks "heap_swaps" - (heap.clocks "heap_swaps" + 1) ≤
         depth (layout.size - 2) := by
       simpa [Heap.cost, prepared, removedHeap, swapHeap, Heap.tick, Heap.write,
-        set_MinHeap_size, shorter, depth, Int.sub_sub] using swaps
+        set_MinHeap_size, shorter, depth, Int.sub_sub] using! swaps
     unfold Heap.cost
     omega
   · intro ref notVertices notPositions index

@@ -1,6 +1,10 @@
 import Algo.compare_exchange.Generated
 import Algo.compare_exchange.Facts
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable compare-exchange contract.

@@ -222,7 +222,15 @@ class PartialLinkingAcceptanceTests(unittest.TestCase):
                                     proof_sources=proofs, check_facts=True)
             self.assertTrue(checked.ok, checked.output)
             self.assertNotIn("warning", checked.output)
-            self.assertIn("depends on axioms: [propext, Quot.sound]", checked.output)
+            # Lean 4.33 simplifies distinct clock-name literals through
+            # String.ofList_injective, whose proof uses Classical.choice.
+            # Keep an exact audit so custom axioms or trust bypasses fail.
+            axiom_lines = [line for line in checked.output.splitlines()
+                           if "depends on axioms:" in line]
+            self.assertEqual(axiom_lines, [
+                "'FinalProof.every_execution' depends on axioms: "
+                "[propext, Classical.choice, Quot.sound]"
+            ])
             # The final backend's implementation can change without changing the
             # generic or partially instantiated definitions/proof source. Its old
             # concrete cost proof must then be rejected, including on a warm cache.

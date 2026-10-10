@@ -3,6 +3,10 @@ import Algo.sorted_search_three.Facts
 import Algo.sort_three.Analysis
 import Algo.lower_bound_three.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable sort-and-search contract.

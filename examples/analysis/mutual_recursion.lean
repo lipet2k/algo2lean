@@ -1,5 +1,9 @@
 import MutualRecursionGenerated
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `natural_summaries`: Reusable parity contracts.
@@ -64,20 +68,21 @@ theorem natural_summaries (heap : Heap) (n : Nat) :
       simp only [evenValue, Bool.not_not]
       exact Reaches.single (Step.is_odd_pc1 ..)
 
+/-- Both signed-input contracts preserve the caller's entire heap and clocks. -/
+theorem summaries (heap : Heap) (n : Int) :
+    is_even.Call heap n heap (evenValue n.toNat) ∧
+    is_odd.Call heap n heap (!(evenValue n.toNat)) := by
+  by_cases nonpositive : n ≤ 0
+  · simpa [Int.toNat_eq_zero.mpr nonpositive, evenValue] using
+      nonpositive_summaries heap n nonpositive
+  · simpa [Int.toNat_of_nonneg (by omega : 0 ≤ n)] using natural_summaries heap n.toNat
+
 -- Main result: Correctness
 /-- Both functions have complementary outputs on every integer input; nonpositive
     integers use the source's zero case. This asserts existence, not uniqueness. -/
 theorem outputs (n : Int) :
     is_even.Returns n (evenValue n.toNat) ∧
     is_odd.Returns n (!(evenValue n.toNat)) := by
-  have specification :
-      is_even.Call ({} : Heap) n {} (evenValue n.toNat) ∧
-      is_odd.Call ({} : Heap) n {} (!(evenValue n.toNat)) := by
-    by_cases nonpositive : n ≤ 0
-    · simpa [Int.toNat_eq_zero.mpr nonpositive, evenValue] using
-        nonpositive_summaries {} n nonpositive
-    · simpa [Int.toNat_of_nonneg (by omega : 0 ≤ n)] using natural_summaries {} n.toNat
-  exact ⟨⟨{}, specification.1.1, specification.1.2.root⟩,
-    ⟨{}, specification.2.1, specification.2.2.root⟩⟩
+  exact ⟨⟨{}, (summaries {} n).1.run⟩, ⟨{}, (summaries {} n).2.run⟩⟩
 
 end MutualRecursionAnalysis

@@ -1,7 +1,7 @@
 # CLRS §4.3–4.4: reusable recurrence proofs
 
 The project provides checked **discrete** substitution and recursion-tree
-libraries. They use Lean 4.26 and `Std`, with natural-number input sizes and
+libraries. They use Lean 4.33.1 and `Std`, with natural-number input sizes and
 nonnegative integer costs. No compiler extension or Mathlib dependency is needed.
 These frameworks formalize the reasoning principles of §4.3–4.4; they do not
 claim to cover every textbook example or exercise.

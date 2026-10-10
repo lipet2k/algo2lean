@@ -119,7 +119,7 @@ class InterfaceMetadataTests(unittest.TestCase):
 class InterfaceMetadataLeanTests(unittest.TestCase):
     def assert_checked(self, checked):
         self.assertTrue(checked.ok, checked.output)
-        self.assertNotIn("declaration uses 'sorry'", checked.output)
+        self.assertNotIn("declaration uses `sorry`", checked.output)
 
     def test_every_standalone_signature_and_named_argument_checks_in_lean(self):
         for namespace in (None, "Wrapped"):

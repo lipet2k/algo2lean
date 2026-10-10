@@ -66,7 +66,10 @@ theorem selected_branch_is_undefined (input output : Int) (selected : 0 ≤ inpu
     ¬ selected_branch.Returns input output := by
   rintro ⟨_, _, _, execution⟩
   cases execution with
-  | cons first _ => cases first <;> simp_all [selected_branch.load]
+  | cons first _ =>
+    cases first <;> simp_all [selected_branch.load]
+    have negative : input < 0 := of_decide_eq_true ‹decide (input < 0) = true›
+    omega
 
 theorem required_and_is_undefined (output : Bool) :
     ¬ required_and.Returns true output := by

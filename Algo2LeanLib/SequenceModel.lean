@@ -1,6 +1,10 @@
 import Algo2Lean
 import Init.Data.List.Perm
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 namespace Algo2LeanCore.SequenceModel
 
 open Algo2LeanGenerated

@@ -23,7 +23,7 @@ class ModuleExamplesTests(unittest.TestCase):
                 self.assertEqual(compiled.modules["increment"].lean, original)
                 checked = check_project(compiled, analysis_module="Algo." + name + ".Analysis")
                 self.assertTrue(checked.ok, checked.output)
-                self.assertNotIn("declaration uses 'sorry'", checked.output)
+                self.assertNotIn("declaration uses `sorry`", checked.output)
 
     def test_combined_costs_apply_to_arbitrary_existing_counters(self):
         compiled = compile_project("pipeline", root=EXAMPLES)

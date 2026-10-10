@@ -4,6 +4,10 @@ import Algo2LeanLib.SequenceModel
 import Init.Data.List.Sort.Lemmas
 import Algo2LeanLib.MergeSortCost
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Correctness and running time of merge sort over mutable integer sequences.
 
@@ -235,7 +239,7 @@ theorem left_tail_summary (leftCount rightCount : Nat) (state : Configuration)
         apply Reaches.trans (Reaches.single (Step.merge_pc10 ..))
         apply Reaches.trans (Reaches.single (Step.merge_pc9_false _ _ _
           (by simp only [decide_eq_false_iff_not]; omega)))
-        simpa [interval] using rest stack
+        simpa [interval] using! rest stack
       | succ leftCount ih =>
         have next := ih (heap := (heap.write result output (heap.read source left)).tick "merge_sort")
           (s := { s with v5 := left + 1, v7 := output + 1, t10 := decide (s.v5 < s.v2) })
@@ -307,7 +311,7 @@ theorem merge_loop_summary (leftCount rightCount : Nat) (state : Configuration)
         apply Reaches.trans (Reaches.single (Step.merge_pc15_false _ _ _
           (by simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not]; omega)))
         rcases empty with empty | empty <;> subst_vars <;>
-          simpa [mergeValues, interval] using rest stack
+          simpa [mergeValues, interval] using! rest stack
       · have leftPositive : 0 < leftCount := by omega
         have rightPositive : 0 < rightCount := by omega
         obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : leftCount ≠ 0)
@@ -812,6 +816,21 @@ theorem execution_clock_other (heap finalHeap : Heap) (source result : SeqRef) (
     cases transition <;> first | rfl | exact resumeSame _ _ _ | simp [Config.heap, other]
   exact execution.2.invariant (fun state => state.heap.clocks name = heap.clocks name) rfl
     (fun _ _ transition preserved => (stepSame transition).trans preserved)
+
+/-- One reusable call supplies correctness, allocation validity, preservation
+    of every old sequence, the exact sorting charge, and unchanged other clocks.
+    Base cases may return the input itself; freshness is not claimed. -/
+theorem summary (heap : Heap) (source : SeqRef) (lo hi : Int)
+    (allocated : source < heap.nextRef) :
+    ∃ finalHeap result, merge_sort.Call heap (source, lo, hi) finalHeap result ∧
+      Extends heap finalHeap ∧ result < finalHeap.nextRef ∧
+      SortedPermutation (heap.store source) (finalHeap.store result) lo (hi - lo).toNat ∧
+      Heap.cost heap finalHeap "merge_sort" = runtime (hi - lo).toNat ∧
+      (∀ clock, clock ≠ "merge_sort" → finalHeap.clocks clock = heap.clocks clock) := by
+  obtain ⟨after, result, call, preserved, valid, sorted⟩ := sort_summary heap source lo hi allocated
+  exact ⟨after, result, call, preserved, valid, sorted,
+    execution_cost heap after source result lo hi call.run,
+    execution_clock_other heap after source result lo hi call.run⟩
 
 /-- The value-facing cost relation records the exact operation count, independent
     of input order and repeated values. -/

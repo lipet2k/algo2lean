@@ -144,7 +144,7 @@ analysis** to check the proof against the current algorithm.
 
 ## Check an analysis
 
-From the repository root, with Lean 4.26 installed:
+From the repository root, with Lean 4.33.1 installed:
 
 ```sh
 python3 -m algo2lean analyze examples/factorial.algo examples/analysis/factorial.lean

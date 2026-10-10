@@ -1,6 +1,10 @@
 import Algo.lower_bound_three.Generated
 import Algo.lower_bound_three.Facts
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable three-element search contract.

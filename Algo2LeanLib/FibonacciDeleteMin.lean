@@ -2,6 +2,9 @@ import Algo2LeanLib.FibonacciConsolidation
 import Algo2LeanLib.FibonacciDecrease
 import Algo2LeanLib.FibonacciRootInsertion
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2Lean.Fibonacci
 
 /-- Exact non-clock effect after the selected root has lost all children.

@@ -378,12 +378,12 @@ theorem linear_rep (n : Nat) (sign : Int) (a b : Seq) (A B : Matrix)
 theorem add_rep {n : Nat} {a b : Seq} {A B : Matrix}
     (ra : Rep n a A) (rb : Rep n b B) :
     Rep n (linearValues (n*n) 1 a b) (add A B) := by
-  simpa [add] using linear_rep n 1 a b A B ra rb
+  simpa [add] using! linear_rep n 1 a b A B ra rb
 
 theorem sub_rep {n : Nat} {a b : Seq} {A B : Matrix}
     (ra : Rep n a A) (rb : Rep n b B) :
     Rep n (linearValues (n*n) (-1) a b) (sub A B) := by
-  simpa [sub, Int.sub_eq_add_neg] using linear_rep n (-1) a b A B ra rb
+  simpa [sub, Int.sub_eq_add_neg] using! linear_rep n (-1) a b A B ra rb
 
 /-- Taking a quadrant preserves every entry of its mathematical block. -/
 theorem quadrant_rep (n h row col : Nat) (a : Seq) (A : Matrix)
@@ -525,6 +525,9 @@ end
 /-! Source: proofs/chapter4/StrassenLinear.lean -/
 
 section
+
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
 
 open Algo2LeanCore Algo2LeanGenerated
 
@@ -1597,7 +1600,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc188 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc187_false _ _ _ (by simp; omega))
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc186 _ _ _ (by decide))
   dsimp only
   simp only [halfEq]
@@ -1614,7 +1616,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc180 ..)
   dsimp only
   apply Reaches.trans (plan.a11_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc179 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc178 ..)
@@ -1630,7 +1631,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc173 ..)
   dsimp only
   apply Reaches.trans (plan.a12_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc172 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc171 ..)
@@ -1646,7 +1646,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc166 ..)
   dsimp only
   apply Reaches.trans (plan.a21_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc165 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc164 ..)
@@ -1662,7 +1661,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc159 ..)
   dsimp only
   apply Reaches.trans (plan.a22_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc158 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc157 ..)
@@ -1678,7 +1676,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc152 ..)
   dsimp only
   apply Reaches.trans (plan.b11_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc151 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc150 ..)
@@ -1694,7 +1691,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc145 ..)
   dsimp only
   apply Reaches.trans (plan.b12_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc144 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc143 ..)
@@ -1710,7 +1706,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc138 ..)
   dsimp only
   apply Reaches.trans (plan.b21_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc137 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc136 ..)
@@ -1726,7 +1721,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc131 ..)
   dsimp only
   apply Reaches.trans (plan.b22_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc130 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc129 ..)
@@ -1742,13 +1736,11 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc124 ..)
   dsimp only
   apply Reaches.trans (plan.linear1_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc123 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc122 ..)
   dsimp only
   apply Reaches.trans (plan.p1_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc121 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc120 ..)
@@ -1762,7 +1754,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc116 ..)
   dsimp only
   apply Reaches.trans (plan.linear2_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc115 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc114 ..)
@@ -1770,7 +1761,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc113 ..)
   dsimp only
   apply Reaches.trans (plan.p2_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc112 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc111 ..)
@@ -1784,7 +1774,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc107 ..)
   dsimp only
   apply Reaches.trans (plan.linear3_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc106 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc105 ..)
@@ -1792,7 +1781,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc104 ..)
   dsimp only
   apply Reaches.trans (plan.p3_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc103 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc102 ..)
@@ -1808,13 +1796,11 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc97 ..)
   dsimp only
   apply Reaches.trans (plan.linear4_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc96 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc95 ..)
   dsimp only
   apply Reaches.trans (plan.p4_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc94 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc93 ..)
@@ -1828,7 +1814,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc89 ..)
   dsimp only
   apply Reaches.trans (plan.linear5_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc88 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc87 ..)
@@ -1840,13 +1825,11 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc84 ..)
   dsimp only
   apply Reaches.trans (plan.linear6_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc83 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc82 ..)
   dsimp only
   apply Reaches.trans (plan.p5_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc81 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc80 ..)
@@ -1860,7 +1843,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc76 ..)
   dsimp only
   apply Reaches.trans (plan.linear7_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc75 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc74 ..)
@@ -1872,13 +1854,11 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc71 ..)
   dsimp only
   apply Reaches.trans (plan.linear8_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc70 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc69 ..)
   dsimp only
   apply Reaches.trans (plan.p6_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc68 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc67 ..)
@@ -1892,7 +1872,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc63 ..)
   dsimp only
   apply Reaches.trans (plan.linear9_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc62 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc61 ..)
@@ -1904,13 +1883,11 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc58 ..)
   dsimp only
   apply Reaches.trans (plan.linear10_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc57 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc56 ..)
   dsimp only
   apply Reaches.trans (plan.p7_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc55 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc54 ..)
@@ -1924,7 +1901,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc50 ..)
   dsimp only
   apply Reaches.trans (plan.linear11_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc49 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc48 ..)
@@ -1934,7 +1910,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc46 ..)
   dsimp only
   apply Reaches.trans (plan.linear12_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc45 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc44 ..)
@@ -1944,7 +1919,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc42 ..)
   dsimp only
   apply Reaches.trans (plan.c11_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc41 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc40 ..)
@@ -1958,7 +1932,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc36 ..)
   dsimp only
   apply Reaches.trans (plan.c12_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc35 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc34 ..)
@@ -1972,7 +1945,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc30 ..)
   dsimp only
   apply Reaches.trans (plan.c21_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc29 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc28 ..)
@@ -1986,7 +1958,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc24 ..)
   dsimp only
   apply Reaches.trans (plan.linear16_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc23 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc22 ..)
@@ -1996,7 +1967,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc20 ..)
   dsimp only
   apply Reaches.trans (plan.linear17_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc19 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc18 ..)
@@ -2006,7 +1976,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc16 ..)
   dsimp only
   apply Reaches.trans (plan.c22_run.2 _)
-  dsimp only
   apply Reaches.prepend (Step.strassen_pc15 ..)
   dsimp only
   apply Reaches.prepend (Step.strassen_pc14 ..)
@@ -2022,7 +1991,6 @@ theorem recursive_summary (heap : Heap) (a b : SeqRef) (n half : Int)
   apply Reaches.prepend (Step.strassen_pc9 ..)
   dsimp only
   apply Reaches.trans (plan.joined_run.2 _)
-  dsimp only
   exact Reaches.single (Step.strassen_pc8 _ _ _ plan.result_valid)
 
 end MatrixStrassenComposition

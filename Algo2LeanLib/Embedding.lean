@@ -1,5 +1,9 @@
 import Algo2Lean
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Checked reuse of function summaries across compilation units.
 

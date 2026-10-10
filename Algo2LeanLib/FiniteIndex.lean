@@ -1,5 +1,8 @@
 import Algo2Lean
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-! Finite integer ranges and injective-prefix bounds, independent of algorithms. -/
 namespace Algo2Lean.FiniteIndex
 

@@ -83,12 +83,12 @@ theorem linear_rep (n : Nat) (sign : Int) (a b : Seq) (A B : Matrix)
 theorem add_rep {n : Nat} {a b : Seq} {A B : Matrix}
     (ra : Rep n a A) (rb : Rep n b B) :
     Rep n (linearValues (n*n) 1 a b) (add A B) := by
-  simpa [add] using linear_rep n 1 a b A B ra rb
+  simpa [add] using! linear_rep n 1 a b A B ra rb
 
 theorem sub_rep {n : Nat} {a b : Seq} {A B : Matrix}
     (ra : Rep n a A) (rb : Rep n b B) :
     Rep n (linearValues (n*n) (-1) a b) (sub A B) := by
-  simpa [sub, Int.sub_eq_add_neg] using linear_rep n (-1) a b A B ra rb
+  simpa [sub, Int.sub_eq_add_neg] using! linear_rep n (-1) a b A B ra rb
 
 /-- Taking a quadrant preserves every entry of its mathematical block. -/
 theorem quadrant_rep (n h row col : Nat) (a : Seq) (A : Matrix)

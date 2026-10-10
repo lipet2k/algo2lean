@@ -1,5 +1,8 @@
 import Algo2Lean
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 Clock contracts describe increments from the caller's actual initial heap.
 Weighted and amortized bounds compose on the same finite call witness used

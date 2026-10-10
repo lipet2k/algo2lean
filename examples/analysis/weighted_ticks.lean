@@ -1,5 +1,9 @@
 import WeightedTicksGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `triangular_formula`: Closed form of weighted work.

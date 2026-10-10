@@ -7,6 +7,9 @@ import Algo2LeanLib.FibonacciRootInsertion
 import Algo2LeanLib.FibonacciRebuild
 import Algo2LeanLib.FibonacciKeyUpdate
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 Analysis outline:
 - `new_heap_representation`: Empty Fibonacci heap representation.
@@ -1947,7 +1950,7 @@ theorem decrease_effect_summary (heap after : Heap) (queue : Ref_FibonacciHeap)
       apply Reaches.prepend (Step.FibonacciHeap_push_or_decrease_pc7 _ _ _)
       apply Reaches.trans ((cascade_effect_summary _ middle queue _ middleLayout cutReady
         (prepared.read current.parents vertex) count cascade).2 _)
-      simpa only [keys_tick, ready.readKeys, Option.getD_some, Heap.read_tick] using
+      simpa only [keys_tick, ready.readKeys, Option.getD_some, Heap.read_tick] using!
         finish middle middleLayout (cascade.valid cutReady)
           { state with v2 := key, v3 := prepared.read current.parents vertex, t6 := decide (prepared.read current.parents vertex ≥ 0), t7 := decide (key < prepared.read current.keys (prepared.read current.parents vertex)), t8 := (), t9 := queue, t10 := prepared.read current.parents vertex, t11 := (), t12 := queue, t13 := vertex, t14 := prepared.read current.parents vertex } stack
   refine ⟨valid.object, ?_⟩

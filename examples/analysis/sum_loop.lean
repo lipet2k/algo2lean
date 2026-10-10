@@ -1,5 +1,9 @@
 import SumLoopGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `natural_summary`: Reusable summation contract.
@@ -69,7 +73,7 @@ theorem remaining_summary (count : Nat) (state : Configuration) (first total : I
           (by simp only [decide_eq_true_eq]; omega)))
         apply Reaches.trans (Reaches.single (Step.sum_to_pc6 ..))
         apply Reaches.trans (Reaches.single (Step.sum_to_pc5 ..))
-        simpa [consecutiveSum, Int.add_assoc] using next stack
+        simpa [consecutiveSum, Int.add_assoc] using! next stack
 
 /-- The loop terminates on every natural input and returns 1 + ... + n.
     The call contract is obtained by summing the remaining loop interval. -/
@@ -82,7 +86,7 @@ theorem natural_summary (heap : Heap) (n : Nat) :
   have loop := remaining_summary n
     (.active heap (.fn_sum_to 4 { v0 := n, v1 := 0, v2 := 1 }) stack) 1 0
     True.intro rfl rfl (by simp [sum_to.Local.n]; omega)
-  simpa using loop stack
+  simpa using! loop stack
 
 /-- For n ≤ 0 the guard is initially false and the result is zero. -/
 theorem nonpositive_summary (heap : Heap) (n : Int) (nonpositive : n ≤ 0) :
@@ -97,15 +101,19 @@ theorem nonpositive_summary (heap : Heap) (n : Int) (nonpositive : n ≤ 0) :
   apply Reaches.trans (Reaches.single (Step.sum_to_pc2 ..))
   exact Reaches.single (Step.sum_to_pc1 ..)
 
+/-- Every integer input has a reusable call contract. The entire caller heap,
+    including existing storage and clocks, remains unchanged. -/
+theorem summary (heap : Heap) (n : Int) :
+    sum_to.Call heap n heap (consecutiveSum 1 n.toNat) := by
+  by_cases nonpositive : n ≤ 0
+  · simpa [Int.toNat_eq_zero.mpr nonpositive, consecutiveSum] using
+      nonpositive_summary heap n nonpositive
+  · simpa [Int.toNat_of_nonneg (by omega : 0 ≤ n)] using natural_summary heap n.toNat
+
 -- Main result: Correctness
 /-- Every integer input has the expected sum as an output. This proves existence
     of a completed run; uniqueness is not claimed here. -/
 theorem output (n : Int) : sum_to.Returns n (consecutiveSum 1 n.toNat) := by
-  have specification : sum_to.Call ({} : Heap) n {} (consecutiveSum 1 n.toNat) := by
-    by_cases nonpositive : n ≤ 0
-    · simpa [Int.toNat_eq_zero.mpr nonpositive, consecutiveSum] using
-        nonpositive_summary {} n nonpositive
-    · simpa [Int.toNat_of_nonneg (by omega : 0 ≤ n)] using natural_summary {} n.toNat
-  exact ⟨{}, specification.1, specification.2.root⟩
+  exact ⟨{}, (summary {} n).run⟩
 
 end SumLoopAnalysis

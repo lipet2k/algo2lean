@@ -1,5 +1,8 @@
 import Algo2LeanLib.FibonacciMutableCascade
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2Lean.Fibonacci
 
 /-- Exact key write in the strict-decrease branch. -/
@@ -342,7 +345,7 @@ theorem cascade_boundary_exists (context : List Ancestor) (node : Node) (kept : 
         (state.cut node.vertex frame.vertex) ((node.withChildren kept).withMark false :: rest) cut
       refine ⟨final, ?_, ?_⟩
       · have sourceRun : CascadeRun state final node.vertex (cascadeCuts (frame.plug node) ancestors + 1) :=
-          CascadeRun.cut (by omega) (by simp [marked] at readMark; omega) (by simpa only [parent] using run)
+          CascadeRun.cut (by omega) (by simp [marked] at readMark; omega) (by simpa only [parent] using! run)
         simpa only [cascadeCuts, marked, ↓reduceIte] using sourceRun
       · apply repaired.perm
         simp only [cascadeForest, marked, ↓reduceIte, List.cons_append]
@@ -351,7 +354,7 @@ theorem cascade_boundary_exists (context : List Ancestor) (node : Node) (kept : 
       refine ⟨state.setMark node.vertex true, ?_, ?_⟩
       · simpa [cascadeCuts, unmarked] using CascadeRun.mark (by omega : 0 ≤ state.parents node.vertex)
           (by simpa [unmarked] using readMark)
-      · simpa [cascadeForest, unmarked] using boundary.mark true
+      · simpa [cascadeForest, unmarked] using! boundary.mark true
 
 theorem Forest.counts_perm {before after : Forest} (order : after.Perm before) : after.counts = before.counts := by
   unfold Forest.counts Forest.marks

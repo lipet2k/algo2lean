@@ -3,6 +3,10 @@ import Algo.sort_three.Facts
 import Algo.compare_exchange.Analysis
 import Init.Data.List.Perm
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable three-element sorting contract.

@@ -2,6 +2,10 @@ import Algo.general_binary_lower_bound.Points
 import Algo.general_binary_lower_bound.Facts
 import Algo2LeanLib.SequenceModel
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Binary search over arbitrary integer intervals of an infinite sequence.
 The proof separates interval arithmetic, preservation of discarded halves,
@@ -420,7 +424,7 @@ theorem normalized_summary (heap : Heap) (object : SeqRef) (lo hi target : Int)
     obtain ⟨result, partition, call⟩ := sorted_summary heap object lo hi target allocated ordered monotone
     refine ⟨result, call, ?_⟩
     have endpoint : lo + ((hi - lo).toNat : Int) = hi := by omega
-    simpa only [SequenceModel.LowerBound, endpoint, Heap.read] using partition
+    simpa only [SequenceModel.LowerBound, endpoint, Heap.read] using! partition
   · have empty : hi ≤ lo := by omega
     have call := empty_summary heap object lo hi target allocated empty
     refine ⟨lo, call, ?_⟩

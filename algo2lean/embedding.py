@@ -77,7 +77,10 @@ def emit_embedding(source_source, target_source, *, source_module="LibraryGenera
 
     sf, tf = source_prefix + "Algo2LeanGenerated", target_prefix + "Algo2LeanGenerated"
     lines = ["import " + source_import, "import " + target_import,
-             "import Algo2LeanLib.Embedding", "", "namespace " + embedding_namespace, "",
+             "import Algo2LeanLib.Embedding", "",
+             "set_option backward.isDefEq.respectTransparency false",
+             "set_option backward.defeqAttrib.useBackward true", "",
+             "namespace " + embedding_namespace, "",
              "open Algo2LeanCore _root_.Algo2LeanGenerated", "",
              "-- Translate only the component's control representation; the shared heap is unchanged."]
     for name, lowerer in source.items():
@@ -125,7 +128,7 @@ def emit_embedding(source_source, target_source, *, source_module="LibraryGenera
                 if node.kind == "return":
                     simp.append("CallEmbedding.resume")
                 simp += ["embedding", "encodeFrame", "encodeResult", "state_" + name]
-                lines += ["    simpa only [%s] using" % ", ".join(simp), "      " + target_step]
+                lines += ["    simpa only [%s] using!" % ", ".join(simp), "      " + target_step]
     lines.append("")
     for name, lowerer in source.items():
         function = lowerer.function
@@ -140,7 +143,7 @@ def emit_embedding(source_source, target_source, *, source_module="LibraryGenera
                   "    (contract : %s%s.Call before input after output) :" % (source_prefix, function_namespace(function)),
                   "    %s%s.Call before input after output := by" % (target_prefix, function_namespace(function)),
                   "  refine ⟨contract.1, ?_⟩",
-                  "  simpa only [embedding, encodeFrame, encodeResult, state_%s] using" % name,
+                  "  simpa only [embedding, encodeFrame, encodeResult, state_%s] using!" % name,
                   "    embedding.summary simulates contract.2", ""]
     lines += ["end " + embedding_namespace, ""]
     return "\n".join(lines)

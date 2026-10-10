@@ -1,5 +1,9 @@
 import SequencesGenerated
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `replace_summary`: Reusable element-replacement contract.
@@ -47,28 +51,39 @@ theorem replace_preserves_other_indices (contents : Algo2LeanGenerated.Seq)
   · intro position different
     simp [different]
 
+/-- Negative indices read the supplied sequence without changing any heap state. -/
+theorem negative_index_summary (heap : Heap) (object : SeqRef)
+    (allocated : object < heap.nextRef) :
+    negative_index.Call heap object heap (heap.read object (-1)) := by
+  refine ⟨allocated, ?_⟩
+  intro caller
+  apply Reaches.prepend (Step.negative_index_pc2 _ _ _ allocated)
+  exact Reaches.single (Step.negative_index_pc1 _ _ _)
+
 theorem negative_index_reads_input (contents : Algo2LeanGenerated.Seq) :
     negative_index.Returns contents (contents (-1)) := by
   let heap := ({} : Heap).allocate contents
-  refine ⟨heap, (by simp [negative_index.ValidInput, negative_index.load, Heap.allocate]), ?_⟩
-  refine (Reaches.single (Step.negative_index_pc2 _ _ _
-    (by simp [negative_index.load, Heap.allocate]))).trans ?_
-  simpa [heap, Heap.read, Heap.allocate] using
-    Reaches.single (Step.negative_index_pc1 heap
-      { v0 := 0, t1 := heap.read 0 (-1) } [])
+  exact ⟨heap, (negative_index_summary heap 0 (by simp [heap, Heap.allocate])).run⟩
 
--- A very large index introduces no machine-integer overflow or size bound.
-theorem distant_value_returns_argument (value : Int) :
-    distant_value.Returns value value := by
-  refine ⟨(({} : Heap).allocate (fun _ => 0)).write 0
-    100000000000000000000000000000000000000000000000000 value, True.intro, ?_⟩
+/-- The distant-index demo allocates one sequence, writes its chosen integer
+    position, and returns the written value. Existing objects and clocks retain
+    their values because the complete resulting heap is specified. -/
+theorem distant_value_summary (heap : Heap) (value : Int) :
+    distant_value.Call heap value
+      ((heap.allocate (fun _ => 0)).write heap.nextRef
+        100000000000000000000000000000000000000000000000000 value) value := by
+  refine ⟨True.intro, ?_⟩
+  intro caller
   apply Reaches.prepend (Step.distant_value_pc6 ..)
   apply Reaches.prepend (Step.distant_value_pc5 ..)
   apply Reaches.prepend (Step.distant_value_pc4 ..)
-  apply Reaches.prepend (Step.distant_value_pc3 _ _ _
-    (by simp [distant_value.load, Heap.allocate]))
-  apply Reaches.prepend (Step.distant_value_pc2 _ _ _
-    (by simp [distant_value.load, Heap.allocate, Heap.write]))
-  exact Reaches.single (Step.distant_value_pc1 _ _ [])
+  apply Reaches.prepend (Step.distant_value_pc3 _ _ _ (by simp [Heap.allocate]))
+  apply Reaches.prepend (Step.distant_value_pc2 _ _ _ (by simp [Heap.allocate, Heap.write]))
+  simpa [Heap.read, Heap.write] using Reaches.single (Step.distant_value_pc1 _ _ caller)
+
+-- A very large index introduces no machine-integer overflow or size bound.
+theorem distant_value_returns_argument (value : Int) :
+    distant_value.Returns value value :=
+  ⟨_, (distant_value_summary {} value).run⟩
 
 end SequencesAnalysis

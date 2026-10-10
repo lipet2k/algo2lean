@@ -24,7 +24,7 @@ class CallableModuleTests(unittest.TestCase):
                 self.assertTrue(checked.ok, checked.output)
         checked = check_project(combined, analysis_module="Algo.callable_bindings.Analysis", timeout=60)
         self.assertTrue(checked.ok, checked.output)
-        self.assertNotIn("declaration uses 'sorry'", checked.output)
+        self.assertNotIn("declaration uses `sorry`", checked.output)
 
     def test_both_instances_have_real_executions_and_exact_heap_effects(self):
         compiled = compile_project("callable_bindings", root=EXAMPLES)

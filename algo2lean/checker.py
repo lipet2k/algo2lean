@@ -34,6 +34,11 @@ class CheckResult:
     output: str
 
 
+def has_sorry_warning(output: str) -> bool:
+    """Recognize Lean's unfinished-proof diagnostic across quote styles."""
+    return re.search(r"declaration uses (?:'sorry'|`sorry`)", output) is not None
+
+
 def _remaining(deadline: float) -> float:
     remaining = deadline - time.monotonic()
     if remaining <= 0:
@@ -236,7 +241,7 @@ def prepare_lean_environment(timeout: float = 30, executable: str = None,
                             build_environment, deadline,
                         )
                         output = (result.stdout + result.stderr).replace(str(temporary) + os.sep, "")
-                        if result.returncode != 0 or "declaration uses 'sorry'" in output:
+                        if result.returncode != 0 or has_sorry_warning(output):
                             raise LeanSetupError("Lean rejected the shared library.\n" + output[:20000].strip())
                         if not compiled.is_file():
                             raise LeanSetupError("Lean did not produce the shared library object file for %s." % relative)

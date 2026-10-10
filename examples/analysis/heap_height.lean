@@ -1,5 +1,9 @@
 import HeapHeightGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable ancestor-count contract.
@@ -152,7 +156,7 @@ theorem output_with_cost_iff (index result : Int) (charged : Clocks) :
   · rintro ⟨heap, execution, cost⟩
     obtain ⟨heapEffect, resultEffect⟩ := execution_correct {} heap index result execution
     refine ⟨resultEffect, ?_⟩
-    simpa [heapEffect, heap_ancestors.load] using cost.symm
+    simpa [heapEffect, heap_ancestors.load] using! cost.symm
   · rintro ⟨rfl, rfl⟩
     exact output_with_cost index
 

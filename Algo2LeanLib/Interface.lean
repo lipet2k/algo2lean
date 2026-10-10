@@ -1,5 +1,8 @@
 import Algo2LeanLib.Modules
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 An abstract interface carries executable code separately from behavioral laws.
 A concrete implementation retains its own transition relation and internal

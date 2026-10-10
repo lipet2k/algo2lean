@@ -3,15 +3,21 @@ import Algo2LeanLib.Dijkstra
 import Algo2LeanLib.DijkstraExecution
 import Algo2LeanExamples.Graph
 import GraphIntoDijkstra
+import Algo2LeanLib.Footprint
+import Algo2LeanLib.CallCost
+
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
 
 /-!
 General correctness, termination, and runtime of compiled Dijkstra.
 
 Path mathematics and the queue-independent loop proof are shared in
 `Algo2LeanLib.Dijkstra`; this proof adds indexed-heap call contracts, storage and
-queue invariants, and the actual adjacency/extraction loops. At the end of this
-file, dijkstra_output_iff gives the ordinary shortest-distance specification,
-dijkstra_output_with_cost_correct bounds every completed run, and
+queue invariants, and the actual adjacency/extraction loops. The primary
+`dijkstra_call_contract` preserves caller storage and returns an allocated
+shortest-distance sequence with composable clock increments. The ordinary-value
+view `dijkstra_output_iff` gives the shortest-distance specification, and
 dijkstra_terminates covers every integer source. The smaller edgeless and
 one-edge families retain exact costs as readable examples.
 -/
@@ -177,7 +183,7 @@ theorem final_extraction_summary (state : Configuration) (heap poppedHeap : Heap
   apply Reaches.prepend (Step.dijkstra_pc4 _ _ _ (by simp [readQueue, queueSize]))
   apply Reaches.prepend (Step.dijkstra_pc3_true _ _ _ (by simp [readQueue, queueSize]))
   apply Reaches.prepend (Step.dijkstra_pc28 _ _ _)
-  apply Reaches.prepend (Step.dijkstra_pc27 _ _ _ (by simpa [readQueue] using pop.1))
+  apply Reaches.prepend (Step.dijkstra_pc27 _ _ _ (by simpa [readQueue] using! pop.1))
   apply Reaches.prepend (Step.dijkstra_pc26 _ _ _)
   simp only [readQueue]
   apply Reaches.trans (pop.2 _)
@@ -639,14 +645,14 @@ theorem insert_empty_summary (heap : Heap) (queue : Ref_MinHeap) (layout : Layou
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc7 _ _ _ valid.object)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc6 _ _ _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc5 _ _ _
-    (by simpa [is_MinHeap, set_MinHeap_size] using valid.object))
+    (by simpa [is_MinHeap, set_MinHeap_size] using! valid.object))
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc4 _ _ _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc3 _ _ _)
   simp only [vertices_write, positions_write, size_write,
     valid.readVertices, valid.readPositions, valid.readKeys, valid.readSize,
     Option.getD_some, empty, Int.zero_add]
   apply Reaches.trans ((sift_up_root_summary _ _
-    (by simpa [is_MinHeap, set_MinHeap_size] using valid.object)).2 _)
+    (by simpa [is_MinHeap, set_MinHeap_size] using! valid.object)).2 _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc2 _ _ _)
   exact Reaches.single (Step.MinHeap_push_or_decrease_pc1 _ _ _)
 
@@ -654,10 +660,10 @@ theorem inserted_layout (heap : Heap) (queue : Ref_MinHeap) (layout : Layout)
     (valid : layout.Valid heap queue) (vertex key : Int) :
     { layout with size := 1 }.Valid (insertedHeap heap queue layout vertex key) queue := by
   constructor
-  · simpa [insertedHeap, is_MinHeap, set_MinHeap_size] using valid.object
-  · simpa [insertedHeap, field_MinHeap_vertices, is_MinHeap, set_MinHeap_size] using valid.readVertices
-  · simpa [insertedHeap, field_MinHeap_positions, is_MinHeap, set_MinHeap_size] using valid.readPositions
-  · simpa [insertedHeap, field_MinHeap_keys, is_MinHeap, set_MinHeap_size] using valid.readKeys
+  · simpa [insertedHeap, is_MinHeap, set_MinHeap_size] using! valid.object
+  · simpa [insertedHeap, field_MinHeap_vertices, is_MinHeap, set_MinHeap_size] using! valid.readVertices
+  · simpa [insertedHeap, field_MinHeap_positions, is_MinHeap, set_MinHeap_size] using! valid.readPositions
+  · simpa [insertedHeap, field_MinHeap_keys, is_MinHeap, set_MinHeap_size] using! valid.readKeys
   · exact field_MinHeap_size_set _ _ _ valid.object
   · exact valid.verticesAllocated
   · exact valid.positionsAllocated
@@ -713,7 +719,7 @@ theorem pop_singleton_summary (heap : Heap) (queue : Ref_MinHeap) (layout : Layo
   apply Reaches.trans ((swap_summary heap queue layout valid 0 0).2 _)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc10 _ _ _ swappedValid.object)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc9 _ _ _
-    (by simpa [positions] using swappedValid.positionsAllocated))
+    (by simpa [positions] using! swappedValid.positionsAllocated))
   apply Reaches.prepend (Step.MinHeap_pop_min_pc8 _ _ _)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc7_false _ _ _ (by simp))
   apply Reaches.prepend (Step.MinHeap_pop_min_pc2 _ _ _)
@@ -1136,7 +1142,7 @@ theorem sift_up_continue (state : Configuration) (queue : Ref_MinHeap) (layout :
       (valid.tick "heap_comparisons") s.v1 parent).2 _)
     apply Reaches.prepend (Step.MinHeap_sift_up_pc5 _ _ _)
     simpa only [keys_tick, vertices_tick, valid.readKeys, valid.readVertices,
-      Option.getD_some, Heap.read_tick] using finish stack
+      Option.getD_some, Heap.read_tick] using! finish stack
 
 -- Reordering the integer arrays leaves object fields, typed collections, and
 -- all allocation counters unchanged. In particular, graph objects in a caller
@@ -1157,6 +1163,25 @@ theorem OtherStoragePreserved.trans {first second third : Heap}
   ⟨remaining.nextRef.trans initial.nextRef, remaining.nextObject.trans initial.nextObject,
     remaining.objects.trans initial.objects, remaining.nextCollection.trans initial.nextCollection,
     remaining.collections.trans initial.collections⟩
+
+/-- The three sequence identities owned by an indexed queue. -/
+def Layout.refs (layout : Layout) : List SeqRef :=
+  [layout.vertices, layout.positions, layout.keys]
+
+/-- Existing exact array and storage facts give a reusable caller footprint. -/
+theorem OtherStoragePreserved.footprint {before after : Heap}
+    (storage : OtherStoragePreserved before after) (refs : List SeqRef)
+    (arrays : ∀ ref, ref ∉ refs → after.read ref = before.read ref) :
+    before.Footprint after refs [] [] := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact Nat.le_of_eq storage.nextRef.symm
+  · exact Nat.le_of_eq storage.nextObject.symm
+  · exact Nat.le_of_eq storage.nextCollection.symm
+  · intro ref _; simp only [Heap.objectClass, storage.objects]
+  · intro ref _; simp only [Heap.sequenceType, storage.collections]
+  · intro ref _ outside; exact arrays ref outside
+  · intro ref _ _; exact congrFun storage.objects ref
+  · intro ref _ _; exact congrFun storage.collections ref
 
 -- The remaining loop has one final heap for every configuration with these
 -- source inputs. Induction follows tree depth, not the transcript length.
@@ -1405,7 +1430,7 @@ theorem append_summary (heap finalHeap : Heap) (queue : Ref_MinHeap) (layout : L
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc7 _ _ _ valid.object)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc6 _ _ _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc5 _ _ _
-    (by simpa [is_MinHeap, set_MinHeap_size] using valid.object))
+    (by simpa [is_MinHeap, set_MinHeap_size] using! valid.object))
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc4 _ _ _)
   apply Reaches.prepend (Step.MinHeap_push_or_decrease_pc3 _ _ _)
   simp only [vertices_write, positions_write, size_write,
@@ -1427,10 +1452,10 @@ theorem appended_layout (heap : Heap) (queue : Ref_MinHeap) (layout : Layout)
     (valid : layout.Valid heap queue) (vertex key : Int) :
     { layout with size := layout.size + 1 }.Valid (appendedHeap heap queue layout vertex key) queue := by
   constructor
-  · simpa [appendedHeap, is_MinHeap, set_MinHeap_size] using valid.object
-  · simpa [appendedHeap, field_MinHeap_vertices, is_MinHeap, set_MinHeap_size] using valid.readVertices
-  · simpa [appendedHeap, field_MinHeap_positions, is_MinHeap, set_MinHeap_size] using valid.readPositions
-  · simpa [appendedHeap, field_MinHeap_keys, is_MinHeap, set_MinHeap_size] using valid.readKeys
+  · simpa [appendedHeap, is_MinHeap, set_MinHeap_size] using! valid.object
+  · simpa [appendedHeap, field_MinHeap_vertices, is_MinHeap, set_MinHeap_size] using! valid.readVertices
+  · simpa [appendedHeap, field_MinHeap_positions, is_MinHeap, set_MinHeap_size] using! valid.readPositions
+  · simpa [appendedHeap, field_MinHeap_keys, is_MinHeap, set_MinHeap_size] using! valid.readKeys
   · exact field_MinHeap_size_set _ _ _ valid.object
   · exact valid.verticesAllocated
   · exact valid.positionsAllocated
@@ -2399,7 +2424,7 @@ theorem pop_with_sift_summary (heap after : Heap) (queue : Ref_MinHeap) (layout 
   apply Reaches.prepend (Step.MinHeap_pop_min_pc10 _ _ _ valid.object)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc9 _ _ _
     (by simpa [swapHeap, set_MinHeap_size, field_MinHeap_positions, is_MinHeap,
-      valid.object, valid.readPositions] using
+      valid.object, valid.readPositions] using!
       show (field_MinHeap_positions heap queue).isSome = true ∧
         (field_MinHeap_positions heap queue).getD 0 < heap.nextRef from
       by simp [valid.readPositions, valid.positionsAllocated]))
@@ -2416,7 +2441,7 @@ theorem pop_with_sift_summary (heap after : Heap) (queue : Ref_MinHeap) (layout 
   have positions : field_MinHeap_positions
       (set_MinHeap_size (swapHeap heap layout 0 (layout.size - 1)) queue (layout.size - 1)) queue =
       some layout.positions := by
-    simpa [field_MinHeap_positions, set_MinHeap_size, is_MinHeap] using valid.readPositions
+    simpa [field_MinHeap_positions, set_MinHeap_size, is_MinHeap] using! valid.readPositions
   simp only [positions, Option.getD_some]
   apply Reaches.trans (sift.2 _)
   apply Reaches.prepend (Step.MinHeap_pop_min_pc2 _ _ _)
@@ -2545,11 +2570,11 @@ theorem pop_multiple_correct (heap : Heap) (queue : Ref_MinHeap) (layout : Layou
       (Ne.symm representation.valid.positionsKeys) value]
     exact removed_keys heap queue layout value representation.valid.verticesKeys representation.valid.positionsKeys
   · simpa [Heap.cost, prepared, removedHeap, swapHeap, Heap.tick, Heap.write,
-      set_MinHeap_size, shorter, depth, Int.sub_sub] using comparisons
+      set_MinHeap_size, shorter, depth, Int.sub_sub] using! comparisons
   · have bound : after.clocks "heap_swaps" - (heap.clocks "heap_swaps" + 1) ≤
         depth (layout.size - 2) := by
       simpa [Heap.cost, prepared, removedHeap, swapHeap, Heap.tick, Heap.write,
-        set_MinHeap_size, shorter, depth, Int.sub_sub] using swaps
+        set_MinHeap_size, shorter, depth, Int.sub_sub] using! swaps
     unfold Heap.cost
     omega
   · intro ref notVertices notPositions index
@@ -2650,7 +2675,7 @@ def edgelessPopped (size source : Int) : Heap :=
 
 theorem edgeless_extraction_summary (size source : Int) :
     MinHeap.pop_min.Call (edgelessQueued size source) 1 (edgelessPopped size source) source := by
-  simpa only [edgeless_queued_vertex] using Queue.pop_singleton_summary _ _ _
+  simpa only [edgeless_queued_vertex] using! Queue.pop_singleton_summary _ _ _
     (edgeless_queued_layout size source) rfl
 
 def edgelessFinal (size source : Int) : Heap := settleHeap (edgelessPopped size source) 1 source
@@ -3128,7 +3153,7 @@ theorem extraction_to_edges (state : Configuration) (heap poppedHeap finalHeap :
   apply Reaches.prepend (Step.dijkstra_pc4 _ _ _ (by simp [readQueue, queueSize]))
   apply Reaches.prepend (Step.dijkstra_pc3_true _ _ _ (by simp [readQueue, queueSize, nonempty]))
   apply Reaches.prepend (Step.dijkstra_pc28 _ _ _)
-  apply Reaches.prepend (Step.dijkstra_pc27 _ _ _ (by simpa [readQueue] using pop.1))
+  apply Reaches.prepend (Step.dijkstra_pc27 _ _ _ (by simpa [readQueue] using! pop.1))
   apply Reaches.prepend (Step.dijkstra_pc26 _ _ _)
   simp only [readQueue]
   apply Reaches.trans (pop.2 _)
@@ -3213,7 +3238,7 @@ theorem improve_edge_continue (state : Configuration) (heap queuedHeap finalHeap
   apply Reaches.prepend (Step.dijkstra_pc14 _ _ _ (by simpa [readDistance] using distanceAllocated))
   apply Reaches.prepend (Step.dijkstra_pc13 _ _ _)
   apply Reaches.prepend (Step.dijkstra_pc12 _ _ _
-    (by simpa [relaxationHeap, readQueue] using insertion.1))
+    (by simpa [relaxationHeap, readQueue] using! insertion.1))
   apply Reaches.prepend (Step.dijkstra_pc11 _ _ _)
   apply Reaches.prepend (Step.dijkstra_pc10 _ _ _)
   apply Reaches.prepend (Step.dijkstra_pc9 _ _ _)
@@ -3421,7 +3446,7 @@ theorem single_queued_vertex (size source target weight : Int) :
 theorem single_extraction_summary (size source target weight : Int) :
     MinHeap.pop_min.Call (singleQueued size source target weight) 2
       (singlePopped size source target weight) source := by
-  simpa only [edgelessLayout, single_queued_vertex] using Queue.pop_singleton_summary _ _ _
+  simpa only [edgelessLayout, single_queued_vertex] using! Queue.pop_singleton_summary _ _ _
     (single_queued_layout size source target weight) rfl
 
 theorem single_relaxed_layout (size source target weight : Int) :
@@ -3467,7 +3492,7 @@ theorem single_requeued_vertex (size source target weight : Int) :
 theorem single_final_extraction_summary (size source target weight : Int) :
     MinHeap.pop_min.Call (singleImproved size source target weight) 2
       (singleFinalPopped size source target weight) target := by
-  simpa only [edgelessLayout, single_requeued_vertex] using Queue.pop_singleton_summary _ _ _
+  simpa only [edgelessLayout, single_requeued_vertex] using! Queue.pop_singleton_summary _ _ _
     (single_requeued_layout size source target weight) rfl
 
 theorem single_source_distance (size source target weight : Int) :
@@ -3515,7 +3540,7 @@ theorem single_edge_summary (size source target weight : Int)
     (by change 0 < 5; decide) (by change 1 < 5; decide) (by rfl) (by rfl)
     (single_target_unsettled size source target weight different)
     (Or.inl (by rw [single_target_distance size source target weight different]; omega))
-    (by simpa only [single_source_distance, Int.zero_add] using
+    (by simpa only [single_source_distance, Int.zero_add] using!
       single_reinsertion_summary size source target weight different)
     (by rfl)
   intro afterEdge emptyLocated
@@ -3770,6 +3795,19 @@ structure Updated (before after : Heap) (queue : Ref_MinHeap) (layout : Layout)
     after.clocks name = before.clocks name
   nextRef : after.nextRef = before.nextRef
   graph : ∀ graph heads, GraphFrame before after graph heads
+  footprint : before.Footprint after layout.refs [queue] []
+
+/-- Extraction changes only the queue's owned arrays and object. -/
+theorem Extracted.footprint {before after : Heap} {queue : Ref_MinHeap}
+    {layout : Layout} {vertex : Int} (effect : Extracted before after queue layout vertex) :
+    before.Footprint after layout.refs [queue] [] := by
+  have changed := (Heap.Footprint.refl before layout.refs [queue] []).writeField queue
+    "size" (.intValue (layout.size - 1)) (by simp)
+  apply changed.trans
+  exact (effect.otherStorage.footprint layout.refs (by
+    intro ref outside; simp only [Layout.refs, List.mem_cons, List.mem_nil_iff, or_false, not_or] at outside
+    funext index; exact effect.otherArrays ref outside.1 outside.2.1 index)).weaken
+      (by simp) (by simp) (by simp)
 
 /-- Insert an absent vertex or lower its present key. Both branches reuse the
     proved compiled queue contracts, including their termination witnesses. -/
@@ -3785,23 +3823,34 @@ theorem push_better_correct (heap : Heap) (queue : Ref_MinHeap) (layout : Layout
       depth_mono (Int.le_of_lt (representation.indexed.backward vertex present).1)
     refine ⟨after, layout.size, run, ?_⟩
     refine ⟨represented, by simp [present], ?_, keys, by omega, by omega,
-      arrays, clocks, storage.nextRef, fun graph heads => GraphFrame.from_storage storage graph heads⟩
-    intro value
-    rw [membership value]
-    constructor
-    · exact Or.inr
-    · rintro (rfl | old)
-      · exact present
-      · exact old
+      arrays, clocks, storage.nextRef, fun graph heads => GraphFrame.from_storage storage graph heads, ?_⟩
+    · intro value
+      rw [membership value]
+      constructor
+      · exact Or.inr
+      · rintro (rfl | old)
+        · exact present
+        · exact old
+    · exact (storage.footprint layout.refs (by
+        intro ref outside; simp only [Layout.refs, List.mem_cons, List.mem_nil_iff, or_false, not_or] at outside
+        funext index; exact arrays ref outside.1 outside.2.1 outside.2.2 index)).weaken
+          (by simp) (by simp) (by simp)
   · have absent : heap.read layout.positions vertex = -1 :=
       representation.indexed.absent vertex (by omega)
     obtain ⟨after, run, represented, membership, keys, comparisons, swaps, arrays, clocks, storage⟩ :=
       insert_correct heap queue layout representation vertex key absent
     refine ⟨after, layout.size + 1, run, represented, by simp [present], membership,
-      keys, by omega, swaps, arrays, clocks, storage.nextRef, ?_⟩
-    intro graph heads
-    exact (graph_frame_queue_field heap graph heads queue representation.valid.object
-      "size" (.intValue (layout.size + 1))).trans (GraphFrame.from_storage storage graph heads)
+      keys, by omega, swaps, arrays, clocks, storage.nextRef, ?_, ?_⟩
+    · intro graph heads
+      exact (graph_frame_queue_field heap graph heads queue representation.valid.object
+        "size" (.intValue (layout.size + 1))).trans (GraphFrame.from_storage storage graph heads)
+    · have changed := (Heap.Footprint.refl heap layout.refs [queue] []).writeField queue
+        "size" (.intValue (layout.size + 1)) (by simp)
+      apply changed.trans
+      exact (storage.footprint layout.refs (by
+        intro ref outside; simp only [Layout.refs, List.mem_cons, List.mem_nil_iff, or_false, not_or] at outside
+        funext index; exact arrays ref outside.1 outside.2.1 outside.2.2 index)).weaken
+          (by simp) (by simp) (by simp)
 
 /-- The successful update adds at most one active vertex. -/
 theorem Updated.size_bounds {before after : Heap} {queue : Ref_MinHeap} {layout : Layout}
@@ -3903,6 +3952,25 @@ def preparedForDijkstra (heap : Heap) (source : Int) : Heap :=
 
 def queuedForDijkstra (heap : Heap) (source : Int) : Heap :=
   Queue.insertedHeap (preparedForDijkstra heap source) heap.nextObject (layoutForDijkstra heap) source 0
+
+/-- Initialization allocates every writable location freshly, preserving all
+    storage that was already present in the caller's heap. -/
+theorem initialization_footprint (heap : Heap) (source : Int) :
+    heap.Footprint (queuedForDijkstra heap source) [] [] [] := by
+  unfold queuedForDijkstra preparedForDijkstra queueForDijkstra allocatedForDijkstra
+    Queue.newHeap Queue.initializedHeap Queue.insertedHeap
+    set_MinHeap_vertices set_MinHeap_positions set_MinHeap_keys set_MinHeap_size
+  repeat first
+    | apply Heap.Footprint.writeField
+    | apply Heap.Footprint.write
+    | apply Heap.Footprint.allocate
+    | apply Heap.Footprint.allocateObject
+    | exact Heap.Footprint.refl _ _ _ _
+    | (apply Or.inr; dsimp [layoutForDijkstra, Queue.emptyLayout, allocatedForDijkstra, Heap.allocate]; omega)
+  all_goals first
+    | (apply Or.inr; dsimp [layoutForDijkstra, Queue.emptyLayout, allocatedForDijkstra, Heap.allocate]; omega)
+    | simp
+    | (try simp only [Heap.allocate]; omega)
 
 theorem prepared_queue_rep (heap : Heap) (source : Int) :
     Queue.QueueRep (preparedForDijkstra heap source) heap.nextObject (layoutForDijkstra heap) := by
@@ -4698,10 +4766,38 @@ def EdgeScanSummary (before after : Heap) (graph : Ref_Graph)
     ∀ state, AtEdges state before graph distance settled queue selected head →
       dijkstra.CallFrom state finalHeap result
 
+/-- The loop owns two client arrays and the three queue arrays. Queue sizes
+    may change, but these sequence identities stay fixed throughout the run. -/
+structure PrivateFrame (before after : Heap) (distance settled : SeqRef)
+    (queue : Ref_MinHeap) (initial final : Queue.Layout) : Prop where
+  footprint : before.Footprint after (distance :: settled :: initial.refs) [queue] []
+  refs : final.refs = initial.refs
+
+namespace PrivateFrame
+
+theorem refl (heap : Heap) (distance settled : SeqRef) (queue : Ref_MinHeap)
+    (layout : Queue.Layout) : PrivateFrame heap heap distance settled queue layout layout :=
+  ⟨Heap.Footprint.refl _ _ _ _, rfl⟩
+
+theorem trans {before middle after : Heap} {distance settled : SeqRef}
+    {queue : Ref_MinHeap} {first second third : Queue.Layout}
+    (left : PrivateFrame before middle distance settled queue first second)
+    (right : PrivateFrame middle after distance settled queue second third) :
+    PrivateFrame before after distance settled queue first third := by
+  refine ⟨left.footprint.trans ?_, right.refs.trans left.refs⟩
+  simpa only [left.refs] using right.footprint
+
+theorem queue {before after : Heap} {distance settled : SeqRef} {queue : Ref_MinHeap}
+    {layout : Queue.Layout} (frame : before.Footprint after layout.refs [queue] [])
+    (size : Int) : PrivateFrame before after distance settled queue layout {layout with size := size} :=
+  ⟨frame.weaken (by intro ref member; simp [member]) (by simp) (by simp), rfl⟩
+
+end PrivateFrame
+
 /-- The logical and storage guarantees from one source edge. -/
 structure EdgeAdvanced (before after : Heap) (graph : Ref_Graph) (size : Int)
     (heads : CollectionRef) (adjacency : Adjacency) (distance settled : SeqRef)
-    (queue : Ref_MinHeap) (layout : Queue.Layout) (selected target weight : Int)
+    (queue : Ref_MinHeap) (initialLayout layout : Queue.Layout) (selected target weight : Int)
     (edge : Ref_Edge) (next : Option Ref_Edge) : Prop where
   storage : StorageInvariant after graph size heads adjacency distance settled queue layout
   matching : QueueMatches after layout distance settled
@@ -4712,11 +4808,12 @@ structure EdgeAdvanced (before after : Heap) (graph : Ref_Graph) (size : Int)
   costs : CostBounds before after 0 1 (Queue.depth size)
   frame : GraphFrame before after graph heads
   execution : EdgeStepSummary before after graph distance settled queue selected edge next
+  privateFrame : PrivateFrame before after distance settled queue initialLayout layout
 
 /-- The completed scan preserves every invariant needed by the next extraction. -/
 structure AdjacencyScanned (before after : Heap) (graph : Ref_Graph) (size : Int)
     (heads : CollectionRef) (adjacency : Adjacency) (distance settled : SeqRef)
-    (queue : Ref_MinHeap) (layout : Queue.Layout) (selected : Int)
+    (queue : Ref_MinHeap) (initialLayout layout : Queue.Layout) (selected : Int)
     (head : Option Ref_Edge) (edges : List (Int × Int)) : Prop where
   storage : StorageInvariant after graph size heads adjacency distance settled queue layout
   matching : QueueMatches after layout distance settled
@@ -4727,6 +4824,7 @@ structure AdjacencyScanned (before after : Heap) (graph : Ref_Graph) (size : Int
   costs : CostBounds before after 0 edges.length (Queue.depth size)
   frame : GraphFrame before after graph heads
   execution : EdgeScanSummary before after graph distance settled queue selected head
+  privateFrame : PrivateFrame before after distance settled queue initialLayout layout
 
 /-- A queue whose finite distances stay within the graph has at most `size`
     active vertices, regardless of the values stored outside its active prefix. -/
@@ -4758,7 +4856,7 @@ theorem advance_edge (heap : Heap) (graph : Ref_Graph) (size : Int)
     (readNext : field_Edge_next heap edge = some next)
     (targetLower : 0 ≤ target) (targetUpper : target < size) (weightLower : 0 ≤ weight) :
     ∃ after finalLayout, EdgeAdvanced heap after graph size heads adjacency distance settled
-      queue finalLayout selected target weight edge next := by
+      queue layout finalLayout selected target weight edge next := by
   by_cases unsettled : heap.read settled target = 0
   · by_cases better : heap.read distance target < 0 ∨
         heap.read distance selected + weight < heap.read distance target
@@ -4788,7 +4886,7 @@ theorem advance_edge (heap : Heap) (graph : Ref_Graph) (size : Int)
       have frame := updated.graph_updated graph heads
       refine ⟨after.tick "improvements", { layout with size := newSize },
         storage.improved updated, matching.improved storage updated unsettled candidateNonnegative,
-        settledFinal, ?_, ?_, ?_, frame, ?_⟩
+        settledFinal, ?_, ?_, ?_, frame, ?_, ?_⟩
       · intro vertex finite
         rw [distanceFinal] at finite
         by_cases same : vertex = target
@@ -4805,11 +4903,16 @@ theorem advance_edge (heap : Heap) (graph : Ref_Graph) (size : Int)
           readTarget readWeight unsettled better insertion
         · exact ((frame.edges edge validEdge).2.2.2).trans readNext
         · exact continuation
+      · refine ⟨?_, rfl⟩
+        have initial := ((Heap.Footprint.refl heap (distance :: settled :: layout.refs) [queue] []).tick
+          "edges").write distance target candidate (by simp)
+        exact (initial.trans (updated.footprint.weaken (by intro ref member; simp [member]) (by simp) (by simp))).tick "improvements"
     · have finite : 0 ≤ heap.read distance target := by omega
       have noBetter : heap.read distance target ≤ heap.read distance selected + weight := by omega
       refine ⟨heap.tick "edges", layout, storage.tick "edges", matching.tick "edges",
         rfl, finiteInRange, ?_, skip_edge_cost heap (Queue.depth size),
-        graph_frame_tick heap graph heads "edges" 1, ?_⟩
+        graph_frame_tick heap graph heads "edges" 1, ?_,
+        ⟨(Heap.Footprint.refl heap _ _ _).tick "edges", rfl⟩⟩
       · have scan : RelaxScan (fun vertex => heap.read settled vertex ≠ 0) selected [(target, weight)]
           (heap.read distance) (heap.read distance) := by
           apply RelaxScan.relax (by simpa using unsettled)
@@ -4823,7 +4926,8 @@ theorem advance_edge (heap : Heap) (graph : Ref_Graph) (size : Int)
           readTarget readWeight unsettled finite noBetter readNext continuation
   · refine ⟨heap.tick "edges", layout, storage.tick "edges", matching.tick "edges",
       rfl, finiteInRange, RelaxScan.skip unsettled (.empty _), skip_edge_cost heap (Queue.depth size),
-      graph_frame_tick heap graph heads "edges" 1, ?_⟩
+      graph_frame_tick heap graph heads "edges" 1, ?_,
+        ⟨(Heap.Footprint.refl heap _ _ _).tick "edges", rfl⟩⟩
     intro finalHeap result continuation state located
     exact settled_edge_continue state heap finalHeap graph distance settled result queue
       selected target edge next located storage.settledAllocated readTarget unsettled readNext continuation
@@ -4841,13 +4945,14 @@ theorem scan_adjacency (heap : Heap) (graph : Ref_Graph) (size : Int)
     (selectedFinite : 0 ≤ heap.read distance selected)
     (chain : AdjacencyChain heap size head edges) :
     ∃ after finalLayout, AdjacencyScanned heap after graph size heads adjacency distance settled
-      queue finalLayout selected head edges := by
+      queue layout finalLayout selected head edges := by
   induction edges generalizing heap head layout with
   | nil =>
     have empty := chain.empty_iff.mpr rfl
     subst head
     refine ⟨heap, layout, storage, matching, rfl, finiteInRange,
-      RelaxScan.empty _, CostBounds.refl heap (Queue.depth size), GraphFrame.refl heap graph heads, ?_⟩
+      RelaxScan.empty _, CostBounds.refl heap (Queue.depth size), GraphFrame.refl heap graph heads, ?_,
+      PrivateFrame.refl heap distance settled queue layout⟩
     intro finalHeap result continuation state located
     exact empty_edges_continue state heap finalHeap graph distance settled result queue selected located continuation
   | cons pair rest ih =>
@@ -4863,7 +4968,7 @@ theorem scan_adjacency (heap : Heap) (graph : Ref_Graph) (size : Int)
         (by rw [selectedSame]; exact selectedFinite) (remaining.preserved advanced.frame.edges)
       refine ⟨after, finalLayout, scanned.storage, scanned.matching,
         scanned.settledSame.trans advanced.settledSame, scanned.finiteInRange, ?_, ?_,
-        advanced.frame.trans scanned.frame, ?_⟩
+        advanced.frame.trans scanned.frame, ?_, advanced.privateFrame.trans scanned.privateFrame⟩
       · have tailScan := scanned.scan
         rw [advanced.settledSame] at tailScan
         exact advanced.scan.append tailScan
@@ -4879,7 +4984,7 @@ theorem scan_adjacency (heap : Heap) (graph : Ref_Graph) (size : Int)
     a finite work budget, and an execution summary usable under any caller. -/
 structure ExtractionCompleted (before after : Heap) (graphRef : Ref_Graph) (size source : Int)
     (heads : CollectionRef) (adjacency : Adjacency) (distance settled : SeqRef)
-    (queue : Ref_MinHeap) (remaining : List Int) : Prop where
+    (queue : Ref_MinHeap) (remaining : List Int) (layout : Queue.Layout) : Prop where
   graph : GraphRep after graphRef size heads adjacency
   search : ∃ vertices,
     SearchRun (representedEdges size adjacency) adjacency (before.read distance)
@@ -4890,6 +4995,7 @@ structure ExtractionCompleted (before after : Heap) (graphRef : Ref_Graph) (size
   costs : CostBounds before after remaining.length (edgeBudget adjacency remaining) (Queue.depth size)
   execution : ∀ state, AtExtraction state before graphRef distance settled queue →
     dijkstra.CallFrom state after distance
+  footprint : before.Footprint after (distance :: settled :: layout.refs) [queue] []
 
 /-- General correctness, termination, and runtime of the actual extraction
     loop. Each nonempty iteration consumes one remaining graph vertex. -/
@@ -4897,7 +5003,7 @@ theorem extraction_loop_correct (heap : Heap) (graph : Ref_Graph) (size source :
     (heads : CollectionRef) (adjacency : Adjacency) (distance settled : SeqRef)
     (queue : Ref_MinHeap) (layout : Queue.Layout) (remaining : List Int)
     (invariant : LoopInvariant heap graph size source heads adjacency distance settled queue layout remaining) :
-    ∃ after, ExtractionCompleted heap after graph size source heads adjacency distance settled queue remaining := by
+    ∃ after, ExtractionCompleted heap after graph size source heads adjacency distance settled queue remaining layout := by
   let api : Algo2Lean.Dijkstra.Execution.Interface (Heap × Queue.Layout) := {
     distance := fun state => state.1.read distance
     settled := fun state vertex => state.1.read settled vertex ≠ 0
@@ -4907,10 +5013,12 @@ theorem extraction_loop_correct (heap : Heap) (graph : Ref_Graph) (size source :
       AtExtraction state before.1 graph distance settled queue →
       dijkstra.CallFrom state after.1 distance
     accounting := fun before after vertices edges =>
-      CostBounds before.1 after.1 vertices edges (Queue.depth size)
-    zero := fun state => CostBounds.refl state.1 (Queue.depth size)
-    compose := fun first second => first.trans second
-    weaken := fun costs vertices edges => costs.weaken vertices edges }
+      CostBounds before.1 after.1 vertices edges (Queue.depth size) ∧
+        PrivateFrame before.1 after.1 distance settled queue before.2 after.2
+    zero := fun state => ⟨CostBounds.refl state.1 (Queue.depth size),
+      PrivateFrame.refl state.1 distance settled queue state.2⟩
+    compose := fun first second => ⟨first.1.trans second.1, first.2.trans second.2⟩
+    weaken := fun costs vertices edges => ⟨costs.1.weaken vertices edges, costs.2⟩ }
   have progress : ∀ state pending, api.invariant state pending →
       Algo2Lean.Dijkstra.Execution.Progress api (representedEdges size adjacency) adjacency state pending := by
     rintro ⟨before, current⟩ pending invariant
@@ -4973,14 +5081,21 @@ theorem extraction_loop_correct (heap : Heap) (graph : Ref_Graph) (size source :
           (invariant.storage.extracted extracted).settledAllocated scanning.storage.graph.readHeads readHead
         intro edgeState edgeLocated
         exact scan.execution final.1 distance continuation edgeState edgeLocated
-      · simpa using extractionCost.trans scan.costs
+      · refine ⟨?_, ?_⟩
+        · simpa using extractionCost.trans scan.costs
+        · have poppedFrame : PrivateFrame before (settleHeap popped settled selected)
+              distance settled queue current {current with size := current.size - 1} := by
+            refine ⟨?_, rfl⟩
+            exact ((extracted.footprint.weaken (by intro ref member; simp [member]) (by simp) (by simp)).write
+              settled selected 1 (by simp)).tick "settlements"
+          exact poppedFrame.trans scan.privateFrame
   obtain ⟨⟨after, finalLayout⟩, completed⟩ := Algo2Lean.Dijkstra.Execution.run api
     (representedEdges size adjacency) adjacency progress (heap, layout) remaining invariant
   obtain ⟨pending, finalInvariant⟩ := completed.invariant
   change LoopInvariant after graph size source heads adjacency distance settled queue finalLayout pending
     at finalInvariant
   exact ⟨after, finalInvariant.storage.graph, completed.search, finalInvariant.paths.unknown,
-    finalInvariant.finiteInRange, completed.cost, completed.execution⟩
+    finalInvariant.finiteInRange, completed.cost.1, completed.execution, completed.cost.2.footprint⟩
 
 
 -- The private next-configuration function certifies determinism. The transition
@@ -5309,18 +5424,21 @@ theorem DijkstraRuntimeBound.of_costBounds {before after : Heap} {vertices edges
   rw [bound.otherClocks name notSettlements notEdges notImprovements notComparisons notSwaps]
   omega
 
-/-- On every represented finite nonnegative graph and valid source, the
-    compiled algorithm terminates with shortest distances and the stated
-    indexed-binary-heap tick bounds. Parallel edges and zero weights are allowed. -/
-theorem dijkstra_correct_output_exists (heap : Heap) (graph : Ref_Graph) (size source : Int)
+-- Main result: Correctness
+/-- The reusable binary-heap Dijkstra contract preserves every caller-owned
+    location, returns a fresh allocated distance sequence, proves shortest paths,
+    and bounds actual clock increments from arbitrary initial counters. -/
+theorem dijkstra_call_contract (heap : Heap) (graph : Ref_Graph) (size source : Int)
     (heads : CollectionRef) (adjacency : Adjacency)
     (representation : GraphRep heap graph size heads adjacency)
     (sourceNonnegative : 0 ≤ source) (sourceBound : source < size) :
-    ∃ output costs,
-      dijkstra.ReturnsWithCost (heap, graph, source) output costs ∧
-      ShortestDistances (representedEdges size adjacency) source output ∧
-      DijkstraRuntimeBound costs size.toNat (edgeBudget adjacency (vertexRange size)) ∧
-      ∀ vertex, vertex < 0 ∨ size ≤ vertex → output vertex = -1 := by
+    ∃ after, dijkstra.Call heap (graph, source) after heap.nextRef ∧
+      GraphRep after graph size heads adjacency ∧
+      ShortestDistances (representedEdges size adjacency) source (after.read heap.nextRef) ∧
+      DijkstraRuntimeBound (Heap.cost heap after) size.toNat (edgeBudget adjacency (vertexRange size)) ∧
+      (∀ vertex, vertex < 0 ∨ size ≤ vertex → after.read heap.nextRef vertex = -1) ∧
+      heap.Footprint after [] [] [] ∧ heap.nextRef < after.nextRef ∧
+      heap.Increments after (Heap.cost heap after) := by
   have initialized := initialization_ready representation source
   obtain ⟨after, completed⟩ := extraction_loop_correct
     (queuedForDijkstra heap source) graph size source heads adjacency heap.nextRef (heap.nextRef + 1)
@@ -5335,11 +5453,10 @@ theorem dijkstra_correct_output_exists (heap : Heap) (graph : Ref_Graph) (size s
   have totalCost : CostBounds heap after size.toNat
       (edgeBudget adjacency (vertexRange size)) (Queue.depth size) := by
     simpa using initializationCost.trans completed.costs
-  refine ⟨after.read heap.nextRef, Heap.cost heap after,
-    ⟨after, heap.nextRef, ⟨summary.1, summary.2.root⟩, rfl, rfl⟩,
+  refine ⟨after, summary, completed.graph,
     completed.search.choose_spec.1.correct representation.nonnegative_edges
       (initialized.invariant sourceNonnegative sourceBound).paths,
-    ?_, ?_⟩
+    ?_, ?_, ?_, ?_, ?_⟩
   · exact DijkstraRuntimeBound.of_costBounds totalCost
   · intro vertex outside
     apply completed.canonical vertex
@@ -5348,7 +5465,69 @@ theorem dijkstra_correct_output_exists (heap : Heap) (graph : Ref_Graph) (size s
       omega
     · omega
 
+  · have prepared := initialization_footprint heap source
+    have all := (prepared.weaken (by simp) (by simp) (by simp)).trans completed.footprint
+    refine ⟨all.nextRef, all.nextObject, all.nextCollection, all.classes, all.types, ?_, ?_, ?_⟩
+    · intro ref old _
+      apply all.otherSequences ref old
+      simp only [List.mem_cons, Queue.Layout.refs, layoutForDijkstra, Queue.emptyLayout,
+        allocatedForDijkstra, Heap.allocate, List.mem_nil_iff, or_false]
+      omega
+    · intro ref old _
+      apply all.otherObjects ref old
+      simp only [List.mem_cons, List.mem_nil_iff, or_false]
+      omega
+    · exact all.otherCollections
+  · have bound := completed.footprint.nextRef
+    change heap.nextRef + 1 + 1 + 1 + 1 + 1 ≤ after.nextRef at bound
+    omega
+  · exact Heap.ClocksMonotone.increments
+      (execution_clocks_monotone heap after graph source heap.nextRef summary.run)
+
+/-- A compact compatibility view of the full reusable call contract. -/
+theorem dijkstra_summary (heap : Heap) (graph : Ref_Graph) (size source : Int)
+    (heads : CollectionRef) (adjacency : Adjacency)
+    (representation : GraphRep heap graph size heads adjacency)
+    (sourceNonnegative : 0 ≤ source) (sourceBound : source < size) :
+    ∃ after, dijkstra.Call heap (graph, source) after heap.nextRef ∧
+      GraphRep after graph size heads adjacency ∧
+      ShortestDistances (representedEdges size adjacency) source (after.read heap.nextRef) ∧
+      DijkstraRuntimeBound (Heap.cost heap after) size.toNat (edgeBudget adjacency (vertexRange size)) ∧
+      ∀ vertex, vertex < 0 ∨ size ≤ vertex → after.read heap.nextRef vertex = -1 := by
+  obtain ⟨after, call, graphRep, correct, runtime, outside, _⟩ :=
+    dijkstra_call_contract heap graph size source heads adjacency representation sourceNonnegative sourceBound
+  exact ⟨after, call, graphRep, correct, runtime, outside⟩
+
+/-- Ordinary outputs and costs are a view of the same reusable call contract. -/
+theorem dijkstra_correct_output_exists (heap : Heap) (graph : Ref_Graph) (size source : Int)
+    (heads : CollectionRef) (adjacency : Adjacency)
+    (representation : GraphRep heap graph size heads adjacency)
+    (sourceNonnegative : 0 ≤ source) (sourceBound : source < size) :
+    ∃ output costs,
+      dijkstra.ReturnsWithCost (heap, graph, source) output costs ∧
+      ShortestDistances (representedEdges size adjacency) source output ∧
+      DijkstraRuntimeBound costs size.toNat (edgeBudget adjacency (vertexRange size)) ∧
+      ∀ vertex, vertex < 0 ∨ size ≤ vertex → output vertex = -1 := by
+  obtain ⟨after, call, preserved, correct, costs, outside⟩ :=
+    dijkstra_summary heap graph size source heads adjacency representation sourceNonnegative sourceBound
+  exact ⟨after.read heap.nextRef, Heap.cost heap after,
+    ⟨after, heap.nextRef, call.run, rfl, rfl⟩, correct, costs, outside⟩
+
 -- Main result: Running time
+/-- Every completed call satisfies the same bound on actual clock increments,
+    so the runtime guarantee can be reused inside a larger compiled caller. -/
+theorem dijkstra_call_running_time (heap after : Heap) (graph : Ref_Graph)
+    (size source : Int) (heads : CollectionRef) (adjacency : Adjacency)
+    (representation : GraphRep heap graph size heads adjacency)
+    (sourceNonnegative : 0 ≤ source) (sourceBound : source < size)
+    (result : SeqRef) (call : dijkstra.Call heap (graph, source) after result) :
+    DijkstraRuntimeBound (Heap.cost heap after) size.toNat
+      (edgeBudget adjacency (vertexRange size)) := by
+  obtain ⟨verified, run, _, _, runtime, _⟩ :=
+    dijkstra_call_contract heap graph size source heads adjacency representation sourceNonnegative sourceBound
+  obtain ⟨rfl, rfl⟩ := execution_unique run.run call.run
+  exact runtime
+
 /-- The mathematical and runtime guarantees hold for every compiled output,
     not just the execution constructed by the termination proof. -/
 theorem dijkstra_output_with_cost_correct (heap : Heap) (graph : Ref_Graph) (size source : Int)
@@ -5379,7 +5558,6 @@ theorem dijkstra_output_correct (heap : Heap) (graph : Ref_Graph) (size source :
   exact (dijkstra_output_with_cost_correct heap graph size source heads adjacency
     representation sourceNonnegative sourceBound output costs withCost).1
 
--- Main result: Correctness
 /-- A user may replace the compiler's output proposition by the usual
     mathematical shortest-distance specification in either direction. -/
 theorem dijkstra_output_iff (heap : Heap) (graph : Ref_Graph) (size source : Int)
@@ -5423,7 +5601,7 @@ theorem DijkstraRuntimeBound.total_logarithmic {costs : Clocks} {vertices edges 
     (bound : DijkstraRuntimeBound costs vertices edges) (positive : 0 < vertices) :
     chargedWork costs ≤ 5 * (vertices + 1).log2 * (vertices + edges) := by
   have heightPositive : 1 ≤ (vertices + 1).log2 :=
-    (Nat.le_log2 (by omega)).mpr (by simpa using positive)
+    (Nat.le_log2 (by omega)).mpr (by simpa using! positive)
   have vertexWork : vertices ≤ (vertices + 1).log2 * vertices := by
     simpa using Nat.mul_le_mul_right vertices heightPositive
   have edgeWork : edges ≤ (vertices + 1).log2 * edges := by

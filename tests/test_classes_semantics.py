@@ -29,12 +29,12 @@ class ClassesSemanticsTests(unittest.TestCase):
             helpers = constructor_tactic(generated.lean) if use_constructors else ""
             path.write_text(generated.lean + helpers + proof)
             checked = subprocess.run(
-                ["lean", "+v4.26.0", str(path)], cwd=ROOT, env=self.lean_environment,
+                ["lean", str(path)], cwd=ROOT, env=self.lean_environment,
                 capture_output=True, text=True, timeout=120,
             )
         output = checked.stdout + checked.stderr
         self.assertEqual(checked.returncode, 0, output)
-        self.assertNotIn("declaration uses 'sorry'", output)
+        self.assertNotIn("declaration uses `sorry`", output)
 
     def test_python_evaluation_order_and_heap_preservation(self):
         self.check_fixture("classes_order")

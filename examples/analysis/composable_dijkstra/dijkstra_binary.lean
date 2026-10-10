@@ -3,6 +3,10 @@ import Algo.composable_dijkstra.dijkstra_binary.Facts
 import Algo.composable_dijkstra.dijkstra.Analysis
 import Algo.composable_dijkstra.support.binary_queue.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-! The concrete wrapper constructs a queue and client arrays, then applies the
     unchanged generic Dijkstra theorem and the independent queue contract. -/
 
@@ -82,7 +86,9 @@ def runtimeBound (size : Int) (adjacency : Adjacency) : Nat :=
   ((2 * BinaryModuleAnalysis.depth size + 1) + 3) * (edgeBudget adjacency (vertexRange size) + 1) + ((3 * BinaryModuleAnalysis.depth size + 1) + 3) * size.toNat
 
 /-- A represented graph alone supplies all constructor and queue preconditions.
-    This public theorem has no heap-layout or abstract-contract assumptions. -/
+    The result is freshly allocated, and all pre-existing sequences, objects,
+    and typed collections retain their contents. No queue-layout assumptions
+    appear in this public contract. -/
 theorem summary (heap : Heap) (graph : Ref_Graph) (size source : Int)
     (heads : CollectionRef) (adjacency : Adjacency)
     (representation : GraphRep heap graph size heads adjacency)
@@ -92,9 +98,10 @@ theorem summary (heap : Heap) (graph : Ref_Graph) (size source : Int)
       GraphRep after graph size heads adjacency ∧
       ShortestDistances (representedEdges size adjacency) source (after.read heap.nextRef) ∧
       OperationCounts heap after size.toNat (edgeBudget adjacency (vertexRange size)) ∧
-      clockWork (Heap.cost heap after) ≤ runtimeBound size adjacency ∧ heap.nextRef < after.nextRef := by
+      clockWork (Heap.cost heap after) ≤ runtimeBound size adjacency ∧ heap.nextRef < after.nextRef ∧
+      heap.Footprint after [] [] [] := by
   let allocated := (heap.allocate (fun _ => -1)).allocate (fun _ => 0)
-  let client : Client := ⟨graph,size,heads,adjacency,heap.nextRef,heap.nextRef+1,heap.nextObject⟩
+  let client : Client := ⟨graph,size,heads,adjacency,heap.nextRef,heap.nextRef+1,heap.nextObject,heap⟩
   let model : PriorityQueueAnalysis.Model use_composable_dijkstra_dijkstra_0.PriorityQueue client.queue client.protection := BinaryQueueAnalysis.model MinHeap_as_PriorityQueue bridge heap.nextObject client.protection size
   let initial : QueueState (dependencies := use_composable_dijkstra_dijkstra_0) (client := client) model := ⟨BinaryModuleAnalysis.newHeap allocated,BinaryQueueAnalysis.initialState allocated⟩
   have allocatedGraph : GraphRep allocated graph size heads adjacency :=
@@ -113,6 +120,10 @@ theorem summary (heap : Heap) (graph : Ref_Graph) (size source : Int)
     rcases member with rfl | rfl
     · exact distanceAllocated
     · exact settledAllocated)
+    (((Heap.Footprint.refl heap [] [] []).allocate (fun _ => -1)).allocate (fun _ => 0)) (by
+      intro ref member
+      simp only [Client.protection, List.mem_cons, List.not_mem_nil, or_false] at member
+      rcases member with rfl | rfl <;> simp [client, Client.protection])
   have storage : Storage (dependencies := use_composable_dijkstra_dijkstra_0) (client := client) model initial := by
     refine ⟨allocatedGraph.preserved (graph_frame_of_protected allocatedGraph protectedFrame),queueRep,?_,?_,?_⟩
     · exact Nat.lt_of_lt_of_le distanceAllocated protectedFrame.nextRef
@@ -131,7 +142,7 @@ theorem summary (heap : Heap) (graph : Ref_Graph) (size source : Int)
   have contracts : PriorityQueueAnalysis.Contracts model reservedClocks :=
     BinaryQueueAnalysis.contracts MinHeap_as_PriorityQueue bridge heap.nextObject client.protection size reservedClocks
       (by simp [Client.protection]) (by intro name member; simp [reservedClocks] at member; rcases member with rfl | rfl | rfl | rfl | rfl | rfl <;> decide)
-  obtain ⟨after,search,graphAfter,correct,counts,workBound,resultAllocated⟩ :=
+  obtain ⟨after,search,graphAfter,correct,counts,workBound,resultAllocated,preserved⟩ :=
     dijkstra_complete model contracts (Int.le_refl _) initial source storage (by rfl) distances flags sourceLower sourceUpper
   have sameCost : Heap.cost initial.heap after = Heap.cost heap after := by
     funext name
@@ -146,7 +157,7 @@ theorem summary (heap : Heap) (graph : Ref_Graph) (size source : Int)
     · simpa only [sameCost] using counts.settlements
   refine ⟨after,call heap initial.heap after graph source size representation.valid representation.readSize
     sourceLower sourceUpper (BinaryModuleAnalysis.new_heap_summary allocated) search resultAllocated,
-    graphAfter,correct,costs,?_,resultAllocated⟩
+    graphAfter,correct,costs,?_,resultAllocated,preserved⟩
   have updates := costs.updates
   have pops := costs.pops
   have checks := costs.checks

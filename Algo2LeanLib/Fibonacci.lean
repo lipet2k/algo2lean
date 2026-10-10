@@ -1,5 +1,8 @@
 import Std
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 /-!
 Mathematical building blocks for Fibonacci heaps.
 
@@ -136,7 +139,7 @@ theorem RankOrder.sublist {children kept : List Tree} (ordered : RankOrder child
   induction remaining with
   | slnil => trivial
   | cons child remaining ih => exact ih ordered.2
-  | cons₂ child remaining ih =>
+  | _ child remaining ih =>
     exact ⟨Nat.le_trans remaining.length_le ordered.1, ih ordered.2⟩
 
 def Tree.link (parent child : Tree) : Tree :=

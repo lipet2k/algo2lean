@@ -1,5 +1,9 @@
 import MatrixRecursiveGenerated
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 open Algo2LeanCore Algo2LeanGenerated
 namespace MatrixRecursiveAnalysis
 
@@ -277,7 +281,9 @@ theorem blockEffect_correct (depth : Nat) (heap : Heap) (a b c : SeqRef)
         contribution (heap.store a) (heap.store b) stride qr qc depth row col inner := by
   induction depth generalizing heap row col inner with
   | zero =>
-    have col_bound' : col < stride := by simpa using col_bound
+    have col_bound' : col < stride := by
+      simp only [Nat.pow_zero, Int.natCast_one] at col_bound
+      omega
     have same := address_injective stride qr row qc col qc_nonnegative qc_bound
       col_nonnegative col_bound'
     simp only [blockEffect, Heap.read, Heap.write, Heap.tick]
@@ -364,18 +370,56 @@ def costs (depth : Nat) : Clocks := fun name =>
   if name = "multiplications" then 8 ^ depth else
   if name = "calls" then callCount depth else 0
 
+/-- The recursive matrix product is correct on an arbitrary caller heap. Only
+    its newly allocated result sequence is written; the input references may alias. -/
+theorem result_heap_correct_from (heap : Heap) (a b : SeqRef) (depth : Nat)
+    (left : a < heap.nextRef) (right : b < heap.nextRef) :
+    (blockEffect a b heap.nextRef (2 ^ depth : Nat) depth
+      (heap.allocate (fun _ => 0)) 0 0 0).store heap.nextRef =
+        matrixProduct (heap.store a) (heap.store b) (2 ^ depth) := by
+  let initial := heap.allocate (fun _ => 0)
+  funext index
+  have positive : 0 < ((2 ^ depth : Nat) : Int) := by
+    exact_mod_cast Nat.pow_pos (show 0 < (2 : Nat) by decide)
+  have col_nonnegative := Int.emod_nonneg index (Int.ne_of_gt positive)
+  have col_bound := Int.emod_lt_of_pos index positive
+  have correct := blockEffect_correct depth initial a b heap.nextRef (2 ^ depth : Nat) 0 0 0
+    (index / (2 ^ depth : Nat)) (index % (2 ^ depth : Nat))
+    (Nat.ne_of_lt left) (Nat.ne_of_lt right) col_nonnegative col_bound (by omega) (by simp)
+  have address : index / (2 ^ depth : Nat) * (2 ^ depth : Nat) + index % (2 ^ depth : Nat) = index := by
+    simpa [Int.mul_comm] using Int.mul_ediv_add_emod index ((2 ^ depth : Nat) : Int)
+  rw [address] at correct
+  simp only [contribution, Int.zero_add, col_nonnegative, col_bound, and_true] at correct
+  simpa [initial, Heap.read, Heap.allocate, contribution, matrixProduct,
+    col_nonnegative, col_bound, innerProduct_eq_sum, Nat.ne_of_lt left, Nat.ne_of_lt right] using correct
+
+/-- One reusable call combines the full matrix product, one fresh sequence,
+    unchanged old sequences, and the exact recursive-call and multiplication costs. -/
+theorem call (heap : Heap) (a b : SeqRef) (depth : Nat)
+    (left : a < heap.nextRef) (right : b < heap.nextRef) :
+    ∃ after, matrix_recursive.Call heap (a, b, (2 ^ depth : Nat)) after heap.nextRef ∧
+      after.store heap.nextRef = matrixProduct (heap.store a) (heap.store b) (2 ^ depth) ∧
+      after.nextRef = heap.nextRef + 1 ∧
+      (∀ old, old < heap.nextRef → after.store old = heap.store old) ∧
+      Heap.cost heap after = costs depth := by
+  refine ⟨_, recursive_summary depth heap a b left right,
+    result_heap_correct_from heap a b depth left right, ?_, ?_, ?_⟩
+  · simp [Heap.allocate]
+  · intro old allocated
+    rw [blockEffect_store_other _ _ _ _ _ _ _ _ _ _ (Nat.ne_of_lt allocated)]
+    simp [Heap.allocate, Nat.ne_of_lt allocated]
+  · funext name
+    simp [Heap.cost, blockEffect_clocks, costs, Heap.allocate]
+
 /-- Termination, full matrix correctness, and the exact scalar-multiplication
     count are certified by one execution of the generated algorithm. -/
 theorem output_with_cost (a b : Seq) (depth : Nat) :
     matrix_recursive.ReturnsWithCost (a, b, (2 ^ depth : Nat))
       (matrixProduct a b (2 ^ depth)) (costs depth) := by
   let initial := (({} : Heap).allocate a).allocate b
-  have execution := recursive_summary depth initial 0 1 (by simp [initial]) (by simp [initial])
-  refine ⟨_, 2, ⟨execution.1, execution.2.root⟩, result_heap_correct a b depth, ?_⟩
-  funext name
-  simp [Heap.cost, blockEffect_clocks, costs, initial, matrix_recursive.load, Heap.allocate]
-
-
+  obtain ⟨after, execution, productValue, allocated, preserved, cost⟩ :=
+    call initial 0 1 depth (by simp [initial]) (by simp [initial])
+  exact ⟨after, initial.nextRef, execution.run, productValue, cost⟩
 
 /-- Closed form for recursive-call overhead, avoiding truncated division. -/
 theorem callCount_exact (depth : Nat) : 7 * callCount depth + 1 = 8 ^ (depth + 1) := by

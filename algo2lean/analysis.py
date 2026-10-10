@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import time
 
-from .checker import CheckResult, LeanSetupError, prepare_lean_environment, shared_imports, lean_imports
+from .checker import CheckResult, LeanSetupError, prepare_lean_environment, shared_imports, lean_imports, has_sorry_warning
 from .modules import generated_module_name, validate_module_name
 
 
@@ -99,7 +99,7 @@ def check_analysis(generated: str, analysis: str, module: str, timeout: float = 
                     messages.append(output.strip())
                 if completed.returncode != 0:
                     return CheckResult(False, True, "\n".join(messages)[:20000])
-                if "declaration uses 'sorry'" in output:
+                if has_sorry_warning(output):
                     return CheckResult(False, True, "Analysis is incomplete: replace every sorry with a proof.\n" + output[:19000])
             messages.append(
                 "Lean accepted the analysis with its declared assumptions and options."

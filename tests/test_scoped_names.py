@@ -177,7 +177,7 @@ class ScopedNameStabilityTests(unittest.TestCase):
 class ScopedNameLeanTests(unittest.TestCase):
     def assert_checked(self, checked):
         self.assertTrue(checked.ok, checked.output)
-        self.assertNotIn("declaration uses 'sorry'", checked.output)
+        self.assertNotIn("declaration uses `sorry`", checked.output)
 
     def test_standalone_primary_names_methods_constructors_and_escaped_names(self):
         functions = [("increment", "increment"), ("same", "same"),

@@ -1,6 +1,10 @@
 import Algo.callable_staged.Generated
 import Algo.callable_staged.Facts
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable successor and exact-cost contract.

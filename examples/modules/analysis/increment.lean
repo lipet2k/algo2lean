@@ -2,6 +2,10 @@ import Algo.increment.Generated
 import Algo.increment.Facts
 import Algo2LeanLib.CallCost
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable increment contract.

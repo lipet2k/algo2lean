@@ -1,0 +1,50 @@
+# Disjoint sets over the integer elements 0, ..., size - 1.
+# Each root names one component. Union by rank bounds parent paths, and
+# find compresses every visited path directly to its root.
+# Clients must pass in-range elements. The representation is independent
+# of graphs, edge weights, or any particular client algorithm.
+
+class UnionFind:
+    parent: Seq
+    rank: Seq
+    size: Int
+
+    def __init__(self, size: Int) -> None:
+        self.parent = const(0)
+        self.rank = const(0)
+        self.size = size
+        vertex = 0
+        tick("uf_init")
+        # @initialize
+        while vertex < size:
+            self.parent[vertex] = vertex
+            vertex += 1
+            tick("uf_init")
+
+    def find(self, vertex: Int) -> Int:
+        parent = self.parent
+        tick("uf_find")
+        # @follow
+        if parent[vertex] == vertex:
+            return vertex
+        root = self.find(parent[vertex])
+        # @compress
+        parent[vertex] = root
+        tick("uf_compress")
+        return root
+
+    def union(self, a: Int, b: Int) -> Bool:
+        left = self.find(a)
+        right = self.find(b)
+        tick("uf_union")
+        if left == right:
+            return False
+        # @link
+        if self.rank[left] < self.rank[right]:
+            self.parent[left] = right
+        elif self.rank[right] < self.rank[left]:
+            self.parent[right] = left
+        else:
+            self.parent[right] = left
+            self.rank[left] = self.rank[left] + 1
+        return True

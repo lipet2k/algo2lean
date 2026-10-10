@@ -1,0 +1,20 @@
+# Order the identifiers [0, count) by their keys using a reusable binary heap.
+from indexed_heap import MinHeap
+
+
+def sort_indices(keys: Seq, count: Int) -> Seq:
+    queue = MinHeap()
+    result = const(0)
+    index = 0
+    # @insert
+    while index < count:
+        tick("sort_steps")
+        queue.push_or_decrease(index, keys[index])
+        index += 1
+    index = 0
+    # @extract
+    while index < count:
+        tick("sort_steps")
+        result[index] = queue.pop_min()
+        index += 1
+    return result

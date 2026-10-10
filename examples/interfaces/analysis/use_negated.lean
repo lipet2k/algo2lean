@@ -3,6 +3,10 @@ import Algo.use_negated.Facts
 import Algo.negated.Analysis
 import Algo.increment.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable concrete-counter increment contract.
@@ -24,12 +28,12 @@ def contract : CounterContract Negated_as_Counter where
     simpa [Negated_as_Counter] using represented.1
   read := by
     intro heap ref value represented
-    obtain ⟨after, run, same, cost⟩ := NegatedAnalysis.read represented
-    exact ⟨after, Negated_as_Counter_summary_get run, same, cost⟩
+    obtain ⟨after, run, same, cost, frame⟩ := NegatedAnalysis.read represented
+    exact ⟨after, Negated_as_Counter_summary_get run, same, cost, frame⟩
   write := by
     intro heap ref old value represented
-    obtain ⟨after, run, updated, cost⟩ := NegatedAnalysis.write value represented
-    exact ⟨after, Negated_as_Counter_summary_put run, updated, cost⟩
+    obtain ⟨after, run, updated, cost, frame⟩ := NegatedAnalysis.write value represented
+    exact ⟨after, Negated_as_Counter_summary_put run, updated, cost, frame⟩
 
 /-- Only the wrapper's own call boundary needs a local execution proof. -/
 theorem call {before after : Heap} {ref : ObjectRef} {output : Int}
@@ -49,10 +53,11 @@ theorem summary {before : Heap} {ref : ObjectRef} {value : Int}
     (represented : NegatedAnalysis.Represents before ref value) :
     ∃ after, advance.Call before ref after (value + 1) ∧
       NegatedAnalysis.Represents after ref (value + 1) ∧
-      before.Increments after (Clocks.single "counter_work" 4) := by
-  obtain ⟨after, run, updated, cost⟩ :=
+      before.Increments after (Clocks.single "counter_work" 4) ∧
+      before.Modifies after [] [ref] := by
+  obtain ⟨after, run, updated, cost, frame⟩ :=
     IncrementAnalysis.summary use_increment_0 contract represented
-  exact ⟨after, call represented.1 run, updated, cost⟩
+  exact ⟨after, call represented.1 run, updated, cost, frame⟩
 
 -- Main result: Correctness and running time
 /-- Every concrete execution has the proved value, mutation, and cost. There
@@ -61,9 +66,10 @@ theorem correct {before after : Heap} {ref : ObjectRef} {value output : Int}
     (represented : NegatedAnalysis.Represents before ref value)
     (execution : advance.Run before ref after output) :
     output = value + 1 ∧ NegatedAnalysis.Represents after ref (value + 1) ∧
-      before.Increments after (Clocks.single "counter_work" 4) := by
-  obtain ⟨finalHeap, run, updated, cost⟩ := summary represented
+      before.Increments after (Clocks.single "counter_work" 4) ∧
+      before.Modifies after [] [ref] := by
+  obtain ⟨finalHeap, run, updated, cost, frame⟩ := summary represented
   obtain ⟨rfl, rfl⟩ := execution.eq_of_call run
-  exact ⟨rfl, updated, cost⟩
+  exact ⟨rfl, updated, cost, frame⟩
 
 end NegatedClientAnalysis

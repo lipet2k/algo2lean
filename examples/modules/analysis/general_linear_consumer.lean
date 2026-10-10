@@ -2,6 +2,10 @@ import Algo.general_linear_consumer.Generated
 import Algo.general_linear_consumer.Facts
 import Algo.general_linear_sort_then_search.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable sort-and-search contract.

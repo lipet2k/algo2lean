@@ -1,5 +1,9 @@
 import Algo2Lean
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-! Association-list membership and update lemmas for finite dictionary and queue models. -/
 namespace Algo2Lean.FiniteMap
 

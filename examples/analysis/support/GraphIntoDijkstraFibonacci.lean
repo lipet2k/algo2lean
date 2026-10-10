@@ -2,6 +2,9 @@ import «Algo2LeanExamples».«GraphGenerated»
 import «DijkstraFibonacciGenerated»
 import Algo2LeanLib.Embedding
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace «GraphIntoDijkstraFibonacci»
 
 open Algo2LeanCore _root_.Algo2LeanGenerated
@@ -68,67 +71,67 @@ theorem simulates : embedding.Simulates «GraphLibrary».Algo2LeanGenerated.Step
   intro caller before after transition
   cases transition with
   | Edge___init___pc1 h s stack =>
-    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Edge___init__] using
+    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Edge___init__] using!
       (Algo2LeanGenerated.Step.Edge___init___pc1 h (state_Edge___init__ s) (embedding.stack stack ++ caller))
   | Edge___init___pc2 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge___init__] using!
       (Algo2LeanGenerated.Step.Edge___init___pc2 h (state_Edge___init__ s) (embedding.stack stack ++ caller))
   | Edge___init___pc3 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge___init__] using!
       (Algo2LeanGenerated.Step.Edge___init___pc3 h (state_Edge___init__ s) (embedding.stack stack ++ caller) defined)
   | Edge___init___pc4 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge___init__] using!
       (Algo2LeanGenerated.Step.Edge___init___pc4 h (state_Edge___init__ s) (embedding.stack stack ++ caller) defined)
   | Edge___init___pc5 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge___init__] using!
       (Algo2LeanGenerated.Step.Edge___init___pc5 h (state_Edge___init__ s) (embedding.stack stack ++ caller) defined)
   | Graph___init___pc1 h s stack =>
-    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc1 h (state_Graph___init__ s) (embedding.stack stack ++ caller))
   | Graph___init___pc2 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc2 h (state_Graph___init__ s) (embedding.stack stack ++ caller))
   | Graph___init___pc3 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc3 h (state_Graph___init__ s) (embedding.stack stack ++ caller) defined)
   | Graph___init___pc4 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc4 h (state_Graph___init__ s) (embedding.stack stack ++ caller))
   | Graph___init___pc5 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc5 h (state_Graph___init__ s) (embedding.stack stack ++ caller))
   | Graph___init___pc6 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc6 h (state_Graph___init__ s) (embedding.stack stack ++ caller))
   | Graph___init___pc7 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc7 h (state_Graph___init__ s) (embedding.stack stack ++ caller) defined)
   | Graph___init___pc8_true h s stack condition =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc8_true h (state_Graph___init__ s) (embedding.stack stack ++ caller) condition)
   | Graph___init___pc8_false h s stack condition =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc8_false h (state_Graph___init__ s) (embedding.stack stack ++ caller) condition)
   | Graph___init___pc9 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc9 h (state_Graph___init__ s) (embedding.stack stack ++ caller))
   | Graph___init___pc10 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph___init__] using!
       (Algo2LeanGenerated.Step.Graph___init___pc10 h (state_Graph___init__ s) (embedding.stack stack ++ caller) defined)
   | Graph_add_edge_pc1 h s stack =>
-    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc1 h (state_Graph_add_edge s) (embedding.stack stack ++ caller))
   | Graph_add_edge_pc2 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc2 h (state_Graph_add_edge s) (embedding.stack stack ++ caller))
   | Graph_add_edge_pc3 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc3 h (state_Graph_add_edge s) (embedding.stack stack ++ caller) defined)
   | Graph_add_edge_pc4 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc4 h (state_Graph_add_edge s) (embedding.stack stack ++ caller))
   | Graph_add_edge_pc5 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc5 h (state_Graph_add_edge s) (embedding.stack stack ++ caller) defined)
   | Graph_add_edge_pc6 h s stack =>
     simp only [CallEmbedding.config_active, CallEmbedding.stack_cons, List.cons_append]
@@ -136,34 +139,34 @@ theorem simulates : embedding.Simulates «GraphLibrary».Algo2LeanGenerated.Step
     congr 4
     all_goals (funext value; cases value <;> rfl)
   | Graph_add_edge_pc7 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc7 h (state_Graph_add_edge s) (embedding.stack stack ++ caller) defined)
   | Graph_add_edge_pc8 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc8 h (state_Graph_add_edge s) (embedding.stack stack ++ caller))
   | Graph_add_edge_pc9 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc9 h (state_Graph_add_edge s) (embedding.stack stack ++ caller))
   | Graph_add_edge_pc10 h s stack =>
-    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc10 h (state_Graph_add_edge s) (embedding.stack stack ++ caller))
   | Graph_add_edge_pc11 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc11 h (state_Graph_add_edge s) (embedding.stack stack ++ caller))
   | Graph_add_edge_pc12_true h s stack condition =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc12_true h (state_Graph_add_edge s) (embedding.stack stack ++ caller) condition)
   | Graph_add_edge_pc12_false h s stack condition =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc12_false h (state_Graph_add_edge s) (embedding.stack stack ++ caller) condition)
   | Graph_add_edge_pc13 h s stack defined =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
       (Algo2LeanGenerated.Step.Graph_add_edge_pc13 h (state_Graph_add_edge s) (embedding.stack stack ++ caller) defined)
   | Edge_pc1 h s stack defined =>
-    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Edge] using
+    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Edge] using!
       (Algo2LeanGenerated.Step.Edge_pc1 h (state_Edge s) (embedding.stack stack ++ caller) defined)
   | Edge_pc2 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using!
       (Algo2LeanGenerated.Step.Edge_pc2 h (state_Edge s) (embedding.stack stack ++ caller))
   | Edge_pc3 h s stack =>
     simp only [CallEmbedding.config_active, CallEmbedding.stack_cons, List.cons_append]
@@ -171,28 +174,28 @@ theorem simulates : embedding.Simulates «GraphLibrary».Algo2LeanGenerated.Step
     congr 4
     all_goals (funext value; cases value <;> rfl)
   | Edge_pc4 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using!
       (Algo2LeanGenerated.Step.Edge_pc4 h (state_Edge s) (embedding.stack stack ++ caller))
   | Edge_pc5 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using!
       (Algo2LeanGenerated.Step.Edge_pc5 h (state_Edge s) (embedding.stack stack ++ caller))
   | Edge_pc6 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using!
       (Algo2LeanGenerated.Step.Edge_pc6 h (state_Edge s) (embedding.stack stack ++ caller))
   | Edge_pc7 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using!
       (Algo2LeanGenerated.Step.Edge_pc7 h (state_Edge s) (embedding.stack stack ++ caller))
   | Edge_pc8 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using!
       (Algo2LeanGenerated.Step.Edge_pc8 h (state_Edge s) (embedding.stack stack ++ caller))
   | Edge_pc9 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Edge] using!
       (Algo2LeanGenerated.Step.Edge_pc9 h (state_Edge s) (embedding.stack stack ++ caller))
   | Graph_pc1 h s stack defined =>
-    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Graph] using
+    simpa only [CallEmbedding.config_active, CallEmbedding.resume, embedding, encodeFrame, encodeResult, state_Graph] using!
       (Algo2LeanGenerated.Step.Graph_pc1 h (state_Graph s) (embedding.stack stack ++ caller) defined)
   | Graph_pc2 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using!
       (Algo2LeanGenerated.Step.Graph_pc2 h (state_Graph s) (embedding.stack stack ++ caller))
   | Graph_pc3 h s stack =>
     simp only [CallEmbedding.config_active, CallEmbedding.stack_cons, List.cons_append]
@@ -200,51 +203,51 @@ theorem simulates : embedding.Simulates «GraphLibrary».Algo2LeanGenerated.Step
     congr 4
     all_goals (funext value; cases value <;> rfl)
   | Graph_pc4 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using!
       (Algo2LeanGenerated.Step.Graph_pc4 h (state_Graph s) (embedding.stack stack ++ caller))
   | Graph_pc5 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using!
       (Algo2LeanGenerated.Step.Graph_pc5 h (state_Graph s) (embedding.stack stack ++ caller))
   | Graph_pc6 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using!
       (Algo2LeanGenerated.Step.Graph_pc6 h (state_Graph s) (embedding.stack stack ++ caller))
   | Graph_pc7 h s stack =>
-    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using
+    simpa only [CallEmbedding.config_active, embedding, encodeFrame, encodeResult, state_Graph] using!
       (Algo2LeanGenerated.Step.Graph_pc7 h (state_Graph s) (embedding.stack stack ++ caller))
 
 theorem summary_Edge___init__ {before after : Heap} {input : «GraphLibrary».Algo2LeanGenerated.Ref_Edge × Int × Int × (Option «GraphLibrary».Algo2LeanGenerated.Ref_Edge)} {output : Unit}
     (contract : «GraphLibrary».Edge.__init__.Call before input after output) :
     Edge.__init__.Call before input after output := by
   refine ⟨contract.1, ?_⟩
-  simpa only [embedding, encodeFrame, encodeResult, state_Edge___init__] using
+  simpa only [embedding, encodeFrame, encodeResult, state_Edge___init__] using!
     embedding.summary simulates contract.2
 
 theorem summary_Graph___init__ {before after : Heap} {input : «GraphLibrary».Algo2LeanGenerated.Ref_Graph × Int} {output : Unit}
     (contract : «GraphLibrary».Graph.__init__.Call before input after output) :
     Graph.__init__.Call before input after output := by
   refine ⟨contract.1, ?_⟩
-  simpa only [embedding, encodeFrame, encodeResult, state_Graph___init__] using
+  simpa only [embedding, encodeFrame, encodeResult, state_Graph___init__] using!
     embedding.summary simulates contract.2
 
 theorem summary_Graph_add_edge {before after : Heap} {input : «GraphLibrary».Algo2LeanGenerated.Ref_Graph × Int × Int × Int} {output : Bool}
     (contract : «GraphLibrary».Graph.add_edge.Call before input after output) :
     Graph.add_edge.Call before input after output := by
   refine ⟨contract.1, ?_⟩
-  simpa only [embedding, encodeFrame, encodeResult, state_Graph_add_edge] using
+  simpa only [embedding, encodeFrame, encodeResult, state_Graph_add_edge] using!
     embedding.summary simulates contract.2
 
 theorem summary_Edge {before after : Heap} {input : Int × Int × (Option «GraphLibrary».Algo2LeanGenerated.Ref_Edge)} {output : «GraphLibrary».Algo2LeanGenerated.Ref_Edge}
     (contract : «GraphLibrary».Edge.Call before input after output) :
     Edge.Call before input after output := by
   refine ⟨contract.1, ?_⟩
-  simpa only [embedding, encodeFrame, encodeResult, state_Edge] using
+  simpa only [embedding, encodeFrame, encodeResult, state_Edge] using!
     embedding.summary simulates contract.2
 
 theorem summary_Graph {before after : Heap} {input : Int} {output : «GraphLibrary».Algo2LeanGenerated.Ref_Graph}
     (contract : «GraphLibrary».Graph.Call before input after output) :
     Graph.Call before input after output := by
   refine ⟨contract.1, ?_⟩
-  simpa only [embedding, encodeFrame, encodeResult, state_Graph] using
+  simpa only [embedding, encodeFrame, encodeResult, state_Graph] using!
     embedding.summary simulates contract.2
 
 end «GraphIntoDijkstraFibonacci»

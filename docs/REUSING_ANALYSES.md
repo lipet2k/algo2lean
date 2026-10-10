@@ -9,10 +9,10 @@ correctness, termination, mutation, and cost theorems unchanged.
 
 | Question | Typical public theorem |
 | --- | --- |
-| What does a completed call guarantee? | `correct` or `every_execution` |
-| Can the call finish, and what state does it leave? | `summary` |
+| Can I call this operation and reuse its result in another algorithm? | `call_contract`, `summary`, or `call`, over the generated `f.Call` relation |
+| What does every completed run guarantee? | `correct`, `verified`, or `every_execution`, derived from the call contract |
 | Does some ordinary output exist? | `output_exists` or `terminates` |
-| What is the measured work of an output? | `output_with_cost_correct`, or the cost conclusion of `correct` |
+| What is the measured work of an output? | `running_time`, derived from the same call contract |
 
 These names belong to the component's handwritten analysis. The compiler
 provides the underlying `f.Returns`, `f.Run`, and `f.Call`
@@ -21,16 +21,55 @@ algorithm is supposed to compute. A method uses `Counter.add.Call`, for example,
 and a constructor uses `Counter.Call`. Use the same compiler version for the
 imported algorithm, its analysis, and the calling project.
 
-An output relation is convenient for a final result. A summary is convenient
-when calling the operation inside another algorithm: it works from the supplied
-heap under any caller stack. Its theorem can give a postcondition about the new
-heap that becomes the next call's precondition. You never need to supply a
-transcript or a caller stack when applying that theorem.
+Use a theorem over `f.Call` as the primary reusable result. It works from the
+supplied heap under any suspended caller stack. Its postcondition describes the
+new heap and becomes the next call's precondition. You never need to supply a
+transcript or a caller stack when applying that theorem. Some analyses name
+this handwritten theorem `summary`; that is a theorem over `Call`, not a need
+to use the lower-level `Summary` relation directly.
+
+`f.Returns` is a convenient ordinary-value view for readers interested in the
+final answer. `f.ReturnsWithCost` also exposes recorded costs. These relations
+hide references and intermediate heaps, so they do not replace the call
+contract when a subsequent operation needs the mutated object or newly
+allocated output. Keep both views, and prove the mathematical argument once.
 
 `f.Call.run call` gives an ordinary `f.Run` from a reusable call fact. With the
 project's optional Facts module imported, `f.Run.eq_of_call execution call`
 identifies the final heap and result of any completed run with those of the
 proved call. This is the usual last step in an all-executions correctness proof.
+
+## What a reusable contract provides
+
+Under the operation's preconditions, its primary theorem supplies:
+
+- An actual `f.Call before input after result`, establishing termination.
+- The mathematical result and any representation predicate needed for later calls.
+- Preservation of unrelated storage and freshness of newly allocated outputs.
+- A bound on `Heap.cost before after`, or exact `before.Increments after costs`.
+
+An exact final-heap description can already imply preservation and allocation;
+it need not be accompanied by a redundant second statement. A read-only scalar
+operation can simply return the same heap. A partial operation states the
+domain on which it terminates; divergence examples retain their nontermination
+theorems instead of claiming a total call contract.
+
+For amortized analysis, the contract states
+
+```text
+actual cost + potential(after) ≤ budget + potential(before).
+```
+
+The representation and both potentials belong to the same object in the same
+actual call. Successive inequalities cancel the middle potentials. Constructor
+contracts establish the initial potential, and nonnegativity permits dropping
+the final potential. This proves bounds for repeated calls without assuming
+that each individual call has a small worst-case cost.
+
+The [example contract inventory](../examples/ANALYSIS_CONTRACTS.md) identifies
+the reusable theorem for each family. The
+[Kruskal project](../examples/kruskal/README.md) shows a graph algorithm consuming
+an independently proved amortized data-structure contract.
 
 ## A complete small example
 

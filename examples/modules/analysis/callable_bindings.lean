@@ -2,6 +2,10 @@ import Algo.callable_client.Analysis
 import Algo.callable_direct.Analysis
 import Algo.callable_staged.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `direct_summary`: Reusable direct-callable contract.

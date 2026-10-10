@@ -2,6 +2,10 @@ import Algo.twice.Generated
 import Algo.twice.Facts
 import Algo.increment.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable two-increment contract.

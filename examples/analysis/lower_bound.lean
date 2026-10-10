@@ -1,5 +1,9 @@
 import LowerBoundGeneratedPoints
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Binary search over arbitrary integer intervals of an infinite sequence.
 The proof separates interval arithmetic, preservation of discarded halves,

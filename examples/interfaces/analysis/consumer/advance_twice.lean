@@ -2,6 +2,10 @@ import Algo.consumer.advance_twice.Generated
 import Algo.consumer.advance_twice.Facts
 import Algo.use_direct.Analysis
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
+
 /-!
 Analysis outline:
 - `summary`: Reusable two-increment contract.
@@ -34,15 +38,16 @@ theorem summary {before : Heap} {counter : ObjectRef} {value : Int}
     (represented : DirectAnalysis.Represents before counter value) :
     ∃ after, advance_twice.Call before counter after (value + 2) ∧
       DirectAnalysis.Represents after counter (value + 2) ∧
-      before.Increments after (Clocks.single "counter_work" 4) := by
-  obtain ⟨middle, first, advanced, firstCost⟩ := DirectClientAnalysis.summary represented
-  obtain ⟨after, second, advancedAgain, secondCost⟩ := DirectClientAnalysis.summary advanced
+      before.Increments after (Clocks.single "counter_work" 4) ∧
+      before.Modifies after [] [counter] := by
+  obtain ⟨middle, first, advanced, firstCost, firstFrame⟩ := DirectClientAnalysis.summary represented
+  obtain ⟨after, second, advancedAgain, secondCost, secondFrame⟩ := DirectClientAnalysis.summary advanced
   have result : (value + 1) + 1 = value + 2 := by omega
   have budget : Clocks.add (Clocks.single "counter_work" 2) (Clocks.single "counter_work" 2) =
       Clocks.single "counter_work" 4 := by
     funext clock
     by_cases same : clock = "counter_work" <;> simp [Clocks.add, Clocks.single, same]
-  refine ⟨after, ?_, ?_, ?_⟩
+  refine ⟨after, ?_, ?_, ?_, firstFrame.trans secondFrame⟩
   · simpa only [result] using calls first second
   · simpa only [result] using advancedAgain
   · simpa only [budget] using firstCost.trans secondCost
@@ -54,9 +59,10 @@ theorem correct {before after : Heap} {counter : ObjectRef} {value output : Int}
     (represented : DirectAnalysis.Represents before counter value)
     (execution : advance_twice.Run before counter after output) :
     output = value + 2 ∧ DirectAnalysis.Represents after counter (value + 2) ∧
-      before.Increments after (Clocks.single "counter_work" 4) := by
-  obtain ⟨finalHeap, call, updated, cost⟩ := summary represented
+      before.Increments after (Clocks.single "counter_work" 4) ∧
+      before.Modifies after [] [counter] := by
+  obtain ⟨finalHeap, call, updated, cost, frame⟩ := summary represented
   obtain ⟨rfl, rfl⟩ := advance_twice.Run.eq_of_call execution call
-  exact ⟨rfl, updated, cost⟩
+  exact ⟨rfl, updated, cost, frame⟩
 
 end CounterConsumerAnalysis

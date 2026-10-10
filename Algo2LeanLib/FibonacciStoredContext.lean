@@ -1,6 +1,9 @@
 import Algo2LeanLib.FibonacciStorage
 import Algo2LeanLib.FibonacciCascade
 
+set_option backward.isDefEq.respectTransparency false
+set_option backward.defeqAttrib.useBackward true
+
 namespace Algo2Lean.Fibonacci
 
 /-- A stored ancestor with one subtree left open. The hole is identified only
