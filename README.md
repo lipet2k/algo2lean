@@ -166,7 +166,8 @@ for durable copies; browser storage is not a substitute for saving them.
 - [Browser hosting, version archives, and generation verification](docs/HOSTING.md).
 - [Examples](examples/README.md) and [their proved guarantees](examples/analysis/README.md).
 - [Merge sort followed by binary search](examples/modules/GENERAL_SORT_THEN_SEARCH.md).
-- [Generic Dijkstra with two queue implementations](examples/composable_dijkstra/README.md).
+- [Generic Dijkstra with two queue implementations](examples/dijkstra/README.md).
+- [How the graph examples correspond to CLRS pseudocode](docs/TEXTBOOK_ALGORITHMS.md).
 - [CLRS Chapter 4 matrix algorithms](docs/CLRS_CHAPTER_4.md) and [recurrence proofs](docs/RECURRENCES.md).
 
 The examples state their assumptions and cost models explicitly. Merge sort

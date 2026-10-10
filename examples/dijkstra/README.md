@@ -17,14 +17,14 @@ this subfolder leaves out the graph and heap modules.
 
 | Source | Purpose | Analysis |
 | --- | --- | --- |
-| [dijkstra_binary.algo](dijkstra_binary.algo) | Ready-to-use Dijkstra with an indexed binary heap. | [Correctness and running time](../analysis/composable_dijkstra/dijkstra_binary.lean) |
-| [dijkstra_fibonacci.algo](dijkstra_fibonacci.algo) | Ready-to-use Dijkstra with a Fibonacci heap. | [Correctness and running time](../analysis/composable_dijkstra/dijkstra_fibonacci.lean) |
-| [dijkstra.algo](dijkstra.algo) | Shared algorithm, independent of the queue implementation. | [Generic proof](../analysis/composable_dijkstra/dijkstra.lean) |
-| [priority_queue.algo](priority_queue.algo) | The queue operations required by Dijkstra. | [Queue contract](../analysis/composable_dijkstra/priority_queue.lean) |
+| [dijkstra_binary.algo](dijkstra_binary.algo) | Ready-to-use Dijkstra with an indexed binary heap. | [Correctness and running time](../analysis/dijkstra/dijkstra_binary.lean) |
+| [dijkstra_fibonacci.algo](dijkstra_fibonacci.algo) | Ready-to-use Dijkstra with a Fibonacci heap. | [Correctness and running time](../analysis/dijkstra/dijkstra_fibonacci.lean) |
+| [dijkstra.algo](dijkstra.algo) | Shared algorithm, independent of the queue implementation. | [Generic proof](../analysis/dijkstra/dijkstra.lean) |
+| [priority_queue.algo](priority_queue.algo) | The queue operations required by Dijkstra. | [Queue contract](../analysis/dijkstra/priority_queue.lean) |
 
 The graph and heap implementations live in `graph.algo`, `indexed_heap.algo`,
 and `fibonacci_heap.algo` in the parent directory. The
-[support proofs](../analysis/composable_dijkstra/support/) verify the heap
+[support proofs](../analysis/dijkstra/support/) verify the heap
 operations and establish that they satisfy the queue contract. These are Lean
 dependencies, not extra algorithm examples; they are included automatically
 when checking or downloading this project.
@@ -41,7 +41,7 @@ separate settled sequence filled with `0`. Queue storage must be separate from
 these sequences and preserve the graph. Construction belongs in a small
 concrete wrapper. The returned reference is the supplied distance sequence.
 
-The proof at `../analysis/composable_dijkstra/dijkstra.lean` establishes:
+The proof at `../analysis/dijkstra/dijkstra.lean` establishes:
 
 - A terminating generated `Call` for the actual compiled source and shortest distances.
 - At most `E + 1` insert/decrease calls and `V` extractions.
@@ -72,11 +72,11 @@ termination arguments reuse `Algo2LeanLib.Dijkstra` and `DijkstraExecution`.
 From the repository root:
 
 ```sh
-python3 -m algo2lean compile examples/composable_dijkstra/dijkstra.algo \
+python3 -m algo2lean compile examples/dijkstra/dijkstra.algo \
   --project examples --check --output-dir /tmp/algo2lean-generic-dijkstra
 
-python3 -m algo2lean analyze examples/composable_dijkstra/dijkstra.algo \
-  examples/analysis/composable_dijkstra/dijkstra.lean --project examples
+python3 -m algo2lean analyze examples/dijkstra/dijkstra.algo \
+  examples/analysis/dijkstra/dijkstra.lean --project examples
 
 python3 -m unittest tests.test_composable_dijkstra
 ```
@@ -117,9 +117,9 @@ condition. These guarantees apply with arbitrary initial heaps and counters;
 the ordinary output theorems are derived from the same call proof.
 
 ```sh
-python3 -m algo2lean analyze examples/composable_dijkstra/dijkstra_fibonacci.algo \
-  examples/analysis/composable_dijkstra/dijkstra_fibonacci.lean --project examples
+python3 -m algo2lean analyze examples/dijkstra/dijkstra_fibonacci.algo \
+  examples/analysis/dijkstra/dijkstra_fibonacci.lean --project examples
 
-python3 -m algo2lean analyze examples/composable_dijkstra/dijkstra_binary.algo \
-  examples/analysis/composable_dijkstra/dijkstra_binary.lean --project examples
+python3 -m algo2lean analyze examples/dijkstra/dijkstra_binary.algo \
+  examples/analysis/dijkstra/dijkstra_binary.lean --project examples
 ```

@@ -64,10 +64,10 @@ class ComposableHeapTests(unittest.TestCase):
         for package, source, _ in PACKAGES:
             with self.subTest(package=package):
                 original = compile_project(source, root=ROOT / "examples")
-                client = compile_project("composable_dijkstra.dijkstra_" + package,
+                client = compile_project("dijkstra.dijkstra_" + package,
                                          root=ROOT / "examples")
-                self.assertNotIn("composable_dijkstra." + package, client.modules)
-                self.assertFalse((ROOT / "examples/composable_dijkstra" /
+                self.assertNotIn("dijkstra." + package, client.modules)
+                self.assertFalse((ROOT / "examples/dijkstra" /
                                   (package + ".algo")).exists())
                 self.assertEqual(client.modules[source].lean, original.entry.lean)
                 self.assertEqual(client.modules[source].points_lean, original.entry.points_lean)
@@ -78,7 +78,7 @@ class ComposableHeapTests(unittest.TestCase):
             with self.subTest(package=package):
                 compiled = compile_project(source, root=ROOT / "examples")
                 checked = check_project(compiled,
-                    analysis_module="Algo.composable_dijkstra.support." + package + "_heap.Analysis")
+                    analysis_module="Algo.dijkstra.support." + package + "_heap.Analysis")
                 self.assertTrue(checked.ok, checked.output)
                 self.assertNotIn("warning", checked.output)
 
@@ -87,7 +87,7 @@ class ComposableHeapTests(unittest.TestCase):
         for package, source, namespace in PACKAGES:
             with self.subTest(package=package):
                 compiled = compile_project(source, root=ROOT / "examples")
-                analysis = (f"import Algo.composable_dijkstra.support.{package}_queue.Analysis\n"
+                analysis = (f"import Algo.dijkstra.support.{package}_queue.Analysis\n"
                             f"#print axioms {namespace}.contracts\n"
                             f"#print axioms {namespace}.constructor_rep\n")
                 checked = check_project(compiled, analysis=analysis)

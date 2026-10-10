@@ -1,4 +1,7 @@
-# Mutable adjacency lists with bounded vertices and nonnegative weights.
+# A directed graph with mutable adjacency lists, bounded vertices, and
+# nonnegative integer weights. Each successful add_edge adds one directed edge;
+# parallel edges and self-loops are allowed. For an undirected edge, add both
+# directions. Each heads entry begins a singly linked list of outgoing edges.
 # Shared by the binary-heap and Fibonacci-heap Dijkstra examples.
 
 class Edge:

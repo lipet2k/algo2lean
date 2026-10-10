@@ -1,5 +1,5 @@
-import Algo.composable_dijkstra.support.fibonacci_heap.Analysis
-import Algo.composable_dijkstra.priority_queue.Analysis
+import Algo.dijkstra.support.fibonacci_heap.Analysis
+import Algo.dijkstra.priority_queue.Analysis
 
 set_option backward.isDefEq.respectTransparency false
 set_option backward.defeqAttrib.useBackward true
@@ -13,7 +13,7 @@ namespace FibonacciQueueAnalysis
 open Algo2LeanCore _root_.Algo2LeanGenerated
 open Algo.fibonacci_heap
 open Algo.fibonacci_heap.Algo2LeanGenerated
-open Algo.composable_dijkstra.priority_queue
+open Algo.dijkstra.priority_queue
 open FibonacciModuleAnalysis PriorityQueueAnalysis
 
 /-- A generated binding transfers public heap summaries to interface summaries. -/

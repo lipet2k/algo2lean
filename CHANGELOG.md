@@ -1,5 +1,14 @@
 # Change log
 
+## 0.1.4 — 2026-10-10
+
+- Present Dijkstra's minimum-extraction and adjacency scans as explicit loops, and put Kruskal's initialization, sorted-edge loop, representative comparison and union directly in its main routine.
+- Reuse the existing heap, sorting and union-find analyses. Dijkstra's public correctness and runtime contracts remain unchanged; Kruskal's explicit bound includes the additional textbook-style representative checks while retaining the inverse-Ackermann growth rate.
+- Rename the Dijkstra project folder and import paths to `dijkstra`.
+- Add a guide explaining how the source corresponds to CLRS pseudocode, including deliberate representation choices and the named-event cost model.
+
+The revised examples pass their Lean 4.33.1 correctness/runtime proofs and focused regression tests. Earlier numbered releases and their archived compiler sites remain unchanged.
+
 ## 0.1.3 — 2026-10-10
 
 - Move the complete Algo2Lean project, shared libraries, examples, and proof-checking tools to Lean 4.33.1.

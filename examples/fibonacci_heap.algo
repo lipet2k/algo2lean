@@ -2,9 +2,11 @@
 # The active forest uses circular doubly linked sibling rings. A -1 parent
 # means root; a -1 child/minimum means empty. Present and mark entries are 0/1.
 # A nonroot is marked after losing one child and cut after losing another.
-# const allocates a constant-valued mathematical sequence; allocation is treated
-# as constant work in the tick model. Consolidation clears every table degree it
-# visits, leaving all buckets empty between public operations.
+# const allocates a constant-valued mathematical sequence. Allocation has no
+# heap-event tick; the cost model counts the explicit ticks below. Consolidation
+# reuses its table and clears every visited bucket between public operations.
+# The operations follow the CLRS Fibonacci-heap supplement, using integer
+# handles in place of node pointers and an iterative cascading cut.
 
 class FibonacciHeap:
     keys: Seq
@@ -60,6 +62,7 @@ class FibonacciHeap:
                 self.minimum = vertex
 
     def link(self, child: Int, parent: Int) -> None:
+        # FIB-HEAP-LINK: both roots have already been detached from the root ring.
         # @link_child
         self.parents[child] = parent
         self.marks[child] = 0
@@ -130,6 +133,7 @@ class FibonacciHeap:
         tick("heap_cuts")
 
     def cascading_cut(self, vertex: Int) -> None:
+        # CASCADING-CUT: follow parents until a root or the first unmarked node.
         parent = self.parents[vertex]
         # @cascade
         while parent >= 0:
@@ -141,6 +145,8 @@ class FibonacciHeap:
             parent = self.parents[vertex]
 
     def push_or_decrease(self, vertex: Int, key: Int) -> None:
+        # FIB-HEAP-INSERT for an absent handle; FIB-HEAP-DECREASE-KEY otherwise.
+        # This combined API ignores equal or larger keys for a present handle.
         tick("heap_operations")
         if self.present[vertex] == 0:
             self.keys[vertex] = key
@@ -166,6 +172,7 @@ class FibonacciHeap:
             self.minimum = vertex
 
     def pop_min(self) -> Int:
+        # FIB-HEAP-EXTRACT-MIN, returning a handle or -1 for an empty heap.
         tick("heap_operations")
         vertex = self.minimum
         if vertex < 0:

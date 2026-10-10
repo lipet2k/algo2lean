@@ -24,7 +24,7 @@ def runtime (costs : Clocks) : Nat := SortIndicesAnalysis.runtime costs + work c
 /-- Sorting costs O(E log E); the separately verified union-find contract makes
     the remaining work O(V + E alpha(V)), including initialization and scanning. -/
 noncomputable def runtimeBound (vertices edges : Nat) : Nat :=
-  SortIndicesAnalysis.runtimeBound edges + vertices + 2 + edges * (6 * Algo2Lean.Ackermann.alpha vertices + 8)
+  SortIndicesAnalysis.runtimeBound edges + vertices + 2 + edges * (10 * Algo2Lean.Ackermann.alpha vertices + 14)
 
 private theorem sorting_work {before after : Heap} {count : Int}
     (budget : SortIndicesAnalysis.Budget count (2 * count.toNat) before after) :
@@ -52,15 +52,23 @@ private theorem sorting_preserves_work {before after : Heap}
     preserved.clocks "uf_union" (by decide) (by decide) (by decide),
     preserved.clocks "kruskal" (by decide) (by decide) (by decide)]
 
-private theorem scan_preserves_sorting (heap final : Heap) (size : Nat)
+private theorem scan_preserves_sorting (heap final : Heap)
     (clocks : ∀ clock, clock ∉ ["kruskal", "uf_find", "uf_compress", "uf_union"] →
-      final.clocks clock = (initialHeap heap size).clocks clock) :
+      final.clocks clock = (heap.tick "kruskal").clocks clock) :
     SortIndicesAnalysis.runtime final.clocks = SortIndicesAnalysis.runtime heap.clocks := by
   simp only [SortIndicesAnalysis.runtime, Clocks.weighted, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil]
   rw [clocks "sort_steps" (by decide), clocks "heap_comparisons" (by decide),
-    clocks "heap_swaps" (by decide), initial_clocks _ _ _ (by decide) (by decide),
-    initial_clocks _ _ _ (by decide) (by decide), initial_clocks _ _ _ (by decide) (by decide)]
+    clocks "heap_swaps" (by decide)]
+  simp [Heap.tick]
+
+private theorem initialization_preserves_sorting (heap : Heap) (size : Nat) :
+    SortIndicesAnalysis.runtime (initialHeap heap size).clocks =
+      SortIndicesAnalysis.runtime heap.clocks := by
+  simp only [SortIndicesAnalysis.runtime, Clocks.weighted, List.map_cons, List.map_nil,
+    List.sum_cons, List.sum_nil]
+  rw [initial_clocks _ _ _ (by decide), initial_clocks _ _ _ (by decide),
+    initial_clocks _ _ _ (by decide)]
 
 /-- The sorter protects every previously allocated caller location. -/
 private theorem sorting_footprint {before after : Heap}
@@ -99,41 +107,48 @@ theorem call_complete (heap : Heap) (size count : Int) (sources targets weights 
       Flags (final.read chosen) selected ∧
       runtime final.clocks ≤ runtime heap.clocks + runtimeBound size.toNat count.toNat ∧
       heap.Footprint final [] [] [] ∧ heap.nextRef ≤ chosen ∧ chosen < final.nextRef := by
+  let initialized := initialHeap heap size.toNat
+  have initFrame := initial_footprint heap size.toNat
   obtain ⟨sorted, order, sortCall, sortedIds, preserved, fresh, orderAllocated, budget⟩ :=
-    SortIndicesAnalysis.call heap weights count allocated.2.2 input.count_nonnegative
+    SortIndicesAnalysis.call initialized weights count
+      (Nat.lt_of_lt_of_le allocated.2.2 initFrame.nextRef) input.count_nonnegative
+  have sameWeights : initialized.read weights = heap.read weights :=
+    initial_read_old heap size.toNat weights allocated.2.2
+  rw [sameWeights] at sortedIds
   obtain ⟨pending, sorting⟩ := sorted_edges (heap.read sources) (heap.read targets)
     (heap.read weights) (sorted.read order) count sortedIds
-  have sourceAllocated := Nat.lt_of_lt_of_le allocated.1 preserved.refs
-  have targetAllocated := Nat.lt_of_lt_of_le allocated.2.1 preserved.refs
-  have initial := initial_invariant sorted size.toNat sources targets order pending
-    sourceAllocated targetAllocated orderAllocated (sorting.valid input)
-    (by simpa only [preserved.sequences sources allocated.1] using sorting.source)
-    (by simpa only [preserved.sequences targets allocated.2.1] using sorting.target)
-    sorting.order
+  have sortFrame := sorting_footprint preserved
+  have initial := initial_invariant heap sorted size.toNat sources targets order pending
+    allocated.1 allocated.2.1 sortFrame fresh orderAllocated (sorting.valid input)
+    sorting.source sorting.target sorting.order
   obtain ⟨final, model, selected, scanCall, finalInvariant, scan, frame, clocks, worstCase, bound⟩ :=
-    scan_contract (initialLayout sorted size.toNat sources targets order)
-      (initialHeap sorted size.toNat) (Algo2Lean.UnionFind.initial size.toNat) 0 count pending []
+    scan_contract (initialLayout heap size.toNat sources targets order)
+      (sorted.tick "kruskal") (Algo2Lean.UnionFind.initial size.toNat) 0 count pending []
       initial (by rw [sorting.length]; have nonnegative := input.count_nonnegative; omega)
-  have composed := kruskal_calls heap sorted (UnionFindAnalysis.newHeap sorted size.toNat) final
-    size count sources targets weights order sorted.nextObject allocated sortCall
-    (by simpa only [Int.toNat_of_nonneg input.size_nonnegative] using
-      UnionFindAnalysis.constructor_summary sorted size.toNat) scanCall finalInvariant.chosenAllocated
-  have initializedFrame := ((UnionFindAnalysis.constructor_footprint sorted size.toNat).allocate
-    (fun _ => 0)).tick "kruskal"
-  have prefixFrame := (sorting_footprint preserved).trans initializedFrame
+  have composed := kruskal_calls heap initialized sorted final size count sources targets weights order
+    (UnionFindAnalysis.newLayout (heap.allocate (fun _ => 0))) allocated
+    (by simpa only [initialized, initialHeap, UnionFindAnalysis.newLayout,
+      Int.toNat_of_nonneg input.size_nonnegative] using!
+      UnionFindAnalysis.constructor_summary (heap.allocate (fun _ => 0)) size.toNat)
+    sortCall scanCall
+  have prefixFrame := (initFrame.trans sortFrame).tick "kruskal"
   have wholeFrame := (prefixFrame.weaken
-    (moreSequences := [(initialLayout sorted size.toNat sources targets order).sets.parent,
-      (initialLayout sorted size.toNat sources targets order).sets.rank,
-      (initialLayout sorted size.toNat sources targets order).chosen])
+    (moreSequences := [(initialLayout heap size.toNat sources targets order).sets.parent,
+      (initialLayout heap size.toNat sources targets order).sets.rank,
+      (initialLayout heap size.toNat sources targets order).chosen])
     (moreObjects := []) (moreCollections := []) (by simp) (by simp) (by simp)).trans frame
-  have allocatedAfterInit := (UnionFindAnalysis.constructor_allocations sorted size.toNat).1
-  have freshRefs := preserved.refs
-  refine ⟨final, _, selected, composed, sorting.minimum scan, finalInvariant.flags, ?_, ?_, ?_,
-    finalInvariant.chosenAllocated⟩
+  refine ⟨final, heap.nextRef, selected, composed, sorting.minimum scan, finalInvariant.flags,
+    ?_, ?_, Nat.le_refl _, finalInvariant.chosenAllocated⟩
   · have sortBound := sorting_work budget
     have unchangedWork := sorting_preserves_work preserved
-    have unchangedSort := scan_preserves_sorting sorted final size.toNat clocks
-    rw [initial_work, unchangedWork, sorting.length, Algo2Lean.UnionFind.initial_potential] at bound
+    have unchangedSort := scan_preserves_sorting sorted final clocks
+    have unchangedInitSort := initialization_preserves_sorting heap size.toNat
+    have initialWork := initial_work heap size.toNat
+    have tickWork : work (sorted.tick "kruskal").clocks = work sorted.clocks + 1 := by
+      simp [work, UnionFindAnalysis.work, Heap.tick]; omega
+    rw [tickWork, unchangedWork, sorting.length, Algo2Lean.UnionFind.initial_potential] at bound
+    change work initialized.clocks = _ at initialWork
+    change SortIndicesAnalysis.runtime initialized.clocks = _ at unchangedInitSort
     simp only [runtime, runtimeBound]
     rw [unchangedSort]
     omega
@@ -141,11 +156,9 @@ theorem call_complete (heap : Heap) (size count : Int) (sources targets weights 
       wholeFrame.classes, wholeFrame.types, ?_, wholeFrame.otherObjects, wholeFrame.otherCollections⟩
     intro ref old _
     apply wholeFrame.otherSequences ref old
-    simp only [initialLayout, UnionFindAnalysis.newLayout, List.mem_cons, List.not_mem_nil, or_false, not_or]
-    rw [allocatedAfterInit]
+    simp only [initialLayout, UnionFindAnalysis.newLayout, Heap.allocate_nextRef,
+      List.mem_cons, List.not_mem_nil, or_false, not_or]
     simp only [SeqRef] at *
-    omega
-  · rw [allocatedAfterInit]
     omega
 
 /-- The reusable entry-point contract includes fresh output storage, preservation
@@ -249,7 +262,7 @@ theorem correct {size count : Int} {sources targets weights chosen : Seq}
 
 -- Main result: Running time
 /-- The total of all eight recorded operation clocks is bounded by
-    2E(3 log2(E+1)+2) + V + 2 + E(6 alpha(V)+8). This is the source-level
+    2E(3 log2(E+1)+2) + V + 2 + E(10 alpha(V)+14). This is the source-level
     unit-cost model for integer arithmetic and sequence access. -/
 theorem running_time {size count : Int} {sources targets weights chosen : Seq} {costs : Clocks}
     (input : WellFormed size count sources targets)

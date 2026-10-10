@@ -71,7 +71,7 @@ for identifier in ("modules", "interfaces"):
 
 catalog = load_example_project("dijkstra")
 for backend in ("binary", "fibonacci"):
-    entry = "composable_dijkstra/dijkstra_" + backend + ".algo"
+    entry = "dijkstra/dijkstra_" + backend + ".algo"
     add(backend + " Dijkstra imports", {"filename": entry, "source": catalog["sources"][entry],
                                      "project_sources": catalog["sources"]}, True)
 catalog = load_example_project("kruskal")

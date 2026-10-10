@@ -1,6 +1,6 @@
 from graph import Graph
 from indexed_heap import MinHeap
-from composable_dijkstra.dijkstra import dijkstra as search
+from dijkstra.dijkstra import dijkstra as search
 
 # Bind generic Dijkstra to the independently verified indexed binary heap.
 def dijkstra_binary(graph: Graph, source: Int) -> Seq:

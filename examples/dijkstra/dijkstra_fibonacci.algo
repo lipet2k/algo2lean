@@ -1,6 +1,6 @@
 from graph import Graph
 from fibonacci_heap import FibonacciHeap
-from composable_dijkstra.dijkstra import dijkstra as search
+from dijkstra.dijkstra import dijkstra as search
 
 # Construct a Fibonacci heap and bind its operations to generic Dijkstra.
 def dijkstra_fibonacci(graph: Graph, source: Int) -> Seq:

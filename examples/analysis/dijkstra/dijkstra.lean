@@ -1,6 +1,7 @@
-import Algo.composable_dijkstra.dijkstra.Generated
-import Algo.composable_dijkstra.dijkstra.Facts
-import Algo.composable_dijkstra.priority_queue.Analysis
+import Algo.dijkstra.dijkstra.Generated
+import Algo.dijkstra.dijkstra.Points
+import Algo.dijkstra.dijkstra.Facts
+import Algo.dijkstra.priority_queue.Analysis
 import Algo2LeanLib.DijkstraExecution
 
 set_option backward.isDefEq.respectTransparency false
@@ -17,8 +18,8 @@ namespace ComposableDijkstraAnalysis
 
 open Algo2LeanCore Algo2LeanGenerated Algo2Lean.Dijkstra
 open Algo.graph.Algo2LeanGenerated
-open Algo.composable_dijkstra.dijkstra
-open Algo.composable_dijkstra.priority_queue
+open Algo.dijkstra.dijkstra
+open Algo.dijkstra.priority_queue
 open PriorityQueueAnalysis
 
 /-! The graph source is imported unchanged. These finite adjacency observations
@@ -156,48 +157,97 @@ theorem graph_frame_tick (heap : Heap) (graph : Ref_Graph) (heads : CollectionRe
 
 variable (dependencies : Dependencies)
 
-/-- The empty adjacency scan returns without modifying client or queue state. -/
-theorem scan_empty (heap : Heap) (queue : ObjectRef) (distance settled : SeqRef) (vertex : Int)
-    (valid : scan_edges.ValidInput dependencies heap (queue,distance,settled,vertex,none)) :
-    scan_edges.Call dependencies heap (queue,distance,settled,vertex,none) heap () := by
-  open Algo.composable_dijkstra.dijkstra.Algo2LeanGenerated in
-    refine ⟨valid, ?_⟩
-    intro caller
-    apply Reaches.prepend (Step.scan_edges_pc26 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc25_true _ _ caller rfl)
-    apply Reaches.prepend (Step.scan_edges_pc24 _ _ caller)
-    exact Reaches.single (Step.scan_edges_pc23 _ _ caller)
+/-- The adjacency loop is described by its named source location and live variables.
+    Temporary values from earlier iterations impose no obligations on the caller. -/
+def AtScan (state : Algo.dijkstra.dijkstra.Algo2LeanGenerated.Configuration dependencies)
+    (heap : Heap) (queue : ObjectRef) (distance settled : SeqRef)
+    (vertex : Int) (edge : Option Ref_Edge) : Prop :=
+  scan_edges.At.scan dependencies state ∧ state.heap = heap ∧
+  scan_edges.Local.queue dependencies state = some queue ∧
+  scan_edges.Local.distance dependencies state = some distance ∧
+  scan_edges.Local.settled dependencies state = some settled ∧
+  scan_edges.Local.vertex dependencies state = some vertex ∧
+  scan_edges.Local.edge dependencies state = some edge
 
-/-- A settled target is skipped; the same recursive call supplies the tail. -/
+/-- Finish the adjacency loop from any local state with these source variables. -/
+def ScanLoop (heap : Heap) (queue : ObjectRef) (distance settled : SeqRef)
+    (vertex : Int) (edge : Option Ref_Edge) (finalHeap : Heap) : Prop :=
+  ∀ state, AtScan dependencies state heap queue distance settled vertex edge →
+    scan_edges.CallFrom dependencies state finalHeap ()
+
+/-- The main loop needs only the graph, queue, and two client sequences. The
+    initialized source and previous iteration's temporary values are irrelevant. -/
+def AtExtract (state : Algo.dijkstra.dijkstra.Algo2LeanGenerated.Configuration dependencies)
+    (heap : Heap) (graph : Ref_Graph) (queue : ObjectRef) (distance settled : SeqRef) : Prop :=
+  dijkstra.At.extract dependencies state ∧ state.heap = heap ∧
+  dijkstra.Local.graph dependencies state = some graph ∧
+  dijkstra.Local.queue dependencies state = some queue ∧
+  dijkstra.Local.distance dependencies state = some distance ∧
+  dijkstra.Local.settled dependencies state = some settled
+
+/-- Finish the main loop after counting its next emptiness test. This local
+    continuation is independent of the code that initialized the search. -/
+def ExtractLoop (heap : Heap) (graph : Ref_Graph) (queue : ObjectRef)
+    (distance settled : SeqRef) (finalHeap : Heap) : Prop :=
+  ∀ state, AtExtract dependencies state (heap.tick "queue_empty_checks") graph queue distance settled →
+    dijkstra.CallFrom dependencies state finalHeap distance
+
+/-- An empty adjacency list exits the loop without changing the heap. -/
+theorem scan_empty (heap : Heap) (queue : ObjectRef) (distance settled : SeqRef) (vertex : Int) :
+    ScanLoop dependencies heap queue distance settled vertex none heap := by
+  open Algo.dijkstra.dijkstra.Algo2LeanGenerated in
+    intro state located
+    obtain ⟨named, sameHeap, sameQueue, sameDistance, sameSettled, sameVertex, sameEdge⟩ := located
+    unfold scan_edges.At.scan at named
+    split at named <;> try contradiction
+    rename_i currentHeap locals stack
+    simp only [Config.heap] at sameHeap
+    subst currentHeap
+    cases locals
+    simp [scan_edges.Local.queue, scan_edges.Local.distance, scan_edges.Local.settled,
+      scan_edges.Local.vertex, scan_edges.Local.edge] at sameQueue sameDistance sameSettled sameVertex sameEdge
+    subst_vars
+    intro caller
+    apply Reaches.prepend (Step.scan_edges_pc4 _ _ caller)
+    apply Reaches.prepend (Step.scan_edges_pc3_false _ _ caller rfl)
+    apply Reaches.prepend (Step.scan_edges_pc2 _ _ caller)
+    exact Reaches.single (Step.scan_edges_pc1 _ _ caller)
+
+/-- A settled target is skipped; the loop continues at the next adjacency cell. -/
 theorem scan_settled (heap finalHeap : Heap) (queue : ObjectRef) (distance settled : SeqRef)
     (vertex target : Int) (edge : Ref_Edge) (next : Option Ref_Edge)
     (valid : scan_edges.ValidInput dependencies heap (queue,distance,settled,vertex,some edge))
     (readTarget : field_Edge_target heap edge = some target)
     (readNext : field_Edge_next heap edge = some next)
     (already : heap.read settled target ≠ 0)
-    (tail : scan_edges.Call dependencies (heap.tick "edges")
-      (queue,distance,settled,vertex,next) finalHeap ()) :
-    scan_edges.Call dependencies heap (queue,distance,settled,vertex,some edge) finalHeap () := by
-  open Algo.composable_dijkstra.dijkstra.Algo2LeanGenerated in
-    refine ⟨valid, ?_⟩
+    (tail : ScanLoop dependencies (heap.tick "edges") queue distance settled vertex next finalHeap) :
+    ScanLoop dependencies heap queue distance settled vertex (some edge) finalHeap := by
+  open Algo.dijkstra.dijkstra.Algo2LeanGenerated in
+    intro state located
+    obtain ⟨named, sameHeap, sameQueue, sameDistance, sameSettled, sameVertex, sameEdge⟩ := located
+    unfold scan_edges.At.scan at named
+    split at named <;> try contradiction
+    rename_i currentHeap locals stack
+    simp only [Config.heap] at sameHeap
+    subst currentHeap
+    cases locals
+    simp [scan_edges.Local.queue, scan_edges.Local.distance, scan_edges.Local.settled,
+      scan_edges.Local.vertex, scan_edges.Local.edge] at sameQueue sameDistance sameSettled sameVertex sameEdge
+    subst_vars
     intro caller
-    apply Reaches.prepend (Step.scan_edges_pc26 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc25_false _ _ caller rfl)
-    apply Reaches.prepend (Step.scan_edges_pc22 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc21 _ _ caller (by simp [field__a2l_import_0_Edge_target, readTarget]))
-    apply Reaches.prepend (Step.scan_edges_pc20 _ _ caller valid.2.2.1)
-    apply Reaches.prepend (Step.scan_edges_pc19_false _ _ caller (by simpa [field__a2l_import_0_Edge_target, readTarget] using already))
-    apply Reaches.prepend (Step.scan_edges_pc7 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc6 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc5 _ _ caller)
     apply Reaches.prepend (Step.scan_edges_pc4 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc3 _ _ caller (by simp [field__a2l_import_0_Edge_next, readNext]))
-    apply Reaches.prepend (Step.scan_edges_pc2 _ _ caller)
-    simp only [field__a2l_import_0_Edge_next, edge_next_tick, readNext, Option.getD_some]
-    apply Reaches.trans (tail.2 _)
-    exact Reaches.single (Step.scan_edges_pc1 _ _ caller)
+    apply Reaches.prepend (Step.scan_edges_pc3_true _ _ caller rfl)
+    apply Reaches.prepend (Step.scan_edges_pc20 _ _ caller)
+    apply Reaches.prepend (Step.scan_edges_pc19 _ _ caller (by simp [field__a2l_import_0_Edge_target, readTarget]))
+    apply Reaches.prepend (Step.scan_edges_pc18 _ _ caller valid.2.2.1)
+    apply Reaches.prepend (Step.scan_edges_pc17_false _ _ caller (by simpa [field__a2l_import_0_Edge_target, readTarget] using already))
+    apply Reaches.prepend (Step.scan_edges_pc5 _ _ caller (by simp [field__a2l_import_0_Edge_next, readNext]))
+    exact tail (.active _ (.fn_scan_edges 4 _) [])
+      (by simp [AtScan, scan_edges.At.scan, scan_edges.Local.queue, scan_edges.Local.distance,
+        scan_edges.Local.settled, scan_edges.Local.vertex, scan_edges.Local.edge,
+        Config.heap, field__a2l_import_0_Edge_next, readNext]) caller
 
-/-- An unsettled target whose distance cannot improve leaves the queue alone. -/
+/-- An unsettled target whose distance cannot improve leaves the queue unchanged. -/
 theorem scan_unimproved (heap finalHeap : Heap) (queue : ObjectRef) (distance settled : SeqRef)
     (vertex target weight : Int) (edge : Ref_Edge) (next : Option Ref_Edge)
     (valid : scan_edges.ValidInput dependencies heap (queue,distance,settled,vertex,some edge))
@@ -207,35 +257,40 @@ theorem scan_unimproved (heap finalHeap : Heap) (queue : ObjectRef) (distance se
     (unsettled : heap.read settled target = 0)
     (finite : 0 ≤ heap.read distance target)
     (notBetter : heap.read distance target ≤ heap.read distance vertex + weight)
-    (tail : scan_edges.Call dependencies (heap.tick "edges")
-      (queue,distance,settled,vertex,next) finalHeap ()) :
-    scan_edges.Call dependencies heap (queue,distance,settled,vertex,some edge) finalHeap () := by
-  open Algo.composable_dijkstra.dijkstra.Algo2LeanGenerated in
-    refine ⟨valid, ?_⟩
+    (tail : ScanLoop dependencies (heap.tick "edges") queue distance settled vertex next finalHeap) :
+    ScanLoop dependencies heap queue distance settled vertex (some edge) finalHeap := by
+  open Algo.dijkstra.dijkstra.Algo2LeanGenerated in
+    intro state located
+    obtain ⟨named, sameHeap, sameQueue, sameDistance, sameSettled, sameVertex, sameEdge⟩ := located
+    unfold scan_edges.At.scan at named
+    split at named <;> try contradiction
+    rename_i currentHeap locals stack
+    simp only [Config.heap] at sameHeap
+    subst currentHeap
+    cases locals
+    simp [scan_edges.Local.queue, scan_edges.Local.distance, scan_edges.Local.settled,
+      scan_edges.Local.vertex, scan_edges.Local.edge] at sameQueue sameDistance sameSettled sameVertex sameEdge
+    subst_vars
     intro caller
-    apply Reaches.prepend (Step.scan_edges_pc26 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc25_false _ _ caller rfl)
-    apply Reaches.prepend (Step.scan_edges_pc22 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc21 _ _ caller (by simp [field__a2l_import_0_Edge_target, readTarget]))
-    apply Reaches.prepend (Step.scan_edges_pc20 _ _ caller valid.2.2.1)
-    apply Reaches.prepend (Step.scan_edges_pc19_true _ _ caller (by simpa [field__a2l_import_0_Edge_target, readTarget] using unsettled))
-    apply Reaches.prepend (Step.scan_edges_pc18 _ _ caller
-      (by simpa [field__a2l_import_0_Edge_weight, readWeight] using valid.2.1))
-    apply Reaches.prepend (Step.scan_edges_pc17 _ _ caller
-      ⟨valid.2.1, fun _ => valid.2.1⟩)
-    apply Reaches.prepend (Step.scan_edges_pc16_false _ _ caller
-      (by simp [field__a2l_import_0_Edge_target, field__a2l_import_0_Edge_weight, readTarget, readWeight]; omega))
-    apply Reaches.prepend (Step.scan_edges_pc7 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc6 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc5 _ _ caller)
     apply Reaches.prepend (Step.scan_edges_pc4 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc3 _ _ caller (by simp [field__a2l_import_0_Edge_next, readNext]))
-    apply Reaches.prepend (Step.scan_edges_pc2 _ _ caller)
-    simp only [field__a2l_import_0_Edge_next, edge_next_tick, readNext, Option.getD_some]
-    apply Reaches.trans (tail.2 _)
-    exact Reaches.single (Step.scan_edges_pc1 _ _ caller)
+    apply Reaches.prepend (Step.scan_edges_pc3_true _ _ caller rfl)
+    apply Reaches.prepend (Step.scan_edges_pc20 _ _ caller)
+    apply Reaches.prepend (Step.scan_edges_pc19 _ _ caller (by simp [field__a2l_import_0_Edge_target, readTarget]))
+    apply Reaches.prepend (Step.scan_edges_pc18 _ _ caller valid.2.2.1)
+    apply Reaches.prepend (Step.scan_edges_pc17_true _ _ caller (by simpa [field__a2l_import_0_Edge_target, readTarget] using unsettled))
+    apply Reaches.prepend (Step.scan_edges_pc16 _ _ caller
+      (by simpa [field__a2l_import_0_Edge_weight, readWeight] using valid.2.1))
+    apply Reaches.prepend (Step.scan_edges_pc15 _ _ caller
+      ⟨valid.2.1, fun _ => valid.2.1⟩)
+    apply Reaches.prepend (Step.scan_edges_pc14_false _ _ caller
+      (by simp [field__a2l_import_0_Edge_target, field__a2l_import_0_Edge_weight, readTarget, readWeight]; omega))
+    apply Reaches.prepend (Step.scan_edges_pc5 _ _ caller (by simp [field__a2l_import_0_Edge_next, readNext]))
+    exact tail (.active _ (.fn_scan_edges 4 _) [])
+      (by simp [AtScan, scan_edges.At.scan, scan_edges.Local.queue, scan_edges.Local.distance,
+        scan_edges.Local.settled, scan_edges.Local.vertex, scan_edges.Local.edge,
+        Config.heap, field__a2l_import_0_Edge_next, readNext]) caller
 
-/-- A successful relaxation reuses the abstract queue summary verbatim. -/
+/-- A successful relaxation reuses the abstract queue Call and then resumes the loop. -/
 theorem scan_improved (heap queuedHeap finalHeap : Heap) (queue : ObjectRef) (distance settled : SeqRef)
     (vertex target weight : Int) (edge : Ref_Edge) (next : Option Ref_Edge)
     (valid : scan_edges.ValidInput dependencies heap (queue,distance,settled,vertex,some edge))
@@ -247,69 +302,94 @@ theorem scan_improved (heap queuedHeap finalHeap : Heap) (queue : ObjectRef) (di
     (update : PriorityQueue.push_or_decrease.Call dependencies.PriorityQueue
       (((heap.tick "edges").write distance target (heap.read distance vertex + weight)).tick "queue_updates")
       (queue,target,heap.read distance vertex + weight) queuedHeap ())
-    (tail : scan_edges.Call dependencies (queuedHeap.tick "improvements")
-      (queue,distance,settled,vertex,next) finalHeap ()) :
-    scan_edges.Call dependencies heap (queue,distance,settled,vertex,some edge) finalHeap () := by
-  open Algo.composable_dijkstra.dijkstra.Algo2LeanGenerated in
-    refine ⟨valid, ?_⟩
+    (tail : ScanLoop dependencies (queuedHeap.tick "improvements") queue distance settled vertex next finalHeap) :
+    ScanLoop dependencies heap queue distance settled vertex (some edge) finalHeap := by
+  open Algo.dijkstra.dijkstra.Algo2LeanGenerated in
+    intro state located
+    obtain ⟨named, sameHeap, sameQueue, sameDistance, sameSettled, sameVertex, sameEdge⟩ := located
+    unfold scan_edges.At.scan at named
+    split at named <;> try contradiction
+    rename_i currentHeap locals stack
+    simp only [Config.heap] at sameHeap
+    subst currentHeap
+    cases locals
+    simp [scan_edges.Local.queue, scan_edges.Local.distance, scan_edges.Local.settled,
+      scan_edges.Local.vertex, scan_edges.Local.edge] at sameQueue sameDistance sameSettled sameVertex sameEdge
+    subst_vars
     intro caller
-    apply Reaches.prepend (Step.scan_edges_pc26 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc25_false _ _ caller rfl)
-    apply Reaches.prepend (Step.scan_edges_pc22 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc21 _ _ caller (by simp [field__a2l_import_0_Edge_target, readTarget]))
-    apply Reaches.prepend (Step.scan_edges_pc20 _ _ caller valid.2.2.1)
-    apply Reaches.prepend (Step.scan_edges_pc19_true _ _ caller (by simpa [field__a2l_import_0_Edge_target, readTarget] using unsettled))
-    apply Reaches.prepend (Step.scan_edges_pc18 _ _ caller
+    apply Reaches.prepend (Step.scan_edges_pc4 _ _ caller)
+    apply Reaches.prepend (Step.scan_edges_pc3_true _ _ caller rfl)
+    apply Reaches.prepend (Step.scan_edges_pc20 _ _ caller)
+    apply Reaches.prepend (Step.scan_edges_pc19 _ _ caller (by simp [field__a2l_import_0_Edge_target, readTarget]))
+    apply Reaches.prepend (Step.scan_edges_pc18 _ _ caller valid.2.2.1)
+    apply Reaches.prepend (Step.scan_edges_pc17_true _ _ caller (by simpa [field__a2l_import_0_Edge_target, readTarget] using unsettled))
+    apply Reaches.prepend (Step.scan_edges_pc16 _ _ caller
       (by simpa [field__a2l_import_0_Edge_weight, readWeight] using valid.2.1))
-    apply Reaches.prepend (Step.scan_edges_pc17 _ _ caller
+    apply Reaches.prepend (Step.scan_edges_pc15 _ _ caller
       ⟨valid.2.1, fun _ => valid.2.1⟩)
-    apply Reaches.prepend (Step.scan_edges_pc16_true _ _ caller
+    apply Reaches.prepend (Step.scan_edges_pc14_true _ _ caller
       (by simpa [field__a2l_import_0_Edge_target, field__a2l_import_0_Edge_weight, readTarget,readWeight] using better))
     simp only [field__a2l_import_0_Edge_target, field__a2l_import_0_Edge_weight,
       edge_target_tick, edge_weight_tick, readTarget, readWeight, Option.getD_some]
-    apply Reaches.prepend (Step.scan_edges_pc15 _ _ caller valid.2.1)
-    apply Reaches.prepend (Step.scan_edges_pc14 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc13 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc12 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue, Heap.read, Heap.tick] using update.1))
+    apply Reaches.prepend (Step.scan_edges_pc13 _ _ caller valid.2.1)
+    apply Reaches.prepend (Step.scan_edges_pc12 _ _ caller)
     apply Reaches.prepend (Step.scan_edges_pc11 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc10 _ _ caller)
+    apply Reaches.prepend (Step.scan_edges_pc10 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue, Heap.read, Heap.tick] using update.1))
     apply Reaches.prepend (Step.scan_edges_pc9 _ _ caller)
-    apply (ModuleCall.summary (interface_PriorityQueue_simulates dependencies) _ caller update.2).trans
     apply Reaches.prepend (Step.scan_edges_pc8 _ _ caller)
     apply Reaches.prepend (Step.scan_edges_pc7 _ _ caller)
+    apply (ModuleCall.summary (interface_PriorityQueue_simulates dependencies) _ caller update.2).trans
     apply Reaches.prepend (Step.scan_edges_pc6 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc5 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc4 _ _ caller)
-    apply Reaches.prepend (Step.scan_edges_pc3 _ _ caller (by simp [field__a2l_import_0_Edge_next, readNext]))
-    apply Reaches.prepend (Step.scan_edges_pc2 _ _ caller)
-    simp only [field__a2l_import_0_Edge_next, edge_next_tick, readNext, Option.getD_some]
-    apply Reaches.trans (tail.2 _)
-    exact Reaches.single (Step.scan_edges_pc1 _ _ caller)
+    apply Reaches.prepend (Step.scan_edges_pc5 _ _ caller (by simp [field__a2l_import_0_Edge_next, readNext]))
+    exact tail (.active _ (.fn_scan_edges 4 _) [])
+      (by simp [AtScan, scan_edges.At.scan, scan_edges.Local.queue, scan_edges.Local.distance,
+        scan_edges.Local.settled, scan_edges.Local.vertex, scan_edges.Local.edge,
+        Config.heap, field__a2l_import_0_Edge_next, readNext]) caller
 
-/-- The final emptiness test is counted once and leaves the distance reference unchanged. -/
+/-- A loop contract supplies the ordinary function Call at the entry location. -/
+theorem scan_call (heap finalHeap : Heap) (queue : ObjectRef) (distance settled : SeqRef)
+    (vertex : Int) (head : Option Ref_Edge)
+    (valid : scan_edges.ValidInput dependencies heap (queue,distance,settled,vertex,head))
+    (loop : ScanLoop dependencies heap queue distance settled vertex head finalHeap) :
+    scan_edges.Call dependencies heap (queue,distance,settled,vertex,head) finalHeap () := by
+  refine ⟨valid, loop (scan_edges.initial dependencies heap (queue,distance,settled,vertex,head)) ?_⟩
+  simp [AtScan, scan_edges.initial, Algo2LeanCore.start, scan_edges.At.scan,
+    scan_edges.Local.queue, scan_edges.Local.distance, scan_edges.Local.settled,
+    scan_edges.Local.vertex, scan_edges.Local.edge, Config.heap]
+
+/-- The final empty test leaves the distance reference unchanged. -/
 theorem extract_empty (heap : Heap) (graph : Ref_Graph) (queue : ObjectRef) (distance settled : SeqRef)
-    (valid : extract_all.ValidInput dependencies heap (graph,queue,distance,settled))
+    (distanceAllocated : distance < heap.nextRef)
     (empty : PriorityQueue.is_empty.Call dependencies.PriorityQueue
       (heap.tick "queue_empty_checks") queue (heap.tick "queue_empty_checks") true) :
-    extract_all.Call dependencies heap (graph,queue,distance,settled)
-      (heap.tick "queue_empty_checks") distance := by
-  open Algo.composable_dijkstra.dijkstra.Algo2LeanGenerated in
-    refine ⟨valid, ?_⟩
+    ExtractLoop dependencies heap graph queue distance settled (heap.tick "queue_empty_checks") := by
+  open Algo.dijkstra.dijkstra.Algo2LeanGenerated in
+    intro state located
+    obtain ⟨named, sameHeap, sameGraph, sameQueue, sameDistance, sameSettled⟩ := located
+    unfold dijkstra.At.extract at named
+    split at named <;> try contradiction
+    rename_i currentHeap locals stack
+    simp only [Config.heap] at sameHeap
+    subst currentHeap
+    cases locals
+    simp [dijkstra.Local.graph, dijkstra.Local.queue, dijkstra.Local.distance,
+      dijkstra.Local.settled] at sameGraph sameQueue sameDistance sameSettled
+    subst_vars
     intro caller
-    apply Reaches.prepend (Step.extract_all_pc26 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc25 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc24 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue] using empty.1))
-    apply Reaches.prepend (Step.extract_all_pc23 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc7 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc6 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue] using empty.1))
+    apply Reaches.prepend (Step.dijkstra_pc5 _ _ caller)
     apply (ModuleCall.summary (interface_PriorityQueue_simulates dependencies) _ caller empty.2).trans
-    apply Reaches.prepend (Step.extract_all_pc22_true _ _ caller rfl)
-    apply Reaches.prepend (Step.extract_all_pc21 _ _ caller)
-    exact Reaches.single (Step.extract_all_pc20 _ _ caller valid.2.2.1)
+    apply Reaches.prepend (Step.dijkstra_pc4 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc3_false _ _ caller rfl)
+    apply Reaches.prepend (Step.dijkstra_pc2 _ _ caller)
+    exact Reaches.single (Step.dijkstra_pc1 _ _ caller distanceAllocated)
 
-/-- One extraction composes public summaries for the queue, adjacency scan, and recursive driver. -/
+/-- One extraction composes the queue contract, adjacency-loop contract, and
+    next iteration. Caller frames and irrelevant locals remain encapsulated. -/
 theorem extract_next (heap poppedHeap scannedHeap finalHeap : Heap)
     (graph : Ref_Graph) (queue : ObjectRef) (distance settled : SeqRef) (vertex : Int)
     (heads : CollectionRef) (head : Option Ref_Edge)
-    (valid : extract_all.ValidInput dependencies heap (graph,queue,distance,settled))
     (empty : PriorityQueue.is_empty.Call dependencies.PriorityQueue
       (heap.tick "queue_empty_checks") queue (heap.tick "queue_empty_checks") false)
     (popped : PriorityQueue.pop_min.Call dependencies.PriorityQueue
@@ -317,75 +397,80 @@ theorem extract_next (heap poppedHeap scannedHeap finalHeap : Heap)
     (settledAllocated : settled < poppedHeap.nextRef)
     (readHeads : field_Graph_heads poppedHeap graph = some heads)
     (readHead : seq_Edge_optional.get poppedHeap heads vertex = some head)
-    (scan : scan_edges.Call dependencies ((poppedHeap.write settled vertex 1).tick "settlements")
-      (queue,distance,settled,vertex,head) scannedHeap ())
-    (tail : extract_all.Call dependencies scannedHeap (graph,queue,distance,settled) finalHeap distance)
-    (distanceAllocated : distance < finalHeap.nextRef) :
-    extract_all.Call dependencies heap (graph,queue,distance,settled) finalHeap distance := by
-  open Algo.composable_dijkstra.dijkstra.Algo2LeanGenerated in
-    refine ⟨valid, ?_⟩
-    intro caller
-    apply Reaches.prepend (Step.extract_all_pc26 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc25 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc24 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue] using empty.1))
-    apply Reaches.prepend (Step.extract_all_pc23 _ _ caller)
-    apply (ModuleCall.summary (interface_PriorityQueue_simulates dependencies) _ caller empty.2).trans
-    apply Reaches.prepend (Step.extract_all_pc22_false _ _ caller rfl)
-    apply Reaches.prepend (Step.extract_all_pc19 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc18 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc17 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue] using popped.1))
-    apply Reaches.prepend (Step.extract_all_pc16 _ _ caller)
-    apply (ModuleCall.summary (interface_PriorityQueue_simulates dependencies) _ caller popped.2).trans
-    apply Reaches.prepend (Step.extract_all_pc15 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc14 _ _ caller settledAllocated)
-    apply Reaches.prepend (Step.extract_all_pc13 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc12 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc11 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc10 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc9 _ _ caller)
+    (scan : ScanLoop dependencies ((poppedHeap.write settled vertex 1).tick "settlements")
+      queue distance settled vertex head scannedHeap)
+    (tail : ExtractLoop dependencies scannedHeap graph queue distance settled finalHeap) :
+    ExtractLoop dependencies heap graph queue distance settled finalHeap := by
+  open Algo.dijkstra.dijkstra.Algo2LeanGenerated in
     have headsAfter : field__a2l_import_0_Graph_heads
         ((poppedHeap.write settled vertex 1).tick "settlements") graph = some heads := readHeads
     have headAfter : seq__a2l_import_0_Edge_optional.get
         ((poppedHeap.write settled vertex 1).tick "settlements") heads vertex = some head := readHead
-    apply Reaches.prepend (Step.extract_all_pc8 _ _ caller (by simp [headsAfter,headAfter]))
-    apply Reaches.prepend (Step.extract_all_pc7 _ _ caller)
+    intro state located
+    obtain ⟨named, sameHeap, sameGraph, sameQueue, sameDistance, sameSettled⟩ := located
+    unfold dijkstra.At.extract at named
+    split at named <;> try contradiction
+    rename_i currentHeap locals stack
+    simp only [Config.heap] at sameHeap
+    subst currentHeap
+    cases locals
+    simp [dijkstra.Local.graph, dijkstra.Local.queue, dijkstra.Local.distance,
+      dijkstra.Local.settled] at sameGraph sameQueue sameDistance sameSettled
+    subst_vars
+    intro caller
+    apply Reaches.prepend (Step.dijkstra_pc7 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc6 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue] using empty.1))
+    apply Reaches.prepend (Step.dijkstra_pc5 _ _ caller)
+    apply (ModuleCall.summary (interface_PriorityQueue_simulates dependencies) _ caller empty.2).trans
+    apply Reaches.prepend (Step.dijkstra_pc4 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc3_true _ _ caller rfl)
+    apply Reaches.prepend (Step.dijkstra_pc21 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc20 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc19 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue] using popped.1))
+    apply Reaches.prepend (Step.dijkstra_pc18 _ _ caller)
+    apply (ModuleCall.summary (interface_PriorityQueue_simulates dependencies) _ caller popped.2).trans
+    apply Reaches.prepend (Step.dijkstra_pc17 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc16 _ _ caller settledAllocated)
+    apply Reaches.prepend (Step.dijkstra_pc15 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc14 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc13 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc12 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc11 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc10 _ _ caller (by simp [headsAfter,headAfter]))
+    apply Reaches.prepend (Step.dijkstra_pc9 _ _ caller)
     simp only [headsAfter,headAfter,Option.getD_some]
-    apply Reaches.trans (scan.2 _)
-    apply Reaches.prepend (Step.extract_all_pc6 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc5 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc4 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc3 _ _ caller)
-    apply Reaches.prepend (Step.extract_all_pc2 _ _ caller)
-    apply Reaches.trans (tail.2 _)
-    exact Reaches.single (Step.extract_all_pc1 _ _ caller distanceAllocated)
+    apply Reaches.trans (scan (.active _ (.fn_scan_edges 4 _) [])
+      (by simp [AtScan, scan_edges.At.scan, scan_edges.Local.queue, scan_edges.Local.distance,
+        scan_edges.Local.settled, scan_edges.Local.vertex, scan_edges.Local.edge, Config.heap]) _)
+    apply Reaches.prepend (Step.dijkstra_pc8 _ _ caller)
+    exact tail (.active _ (.fn_dijkstra 7 _) [])
+      (by simp [AtExtract, dijkstra.At.extract, dijkstra.Local.graph, dijkstra.Local.queue,
+        dijkstra.Local.distance, dijkstra.Local.settled, Config.heap]) caller
 
-/-- Initialization adds the source once, then reuses the complete extraction summary. -/
+/-- Initialization adds the source once and enters the main loop. -/
 theorem initialize_summary (heap queuedHeap finalHeap : Heap) (graph : Ref_Graph) (source : Int)
     (queue : ObjectRef) (distance settled : SeqRef)
     (valid : dijkstra.ValidInput dependencies heap (graph,source,queue,distance,settled))
     (inserted : PriorityQueue.push_or_decrease.Call dependencies.PriorityQueue
       ((heap.write distance source 0).tick "queue_updates") (queue,source,0) queuedHeap ())
-    (tail : extract_all.Call dependencies queuedHeap (graph,queue,distance,settled) finalHeap distance)
-    (distanceAllocated : distance < finalHeap.nextRef) :
+    (tail : ExtractLoop dependencies queuedHeap graph queue distance settled finalHeap)
+    (_distanceAllocated : distance < finalHeap.nextRef) :
     dijkstra.Call dependencies heap (graph,source,queue,distance,settled) finalHeap distance := by
-  open Algo.composable_dijkstra.dijkstra.Algo2LeanGenerated in
+  open Algo.dijkstra.dijkstra.Algo2LeanGenerated in
     refine ⟨valid, ?_⟩
     intro caller
-    apply Reaches.prepend (Step.dijkstra_pc13 _ _ caller valid.2.2.1)
-    apply Reaches.prepend (Step.dijkstra_pc12 _ _ caller)
-    apply Reaches.prepend (Step.dijkstra_pc11 _ _ caller)
-    apply Reaches.prepend (Step.dijkstra_pc10 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue] using inserted.1))
-    apply Reaches.prepend (Step.dijkstra_pc9 _ _ caller)
-    apply Reaches.prepend (Step.dijkstra_pc8 _ _ caller)
-    apply Reaches.prepend (Step.dijkstra_pc7 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc29 _ _ caller valid.2.2.1)
+    apply Reaches.prepend (Step.dijkstra_pc28 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc27 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc26 _ _ caller (by simpa [is__a2l_import_1_PriorityQueue] using inserted.1))
+    apply Reaches.prepend (Step.dijkstra_pc25 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc24 _ _ caller)
+    apply Reaches.prepend (Step.dijkstra_pc23 _ _ caller)
     apply (ModuleCall.summary (interface_PriorityQueue_simulates dependencies) _ caller inserted.2).trans
-    apply Reaches.prepend (Step.dijkstra_pc6 _ _ caller)
-    apply Reaches.prepend (Step.dijkstra_pc5 _ _ caller)
-    apply Reaches.prepend (Step.dijkstra_pc4 _ _ caller)
-    apply Reaches.prepend (Step.dijkstra_pc3 _ _ caller)
-    apply Reaches.prepend (Step.dijkstra_pc2 _ _ caller)
-    apply Reaches.trans (tail.2 _)
-    exact Reaches.single (Step.dijkstra_pc1 _ _ caller distanceAllocated)
+    apply Reaches.prepend (Step.dijkstra_pc22 _ _ caller)
+    exact tail (.active _ (.fn_dijkstra 7 _) [])
+      (by simp [AtExtract, dijkstra.At.extract, dijkstra.Local.graph, dijkstra.Local.queue,
+        dijkstra.Local.distance, dijkstra.Local.settled, Config.heap]) caller
 
 /-- The graph and initialized client sequences are supplied by the caller. -/
 structure Client where
@@ -704,8 +789,8 @@ structure EdgeAdvanced (before after : QueueState model)
   costs : CostBounds model before after 0 1
   frame : GraphFrame before.heap after.heap client.graph client.heads
   execution : ∀ finalHeap,
-    scan_edges.Call dependencies after.heap (client.queue,client.distance,client.settled,selected,next) finalHeap () →
-    scan_edges.Call dependencies before.heap (client.queue,client.distance,client.settled,selected,some edge) finalHeap ()
+    ScanLoop dependencies after.heap client.queue client.distance client.settled selected next finalHeap →
+    ScanLoop dependencies before.heap client.queue client.distance client.settled selected (some edge) finalHeap
 
 structure AdjacencyScanned (before after : QueueState model)
     (selected : Int) (head : Option Ref_Edge) (edges : List (Int × Int)) : Prop where
@@ -717,8 +802,7 @@ structure AdjacencyScanned (before after : QueueState model)
     selected edges (before.heap.read client.distance) (after.heap.read client.distance)
   costs : CostBounds model before after 0 edges.length
   frame : GraphFrame before.heap after.heap client.graph client.heads
-  execution : scan_edges.Call dependencies before.heap
-    (client.queue,client.distance,client.settled,selected,head) after.heap ()
+  execution : ScanLoop dependencies before.heap client.queue client.distance client.settled selected head after.heap
 
 /-- One edge branch uses the update contract only when its candidate improves. -/
 theorem advance_edge (capacity : client.size ≤ model.capacity)
@@ -825,7 +909,6 @@ theorem scan_adjacency (capacity : client.size ≤ model.capacity)
     refine ⟨state, storage, matching, rfl, range, RelaxScan.empty _,
       CostBounds.refl model state, GraphFrame.refl _ _ _, ?_⟩
     exact scan_empty dependencies state.heap client.queue client.distance client.settled selected
-      ⟨model.valid storage.queue,storage.distanceAllocated,storage.settledAllocated,by simp⟩
   | cons pair rest ih =>
     cases chain with
     | cons edge target weight next tail valid readTarget readWeight readNext lower upper nonnegative remaining =>
@@ -850,9 +933,8 @@ def executionInterface : Algo2Lean.Dijkstra.Execution.Interface (QueueState mode
   distance := fun state => state.heap.read client.distance
   settled := fun state vertex => state.heap.read client.settled vertex ≠ 0
   invariant := LoopInvariant model
-  completion := fun before after => extract_all.Call dependencies before.heap
-    (client.graph,client.queue,client.distance,client.settled)
-    (after.heap.tick "queue_empty_checks") client.distance ∧ client.distance < after.heap.nextRef
+  completion := fun before after => ExtractLoop dependencies before.heap client.graph client.queue client.distance client.settled
+    (after.heap.tick "queue_empty_checks") ∧ client.distance < after.heap.nextRef
   accounting := fun before after vertices edges => CostBounds model before after vertices edges
   zero := fun state => CostBounds.refl model state
   compose := fun first second => first.trans model second
@@ -862,10 +944,6 @@ theorem extraction_progress (capacity : client.size ≤ model.capacity)
     (state : QueueState model) (remaining : List Int) (invariant : LoopInvariant model state remaining) :
     Algo2Lean.Dijkstra.Execution.Progress (executionInterface model)
       (representedEdges client.size client.adjacency) client.adjacency state remaining := by
-  have inputs : extract_all.ValidInput dependencies state.heap
-      (client.graph,client.queue,client.distance,client.settled) :=
-    ⟨invariant.storage.graph.valid,model.valid invariant.storage.queue,
-      invariant.storage.distanceAllocated,invariant.storage.settledAllocated⟩
   have emptySummary := contracts.is_empty (state.heap.tick "queue_empty_checks") state.queueState
     (model.tick invariant.storage.queue "queue_empty_checks" 1)
   by_cases empty : state.entries model = []
@@ -876,7 +954,7 @@ theorem extraction_progress (capacity : client.size ≤ model.capacity)
       have zero : state.heap.read client.settled vertex = 0 := by simpa [executionInterface] using unsettled
       change state.heap.read client.distance vertex < 0
       omega
-    · exact ⟨extract_empty dependencies state.heap client.graph client.queue client.distance client.settled inputs
+    · exact ⟨extract_empty dependencies state.heap client.graph client.queue client.distance client.settled invariant.storage.distanceAllocated
         (by simpa only [show model.entries state.queueState = [] from empty, List.isEmpty_nil] using emptySummary),
         invariant.storage.distanceAllocated⟩
   · let prepared := (state.tick model "queue_empty_checks").tick model "queue_pops"
@@ -948,9 +1026,9 @@ theorem extraction_progress (capacity : client.size ≤ model.capacity)
       refine ⟨?_,continuation.2⟩
       exact extract_next dependencies state.heap popped.heap after.heap
         (final.heap.tick "queue_empty_checks") client.graph client.queue client.distance client.settled vertex
-        client.heads head inputs (by simpa only [List.isEmpty_eq_false_iff.mpr empty] using emptySummary)
+        client.heads head (by simpa only [List.isEmpty_eq_false_iff.mpr empty] using emptySummary)
         extracted.execution extracted.storage.settledAllocated stored.graph.readHeads readHead
-        scanned.execution continuation.1 continuation.2
+        scanned.execution continuation.1
     · simpa [executionInterface] using (extracted_settled_cost model contracts extracted).trans model scanned.costs
 
 /-- Termination and the logical search run are obtained from local queue contracts,

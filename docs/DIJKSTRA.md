@@ -167,7 +167,7 @@ path/relaxation invariants through the actual Dijkstra loops and compose these
 heap bounds. The standalone example exposes the embedded MinHeap contracts under
 `DijkstraAnalysis.Queue`: `Queue.insert_correct`, `Queue.decrease_correct`, and
 `Queue.pop_correct`. For an algorithm that imports its queue implementation from
-a separate file, use the [composable Dijkstra project](../examples/composable_dijkstra/README.md).
+a separate file, use the [Dijkstra project](../examples/dijkstra/README.md).
 It provides one generic client proof and independently proved queue backends.
 The public output theorems below expose the composed result for every completed
 run. Runtime is bounded by `O((V + E) log(V + 1))` in the explicitly instrumented

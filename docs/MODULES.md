@@ -309,7 +309,7 @@ For a self-contained editor project, use the **Dijkstra … (imports)** menu ent
 or open `examples/interfaces` or `examples/modules`. When opening from disk,
 the modular Dijkstra examples use `examples` as their root so they can import
 the existing graph and heap sources. Select a
-`composable_dijkstra` module to check its project companion analysis. That root
+`dijkstra` module to check its project companion analysis. That root
 also contains standalone proofs: they are not all project companions, and
 downloading the whole mixed folder may produce a draft backup with import
 diagnostics. The selected modular Dijkstra CLI checks do not require those

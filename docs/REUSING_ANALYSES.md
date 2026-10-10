@@ -161,7 +161,7 @@ same public relations as any other module.
 
 Start with the [counter interface](../examples/interfaces/README.md), then see
 [sort followed by search](../examples/modules/GENERAL_SORT_THEN_SEARCH.md) and
-[Dijkstra with two queues](../examples/composable_dijkstra/README.md).
+[Dijkstra with two queues](../examples/dijkstra/README.md).
 [Module setup](MODULES.md) covers file naming, editor use, and current syntax
 limits. Project checking caches generated modules and proofs until their contents
 or dependencies change. Cost theorems describe declared ticks;

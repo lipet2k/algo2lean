@@ -18,7 +18,7 @@ class EditorProjectExamplesTests(unittest.TestCase):
         self.assertEqual({entry["project_id"] for entry in entries},
                          {"modules", "interfaces", "kruskal", "dijkstra", "mutual-recursion-imports"})
         self.assertEqual({entry["folder"] for entry in entries},
-                         {"modules", "interfaces", "kruskal", "composable_dijkstra", "mutual_recursion"})
+                         {"modules", "interfaces", "kruskal", "dijkstra", "mutual_recursion"})
         self.assertLess([entry["project_id"] for entry in entries].index("kruskal"),
                         [entry["project_id"] for entry in entries].index("dijkstra"))
         kruskal, = [entry for entry in entries if entry["project_id"] == "kruskal"]
@@ -27,7 +27,7 @@ class EditorProjectExamplesTests(unittest.TestCase):
         self.assertEqual(kruskal["folder"], "kruskal")
         dijkstra, = [entry for entry in entries if entry["project_id"] == "dijkstra"]
         self.assertEqual(dijkstra["name"], "Dijkstra")
-        self.assertEqual(dijkstra["filename"], "composable_dijkstra/dijkstra_binary.algo")
+        self.assertEqual(dijkstra["filename"], "dijkstra/dijkstra_binary.algo")
         for entry in entries:
             root = EXAMPLES if entry["project_id"] == "dijkstra" else EXAMPLES / entry["folder"]
             self.assertIn("from ", entry["source"])
@@ -115,10 +115,10 @@ class EditorProjectExamplesTests(unittest.TestCase):
 
     def test_dijkstra_bundle_resolves_both_heaps_with_unchanged_proofs(self):
         bundle = load_example_project("dijkstra")
-        self.assertEqual(bundle["entry"], "composable_dijkstra/dijkstra_binary.algo")
+        self.assertEqual(bundle["entry"], "dijkstra/dijkstra_binary.algo")
         self.assertEqual(set(bundle["sources"]), {
-            "composable_dijkstra/dijkstra.algo", "composable_dijkstra/priority_queue.algo",
-            "composable_dijkstra/dijkstra_binary.algo", "composable_dijkstra/dijkstra_fibonacci.algo",
+            "dijkstra/dijkstra.algo", "dijkstra/priority_queue.algo",
+            "dijkstra/dijkstra_binary.algo", "dijkstra/dijkstra_fibonacci.algo",
             "graph.algo", "indexed_heap.algo", "fibonacci_heap.algo",
         })
         for path, source in bundle["sources"].items():
@@ -129,12 +129,12 @@ class EditorProjectExamplesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             compiled = compile_project(bundle["entry"], root=directory, sources=bundle["sources"])
             resolved = project_lean_sources(compiled, proof_sources=bundle["analyses"],
-                analysis_modules=tuple("Algo.composable_dijkstra.dijkstra_" + backend + ".Analysis"
+                analysis_modules=tuple("Algo.dijkstra.dijkstra_" + backend + ".Analysis"
                                        for backend in ("binary", "fibonacci")))
             self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},
                              bundle["analyses"])
-        self.assertIn("Algo.composable_dijkstra.dijkstra.Analysis", bundle["analyses"])
-        self.assertIn("Algo.composable_dijkstra.priority_queue.Analysis", bundle["analyses"])
+        self.assertIn("Algo.dijkstra.dijkstra.Analysis", bundle["analyses"])
+        self.assertIn("Algo.dijkstra.priority_queue.Analysis", bundle["analyses"])
         self.assertNotIn("Algo.dijkstra.Analysis", bundle["analyses"])
         self.assertNotIn("Algo.dijkstra_fibonacci.Analysis", bundle["analyses"])
 
@@ -143,7 +143,7 @@ class EditorProjectExamplesTests(unittest.TestCase):
         bundle = load_example_project("dijkstra")
         for entry in ("dijkstra", "dijkstra_binary", "dijkstra_fibonacci"):
             with self.subTest(entry=entry), tempfile.TemporaryDirectory() as directory:
-                compiled = compile_project("composable_dijkstra/" + entry + ".algo",
+                compiled = compile_project("dijkstra/" + entry + ".algo",
                                            root=directory, sources=bundle["sources"])
                 checked = check_project(compiled, proof_sources=bundle["analyses"],
                     analysis_module="Algo." + compiled.project.entry + ".Analysis")

@@ -10,6 +10,7 @@ class UnionFind:
     size: Int
 
     def __init__(self, size: Int) -> None:
+        # Batch the CLRS MAKE-SET operation for all elements in [0, size).
         self.parent = const(0)
         self.rank = const(0)
         self.size = size
@@ -22,6 +23,8 @@ class UnionFind:
             tick("uf_init")
 
     def find(self, vertex: Int) -> Int:
+        # CLRS FIND-SET: recursion finds the root, then rewrites every parent
+        # along the return path. This is full path compression, not path halving.
         parent = self.parent
         tick("uf_find")
         # @follow
@@ -34,6 +37,8 @@ class UnionFind:
         return root
 
     def union(self, a: Int, b: Int) -> Bool:
+        # CLRS UNION: find both roots, then apply union by rank (LINK).
+        # The Boolean result reports whether two components were joined.
         left = self.find(a)
         right = self.find(b)
         tick("uf_union")
@@ -45,6 +50,7 @@ class UnionFind:
         elif self.rank[right] < self.rank[left]:
             self.parent[right] = left
         else:
+            # Equal ranks may choose either root; here the left root wins.
             self.parent[right] = left
             self.rank[left] = self.rank[left] + 1
         return True

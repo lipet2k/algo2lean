@@ -1,4 +1,8 @@
 # Order the identifiers [0, count) by their keys using a reusable binary heap.
+# This supplies Kruskal's sort-by-weight step: insert every identifier, then
+# extract minima. It is not the in-place HEAPSORT procedure from CLRS Chapter 6.
+# Only identifiers are reordered; keys are unchanged. Equal-key identifiers
+# may appear in either order.
 from indexed_heap import MinHeap
 
 

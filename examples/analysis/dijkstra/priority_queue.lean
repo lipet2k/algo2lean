@@ -1,4 +1,4 @@
-import Algo.composable_dijkstra.priority_queue.Generated
+import Algo.dijkstra.priority_queue.Generated
 import Algo2LeanLib.CallCost
 import Algo2LeanLib.Footprint
 
@@ -15,7 +15,7 @@ is part of this interface.
 namespace PriorityQueueAnalysis
 
 open Algo2LeanGenerated
-open Algo.composable_dijkstra.priority_queue
+open Algo.dijkstra.priority_queue
 
 /-- Queue calls preserve the listed client locations. The caller snapshot marks
     all storage that existed before the private queue and work arrays were

@@ -1,6 +1,7 @@
 """The generic Dijkstra proof checks independently of every queue backend."""
 
 from pathlib import Path
+import ast
 import shutil
 import unittest
 
@@ -10,49 +11,78 @@ from algo2lean.project_checker import check_project
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
-MODULE = "composable_dijkstra.dijkstra"
+MODULE = "dijkstra.dijkstra"
 
 
 @unittest.skipUnless(shutil.which("lean"), "Lean 4 is not installed")
 class ComposableDijkstraTests(unittest.TestCase):
+    def test_project_and_standalone_modules_can_be_imported_together(self):
+        compiled = compile_project("dijkstra.dijkstra_fibonacci", root=EXAMPLES)
+        analysis = """import Algo.dijkstra.Generated
+import Algo.dijkstra.dijkstra_fibonacci.Generated
+#check Algo.dijkstra.dijkstra.Call
+#check Algo.dijkstra.dijkstra.dijkstra.Call
+#check Algo.dijkstra.dijkstra_fibonacci.dijkstra_fibonacci.Call
+"""
+        checked = check_project(compiled, analysis=analysis,
+                                analysis_module="DijkstraNamespaceAudit")
+        self.assertTrue(checked.ok, checked.output)
+        self.assertIn("Algo.dijkstra.dijkstra.dijkstra.Call", checked.output)
+
     def test_generic_correctness_and_actual_clock_bounds(self):
         compiled = compile_project(MODULE, root=EXAMPLES)
         self.assertEqual(set(compiled.modules),
-                         {"graph", "composable_dijkstra.priority_queue", MODULE})
+                         {"graph", "dijkstra.priority_queue", MODULE})
         checked = check_project(compiled, analysis_module="Algo." + MODULE + ".Analysis")
         self.assertTrue(checked.ok, checked.output)
         self.assertNotIn("declaration uses `sorry`", checked.output)
-        proof = (EXAMPLES / "analysis/composable_dijkstra/dijkstra.lean").read_text()
+        proof = (EXAMPLES / "analysis/dijkstra/dijkstra.lean").read_text()
         self.assertIn("Algo2Lean.Dijkstra.Execution.run", proof)
         self.assertIn("theorem every_execution", proof)
         self.assertNotIn("Fibonacci", proof)
         self.assertNotIn("indexed_heap", proof)
 
     def test_extra_extraction_charge_invalidates_the_existing_bound(self):
-        source = (EXAMPLES / "composable_dijkstra/dijkstra.algo").read_text()
+        source = (EXAMPLES / "dijkstra/dijkstra.algo").read_text()
         changed = source.replace('tick("queue_pops")', 'tick("queue_pops", 2)')
         self.assertNotEqual(source, changed)
         compiled = compile_project(MODULE, root=EXAMPLES, sources={MODULE: changed})
         checked = check_project(compiled, analysis_module="Algo." + MODULE + ".Analysis")
         self.assertFalse(checked.ok)
-        self.assertIn("Algo/composable_dijkstra/dijkstra/Analysis.lean:", checked.output)
+        self.assertIn("Algo/dijkstra/dijkstra/Analysis.lean:", checked.output)
 
-    def test_label_changes_keep_generic_definitions_and_proof_reusable(self):
-        source = (EXAMPLES / "composable_dijkstra/dijkstra.algo").read_text()
+    def test_label_changes_keep_generic_definitions_and_public_theorems_stable(self):
+        source = (EXAMPLES / "dijkstra/dijkstra.algo").read_text()
         original = compile_project(MODULE, root=EXAMPLES)
         renamed = compile_project(MODULE, root=EXAMPLES,
             sources={MODULE: source.replace("# @extract", "# @next_vertex")})
         self.assertEqual(original.entry.lean, renamed.entry.lean)
         self.assertEqual(original.entry.facts_lean, renamed.entry.facts_lean)
         self.assertNotEqual(original.entry.points_lean, renamed.entry.points_lean)
-        checked = check_project(renamed, analysis_module="Algo." + MODULE + ".Analysis")
+        proof = (EXAMPLES / "analysis/dijkstra/dijkstra.lean").read_text()
+        renamed_proof = proof.replace("dijkstra.At.extract", "dijkstra.At.next_vertex")
+        # Proofs may rename observations while the main Call statements remain fixed.
+        public_results = proof[proof.index("theorem dijkstra_complete"):]
+        self.assertEqual(public_results,
+                         renamed_proof[renamed_proof.index("theorem dijkstra_complete"):])
+        checked = check_project(renamed, analysis=renamed_proof,
+                                analysis_module="Algo." + MODULE + ".Analysis")
         self.assertTrue(checked.ok, checked.output)
+
+    def test_source_exposes_iterative_main_and_adjacency_loops(self):
+        tree = ast.parse((EXAMPLES / "dijkstra/dijkstra.algo").read_text())
+        functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+        self.assertEqual(set(functions), {"scan_edges", "dijkstra"})
+        for name, function in functions.items():
+            self.assertTrue(any(isinstance(node, ast.While) for node in function.body))
+            self.assertFalse(any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                                 and node.func.id == name for node in ast.walk(function)))
 
     def test_both_concrete_wrappers_reuse_the_same_generic_proof(self):
         generic = compile_project(MODULE, root=EXAMPLES)
         for backend in ("fibonacci", "binary"):
             with self.subTest(backend=backend):
-                name = "composable_dijkstra.dijkstra_" + backend
+                name = "dijkstra.dijkstra_" + backend
                 compiled = compile_project(name, root=EXAMPLES)
                 self.assertEqual(compiled.modules[MODULE].lean, generic.entry.lean)
                 self.assertEqual(compiled.modules[MODULE].facts_lean, generic.entry.facts_lean)
@@ -63,7 +93,7 @@ class ComposableDijkstraTests(unittest.TestCase):
     def test_concrete_public_theorems_have_only_standard_lean_axioms(self):
         for backend in ("fibonacci", "binary"):
             with self.subTest(backend=backend):
-                name = "composable_dijkstra.dijkstra_" + backend
+                name = "dijkstra.dijkstra_" + backend
                 namespace = backend.title() + "DijkstraAnalysis"
                 compiled = compile_project(name, root=EXAMPLES)
                 audit = "import Algo." + name + ".Analysis\n" + "\n".join(
@@ -88,7 +118,7 @@ class ComposableDijkstraTests(unittest.TestCase):
                 function = "dijkstra_" + backend
                 namespace = backend.title() + "DijkstraAnalysis"
                 caller = f"""from graph import Graph
-from composable_dijkstra.{function} import {function} as search
+from dijkstra.{function} import {function} as search
 from follow_reader import read_at
 
 def lookup(graph: Graph, source: Int, vertex: Int) -> Int:
@@ -96,7 +126,7 @@ def lookup(graph: Graph, source: Int, vertex: Int) -> Int:
     return read_at(distance, vertex)
 """
                 proof = f"""import Algo.follow_client.Generated
-import Algo.composable_dijkstra.{function}.Analysis
+import Algo.dijkstra.{function}.Analysis
 
 open Algo2LeanCore Algo2LeanGenerated Algo2Lean.Dijkstra
 open Algo.graph.Algo2LeanGenerated ComposableDijkstraAnalysis

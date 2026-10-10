@@ -96,7 +96,7 @@ transfer statements remain ordinary heap/input/output summaries.
 - This embedding path expects the component definitions to be included in the
   target compilation. For separate source files, use Python-style `.algo` imports
   and project compilation instead; see the
-  [Dijkstra project](../examples/composable_dijkstra/README.md).
+  [Dijkstra project](../examples/dijkstra/README.md).
 - The repository supplies example libraries and local project builds. A package
   registry and dependency-version resolver are not provided.
 - Cost theorems measure declared ticks. A separate instruction/machine cost model

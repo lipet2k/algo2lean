@@ -18,7 +18,7 @@ proofs without assumptions about unverified data-structure operations.
 
 | Source | Role | Proof |
 | --- | --- | --- |
-| [kruskal.algo](kruskal.algo) | Sort edge identifiers, construct disjoint sets, and select edges that join distinct components. | [Correctness and running time](analysis/kruskal.lean) |
+| [kruskal.algo](kruskal.algo) | Initialize the edge set and singleton components, sort edges, and scan them in order. | [Correctness and running time](analysis/kruskal.lean) |
 | [union_find.algo](union_find.algo) | A reusable class with union by rank and full path compression. | [Method contracts](analysis/union_find.lean), [constructor](analysis/union_find_init.lean) |
 | [sort_indices.algo](sort_indices.algo) | Return a permutation of identifiers ordered by their integer keys. | [Correctness and running time](analysis/sort_indices.lean) |
 | [indexed_heap.algo](indexed_heap.algo) | The binary min-heap used by the sorter. | [Heap contracts](analysis/indexed_heap.lean) |
@@ -28,6 +28,15 @@ Its `find` method recursively reaches a root and redirects every visited parent
 pointer to that root on return. Its `union` method compares the two root ranks,
 attaches the lower-ranked root, and increments the winner's rank only on a tie.
 The data structure has no dependency on graphs, weights, or Kruskal.
+
+The main function follows CLRS fourth edition, Section 21.2: start with an empty
+edge set, make singleton vertex sets, sort edges, then test each edge's two
+representatives. An accepted edge is marked before calling `union`. The two
+lookups inside `union` are retained, matching the textbook call structure.
+The constructor batches the textbook MAKE-SET loop; the explicit `while` loop
+visits the sorted edge identifiers in place of mathematical set iteration.
+The reusable `union` method also safely returns `False` on equal representatives;
+Kruskal invokes it only after the representatives differ.
 
 The entry point is:
 
@@ -85,8 +94,8 @@ operation without reopening its transitions.
    The input adapter's [KruskalInput.SortedEdges.minimum](analysis/kruskal_input.lean)
    transfers that conclusion to the original edge arrays.
 5. [KruskalAnalysis.scan_contract](analysis/kruskal_scan.lean) proves termination
-   and the exact acceptance rule for the compiled recursive edge scan. It
-   reuses `UnionFindAnalysis.union_summary_amortized` and preserves storage outside
+   and the exact acceptance rule for the explicit edge loop in `kruskal`. It
+   reuses the independently verified finds and `UnionFindAnalysis.union_summary_amortized`, and preserves storage outside
    the private parent, rank, and chosen arrays. It sums the imported potential
    inequalities over the actual calls; it does not inspect union-find transitions
    or reprove the data structure's amortized argument.
@@ -114,8 +123,9 @@ import no generated algorithm definitions.
 `KruskalAnalysis.runtime` adds all eight explicit clocks with unit weight:
 `sort_steps`, `heap_comparisons`, `heap_swaps`, `uf_init`, `uf_find`,
 `uf_compress`, `uf_union`, and `kruskal`. This includes imported method calls.
-The model treats integer arithmetic and sequence access as unit-cost operations;
-it does not measure elapsed time or integer bit complexity. Let `n` be the
+The model counts these explicit source events over mathematical integers; it
+does not count every arithmetic operation or access, measure elapsed time, or
+include integer bit complexity. Let `n` be the
 vertex count and `m` the edge count.
 
 | Checked component | Bound |
@@ -124,21 +134,21 @@ vertex count and `m` the edge count.
 | One find | Actual work + `2Φ(after)` ≤ `2Φ(before) + 2α(n) + 3`. |
 | One union | Actual work + `2Φ(after)` ≤ `2Φ(before) + 6α(n) + 7`. |
 | Sort `m` edge identifiers | At most `2m(3 log₂(m + 1) + 2)` across `sort_steps`, `heap_comparisons`, and `heap_swaps`. |
-| Scan `m` edges | Actual work + `2Φ(after)` ≤ `2Φ(before) + m(6α(n) + 8)`. |
+| Scan `m` edges | Actual work + `2Φ(after)` ≤ `2Φ(before) + m(10α(n) + 14)`. |
 
 The complete algorithm has the explicit bound
 
 ```text
-2m(3 log₂(m + 1) + 2) + n + 2 + m(6α(n) + 8).
+2m(3 log₂(m + 1) + 2) + n + 2 + m(10α(n) + 14).
 ```
 
 This is `KruskalAnalysis.runtimeBound n m`, giving
 **O(n + m log(m + 1) + m α(n))** total recorded work. The sorting term is
 unchanged; the disjoint-set part improves from **O(m log n)** to
 **O(m α(n))**. The additive `n + 2` includes initialization and the entry tick.
-Individual operations may still take logarithmic time. The earlier per-operation
-worst-case theorems and `scan_verified` remain available; the new guarantee
-bounds their accumulated cost using the same evolving data structure.
+Individual operations may still take logarithmic time. The per-operation
+worst-case theorems and `scan_verified` also remain available. The amortized
+guarantee bounds accumulated cost using the same evolving data structure.
 
 The exact convention for `α` is in
 [Ackermann.lean](../../Algo2LeanLib/Ackermann.lean):
@@ -159,7 +169,9 @@ The potential assigns credits according to each vertex's rank and its parent's
 Ackermann level. Compression releases credits for repeated levels along a path;
 at most `α(n)` distinct levels remain unpaid. A rank link adds at most `α(n)`
 credits. Scaling credits by two covers both the find test and compression tick.
-Kruskal only adds one scan tick per edge and cancels successive potentials.
+Kruskal combines two finds per edge, a union for each accepted edge, and one scan
+tick per edge. The proof cancels successive potentials without changing the
+independent data-structure contracts.
 
 ## Check locally
 

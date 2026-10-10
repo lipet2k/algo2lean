@@ -1722,7 +1722,7 @@ test("native folder picker reads only files below the explicitly selected direct
   assert.equal(app.elements.get("source").value, PROJECT_LIBRARY);
 });
 
-const PROJECT_EXAMPLE = { name: "Dijkstra", project_id: "dijkstra", folder: "composable_dijkstra",
+const PROJECT_EXAMPLE = { name: "Dijkstra", project_id: "dijkstra", folder: "dijkstra",
   filename: "client/main.algo", source: PROJECT_SOURCE };
 const PROJECT_BUNDLE = { name: "Dijkstra example", entry: "client/main.algo",
   sources: { "client/main.algo": PROJECT_SOURCE, "library.algo": PROJECT_LIBRARY },
@@ -1754,7 +1754,7 @@ test("the example picker separates project folders from single files while retai
   const groups = app.elements.get("examples").children;
   assert.deepEqual(groups.map((group) => group.label), ["Project folders", "Single files"]);
   assert.deepEqual(groups[0].children.map((option) => [option.value, option.textContent]), [
-    ["1", "Dijkstra · composable_dijkstra/"], ["2", "Reusable algorithms · modules/"],
+    ["1", "Dijkstra · dijkstra/"], ["2", "Reusable algorithms · modules/"],
   ]);
   assert.equal(groups[1].children[0].value, "0");
   app.elements.get("examples").value = "1";

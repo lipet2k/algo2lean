@@ -1,0 +1,43 @@
+from graph import Graph, Edge
+from dijkstra.priority_queue import PriorityQueue
+
+# Dijkstra's main loop extracts a minimum and relaxes its outgoing edges.
+# distance stores d, and settled marks the set S of finalized vertices.
+# The queue contains discovered, unsettled vertices; -1 represents infinity.
+# The caller supplies an empty queue, distance filled with -1, and settled
+# filled with 0. Queue storage is separate from the graph and both sequences.
+
+def scan_edges(queue: PriorityQueue, distance: Seq, settled: Seq,
+               vertex: Int, edge: Edge | None) -> None:
+    # Traverse Adj[vertex], relaxing each edge to an unsettled target.
+    # @scan
+    while edge is not None:
+        tick("edges")
+        target = edge.target
+        if settled[target] == 0:
+            candidate = distance[vertex] + edge.weight
+            if distance[target] < 0 or candidate < distance[target]:
+                # @improve
+                distance[target] = candidate
+                tick("queue_updates")
+                queue.push_or_decrease(target, candidate)
+                tick("improvements")
+        edge = edge.next
+
+
+def dijkstra(graph: Graph, source: Int, queue: PriorityQueue,
+             distance: Seq, settled: Seq) -> Seq:
+    distance[source] = 0
+    tick("queue_updates")
+    queue.push_or_decrease(source, 0)
+    tick("queue_empty_checks")
+    # Repeatedly extract the minimum, add it to S, and relax its adjacency list.
+    # @extract
+    while not queue.is_empty():
+        tick("queue_pops")
+        vertex = queue.pop_min()
+        settled[vertex] = 1
+        tick("settlements")
+        scan_edges(queue, distance, settled, vertex, graph.heads[vertex])
+        tick("queue_empty_checks")
+    return distance

@@ -46,7 +46,7 @@ _PROJECTS = {
     ),
     "dijkstra": (
         "Dijkstra",
-        "composable_dijkstra/dijkstra_binary.algo",
+        "dijkstra/dijkstra_binary.algo",
         "One shared algorithm, binary and Fibonacci heaps, and reusable correctness and running-time proofs.",
     ),
 }
@@ -57,7 +57,7 @@ _PROJECT_ROOTS = {
     "kruskal": "kruskal",
 }
 _PROJECT_EXTRA_ENTRIES = {
-    "dijkstra": ("composable_dijkstra/dijkstra_fibonacci.algo",),
+    "dijkstra": ("dijkstra/dijkstra_fibonacci.algo",),
 }
 
 
@@ -90,7 +90,7 @@ def project_examples():
     """Return previews without compiling or loading the example's proof files."""
     return [
         {"project_id": identifier, "name": name, "filename": entry,
-         "folder": _PROJECT_ROOTS.get(identifier, "composable_dijkstra"),
+         "folder": _PROJECT_ROOTS.get(identifier, "dijkstra"),
          "description": description, "source": (_project_root(identifier) / entry).read_text(encoding="utf-8")}
         for identifier, (name, entry, description) in _PROJECTS.items()
     ]

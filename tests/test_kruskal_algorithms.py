@@ -226,11 +226,11 @@ class KruskalBehaviorTests(unittest.TestCase):
         count = len(edges)
         self.assertEqual(clocks.get("kruskal", 0), count + 1)
         self.assertEqual(clocks.get("uf_init", 0), size + 1)
-        self.assertEqual(clocks.get("uf_union", 0), count)
+        self.assertEqual(clocks.get("uf_union", 0), len(selected))
         self.assertEqual(clocks.get("sort_steps", 0), 2 * count)
         find_work = clocks.get("uf_find", 0) + clocks.get("uf_compress", 0)
         vertex_depth = max(0, size.bit_length() - 1)
-        self.assertLessEqual(find_work, 2 * count * (2 * vertex_depth + 1))
+        self.assertLessEqual(find_work, 2 * (count + len(selected)) * (2 * vertex_depth + 1))
         sort_work = sum(clocks.get(name, 0) for name in
                         ("sort_steps", "heap_comparisons", "heap_swaps"))
         edge_depth = (count + 1).bit_length() - 1
@@ -264,6 +264,17 @@ class KruskalBehaviorTests(unittest.TestCase):
                      for _ in range(count)]
             with self.subTest(attempt=attempt, size=size, edges=edges):
                 self.check_graph(size, edges)
+
+    def test_explicit_loop_handles_more_edges_than_the_python_recursion_limit(self):
+        environment, clocks = trusted_environment("kruskal")
+        count = 2000
+        sources = sequence([0] * count)
+        targets = sequence([1] * count)
+        weights = sequence(list(range(count, 0, -1)))
+        chosen = environment["kruskal"](2, sources, targets, weights, count)
+        self.assertEqual([chosen[index] for index in range(count)], [0] * (count - 1) + [1])
+        self.assertEqual(clocks.get("uf_union", 0), 1)
+        self.assertEqual(clocks.get("kruskal", 0), count + 1)
 
     def test_exhaustive_oracle_rejects_nonminimal_spanning_tree(self):
         # The oracle's optimum differs from a valid but expensive spanning tree.

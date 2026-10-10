@@ -1,5 +1,5 @@
-import Algo.composable_dijkstra.support.binary_heap.Analysis
-import Algo.composable_dijkstra.priority_queue.Analysis
+import Algo.dijkstra.support.binary_heap.Analysis
+import Algo.dijkstra.priority_queue.Analysis
 import Algo2LeanLib.FiniteIndex
 import Algo2LeanLib.FiniteMap
 
@@ -14,7 +14,7 @@ Analysis outline:
 -/
 
 open Algo2LeanCore Algo2LeanGenerated Algo.indexed_heap Algo.indexed_heap.Algo2LeanGenerated
-open Algo.composable_dijkstra.priority_queue
+open Algo.dijkstra.priority_queue
 
 namespace BinaryQueueAnalysis
 

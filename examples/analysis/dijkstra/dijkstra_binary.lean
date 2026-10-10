@@ -1,7 +1,7 @@
-import Algo.composable_dijkstra.dijkstra_binary.Generated
-import Algo.composable_dijkstra.dijkstra_binary.Facts
-import Algo.composable_dijkstra.dijkstra.Analysis
-import Algo.composable_dijkstra.support.binary_queue.Analysis
+import Algo.dijkstra.dijkstra_binary.Generated
+import Algo.dijkstra.dijkstra_binary.Facts
+import Algo.dijkstra.dijkstra.Analysis
+import Algo.dijkstra.support.binary_queue.Analysis
 
 set_option backward.isDefEq.respectTransparency false
 set_option backward.defeqAttrib.useBackward true
@@ -14,7 +14,7 @@ namespace BinaryDijkstraAnalysis
 
 open Algo2LeanCore Algo2LeanGenerated Algo2Lean.Dijkstra
 open Algo.graph.Algo2LeanGenerated
-open Algo.composable_dijkstra.dijkstra_binary
+open Algo.dijkstra.dijkstra_binary
 open ComposableDijkstraAnalysis
 
 /-- Generated binding theorems connect independently compiled source methods. -/
@@ -30,12 +30,12 @@ theorem call (heap queuedHeap finalHeap : Heap) (graph : Ref_Graph) (source size
     (sourceLower : 0 ≤ source) (sourceUpper : source < size)
     (constructor : Algo.indexed_heap.MinHeap.Call
       ((heap.allocate (fun _ => -1)).allocate (fun _ => 0)) () queuedHeap heap.nextObject)
-    (search : Algo.composable_dijkstra.dijkstra.dijkstra.Call use_composable_dijkstra_dijkstra_0
+    (search : Algo.dijkstra.dijkstra.dijkstra.Call use_dijkstra_dijkstra_0
       queuedHeap (graph,source,heap.nextObject,heap.nextRef,heap.nextRef+1) finalHeap heap.nextRef)
     (allocated : heap.nextRef < finalHeap.nextRef) :
     dijkstra_binary.Call heap (graph,source) finalHeap heap.nextRef := by
   have sizeAfter : field_Graph_size (heap.allocate (fun _ => -1)) graph = some size := readSize
-  open Algo.composable_dijkstra.dijkstra_binary.Algo2LeanGenerated in
+  open Algo.dijkstra.dijkstra_binary.Algo2LeanGenerated in
     refine ⟨valid,?_⟩
     intro caller
     apply Reaches.prepend (Step.dijkstra_binary_pc19 _ _ caller)
@@ -56,7 +56,7 @@ theorem call (heap queuedHeap finalHeap : Heap) (graph : Ref_Graph) (source size
     apply Reaches.prepend (Step.dijkstra_binary_pc4 _ _ caller)
     apply Reaches.prepend (Step.dijkstra_binary_pc3 _ _ caller)
     apply Reaches.prepend (Step.dijkstra_binary_pc2 _ _ caller)
-    apply (ModuleCall.summary import_3_use_composable_dijkstra_dijkstra_0_simulates _ caller search.2).trans
+    apply (ModuleCall.summary import_3_use_dijkstra_dijkstra_0_simulates _ caller search.2).trans
     exact Reaches.single (Step.dijkstra_binary_pc1 _ _ caller allocated)
 
 /-- Invalid sources return a fresh all-unreachable sequence at zero clock cost. -/
@@ -65,7 +65,7 @@ theorem invalid_source (heap : Heap) (graph : Ref_Graph) (source size : Int)
     (invalid : source < 0 ∨ size ≤ source) :
     dijkstra_binary.Call heap (graph,source) (heap.allocate (fun _ => -1)) heap.nextRef := by
   have sizeAfter : field_Graph_size (heap.allocate (fun _ => -1)) graph = some size := readSize
-  open Algo.composable_dijkstra.dijkstra_binary.Algo2LeanGenerated in
+  open Algo.dijkstra.dijkstra_binary.Algo2LeanGenerated in
     refine ⟨valid,?_⟩
     intro caller
     apply Reaches.prepend (Step.dijkstra_binary_pc19 _ _ caller)
@@ -102,8 +102,8 @@ theorem summary (heap : Heap) (graph : Ref_Graph) (size source : Int)
       heap.Footprint after [] [] [] := by
   let allocated := (heap.allocate (fun _ => -1)).allocate (fun _ => 0)
   let client : Client := ⟨graph,size,heads,adjacency,heap.nextRef,heap.nextRef+1,heap.nextObject,heap⟩
-  let model : PriorityQueueAnalysis.Model use_composable_dijkstra_dijkstra_0.PriorityQueue client.queue client.protection := BinaryQueueAnalysis.model MinHeap_as_PriorityQueue bridge heap.nextObject client.protection size
-  let initial : QueueState (dependencies := use_composable_dijkstra_dijkstra_0) (client := client) model := ⟨BinaryModuleAnalysis.newHeap allocated,BinaryQueueAnalysis.initialState allocated⟩
+  let model : PriorityQueueAnalysis.Model use_dijkstra_dijkstra_0.PriorityQueue client.queue client.protection := BinaryQueueAnalysis.model MinHeap_as_PriorityQueue bridge heap.nextObject client.protection size
+  let initial : QueueState (dependencies := use_dijkstra_dijkstra_0) (client := client) model := ⟨BinaryModuleAnalysis.newHeap allocated,BinaryQueueAnalysis.initialState allocated⟩
   have allocatedGraph : GraphRep allocated graph size heads adjacency :=
     representation.preserved ((graph_frame_allocate _ _ _ (fun _ => -1)).trans
       (graph_frame_allocate _ _ _ (fun _ => 0)))
@@ -124,7 +124,7 @@ theorem summary (heap : Heap) (graph : Ref_Graph) (size source : Int)
       intro ref member
       simp only [Client.protection, List.mem_cons, List.not_mem_nil, or_false] at member
       rcases member with rfl | rfl <;> simp [client, Client.protection])
-  have storage : Storage (dependencies := use_composable_dijkstra_dijkstra_0) (client := client) model initial := by
+  have storage : Storage (dependencies := use_dijkstra_dijkstra_0) (client := client) model initial := by
     refine ⟨allocatedGraph.preserved (graph_frame_of_protected allocatedGraph protectedFrame),queueRep,?_,?_,?_⟩
     · exact Nat.lt_of_lt_of_le distanceAllocated protectedFrame.nextRef
     · exact Nat.lt_of_lt_of_le settledAllocated protectedFrame.nextRef

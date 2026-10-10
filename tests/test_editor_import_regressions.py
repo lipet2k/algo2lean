@@ -118,7 +118,7 @@ class EditorImportRegressionTests(unittest.TestCase):
         self.assertEqual([item["project_id"] for item in projects], [
             "modules", "interfaces", "mutual-recursion-imports", "kruskal", "dijkstra"])
         self.assertEqual([item["folder"] for item in projects], [
-            "modules", "interfaces", "mutual_recursion", "kruskal", "composable_dijkstra"])
+            "modules", "interfaces", "mutual_recursion", "kruskal", "dijkstra"])
         self.assertEqual(examples[-len(projects):], projects)
         files = [item for item in examples if "project_id" not in item]
         self.assertEqual([item["filename"] for item in files[:5]], [
@@ -141,8 +141,8 @@ class EditorImportRegressionTests(unittest.TestCase):
         self.assertIn("graph.algo", project["sources"])
         self.assertIn("indexed_heap.algo", project["sources"])
         self.assertIn("fibonacci_heap.algo", project["sources"])
-        self.assertIn("Algo.composable_dijkstra.dijkstra_fibonacci.Analysis", project["analyses"])
-        self.assertIn("Algo.composable_dijkstra.dijkstra_binary.Analysis", project["analyses"])
+        self.assertIn("Algo.dijkstra.dijkstra_fibonacci.Analysis", project["analyses"])
+        self.assertIn("Algo.dijkstra.dijkstra_binary.Analysis", project["analyses"])
         source = project["sources"][project["entry"]]
         status, result = self.request("POST", "/api/compile", {
             "filename": project["entry"], "source": source,
