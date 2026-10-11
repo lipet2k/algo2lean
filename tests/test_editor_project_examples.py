@@ -84,16 +84,16 @@ class EditorProjectExamplesTests(unittest.TestCase):
             self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},
                              bundle["analyses"])
 
-    def test_kruskal_bundle_contains_its_four_sources_and_independent_proofs(self):
+    def test_kruskal_bundle_contains_both_entry_points_and_independent_proofs(self):
         bundle = load_example_project("kruskal")
         self.assertEqual(bundle["entry"], "kruskal.algo")
         self.assertEqual(set(bundle["sources"]), {
-            "indexed_heap.algo", "union_find.algo", "sort_indices.algo", "kruskal.algo",
+            "indexed_heap.algo", "union_find.algo", "sort_indices.algo", "kruskal_sorted.algo", "kruskal.algo",
         })
         self.assertTrue({
             "Algo.indexed_heap.Analysis", "Algo.union_find.Analysis",
             "Algo.union_find_init.Analysis", "Algo.sort_indices.Analysis",
-            "Algo.kruskal_input.Analysis", "Algo.kruskal_scan.Analysis",
+            "Algo.kruskal_input.Analysis", "Algo.kruskal_scan.Analysis", "Algo.kruskal_sorted.Analysis",
         }.issubset(bundle["analyses"]))
         root = EXAMPLES / "kruskal"
         for path, source in bundle["sources"].items():
@@ -101,7 +101,7 @@ class EditorProjectExamplesTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             compiled = compile_project(bundle["entry"], root=directory, sources=bundle["sources"])
             self.assertEqual(set(compiled.project.modules),
-                             {"indexed_heap", "union_find", "sort_indices", "kruskal"})
+                             {"indexed_heap", "union_find", "sort_indices", "kruskal_sorted", "kruskal"})
             resolved = project_lean_sources(compiled, proof_sources=bundle["analyses"],
                 analysis_modules=tuple(bundle["analyses"]))
             self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},

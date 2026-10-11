@@ -181,8 +181,9 @@ test("all bundled main-result markers identify declarations with full statement 
     outline.setExamples([source]);
     outline.update(source);
     const buttons = mainButtons(container);
-    assert.ok(buttons.length <= 2, `${file}: at most two principal result buttons`);
-    assert.ok(buttons.every((button) => ["Correctness", "Running time"].includes(button.textContent)),
+    assert.ok(buttons.length <= 3, `${file}: correctness and at most two runtime statements`);
+    assert.ok(buttons.every((button) => ["Correctness", "Running time",
+      "Running time (total)", "Running time (after sorting)"].includes(button.textContent)),
       `${file}: result buttons use short category names`);
   }
   assert.ok(markedFiles >= 30, "The public example collection exposes its main results");
@@ -472,4 +473,23 @@ test("the browser script exposes navigation without requiring a module loader", 
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../editor/proof-outline.js"), "utf8"), context);
   assert.equal(typeof context.window.Algo2LeanProofOutline.create, "function");
   assert.equal(typeof context.window.Algo2LeanProofOutline.declarations, "function");
+});
+
+test("Kruskal exposes distinct total and after-sorting running-time results", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../examples/kruskal/analysis/kruskal.lean"), "utf8");
+  const { container, outline } = surface();
+  outline.update(source);
+  const buttons = mainButtons(container);
+  assert.deepEqual(new Set(buttons.map((button) => button.textContent)),
+    new Set(["Correctness", "Running time (total)", "Running time (after sorting)"]));
+  assert.equal(buttons.length, 3, "helpers should not crowd out the two runtime statements");
+  const total = buttons.find((button) => button.textContent === "Running time (total)");
+  total.click();
+  assert.match(tag(preview(container), "PRE")[0].textContent, /kruskal\.Call/);
+  assert.doesNotMatch(tag(preview(container), "PRE")[0].textContent, /SortedPermutation/);
+  const sorted = buttons.find((button) => button.textContent === "Running time (after sorting)");
+  sorted.click();
+  assert.match(tag(preview(container), "PRE")[0].textContent, /kruskal_sorted\.Call/);
+  assert.match(tag(preview(container), "PRE")[0].textContent, /SortedPermutation/);
+  assert.match(tag(preview(container), "PRE")[0].textContent, /KruskalSortedAnalysis\.runtimeScale/);
 });

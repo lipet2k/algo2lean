@@ -157,7 +157,7 @@ class EditorImportRegressionTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(project["entry"], "kruskal.algo")
         self.assertEqual(set(project["sources"]), {
-            "indexed_heap.algo", "union_find.algo", "sort_indices.algo", "kruskal.algo",
+            "indexed_heap.algo", "union_find.algo", "sort_indices.algo", "kruskal_sorted.algo", "kruskal.algo",
         })
         self.assertIn("Algo.sort_indices.Analysis", project["analyses"])
         self.assertIn("Algo.union_find.Analysis", project["analyses"])
@@ -167,7 +167,7 @@ class EditorImportRegressionTests(unittest.TestCase):
             {"X-Algo2Lean-Project": "1"})
         self.assertEqual(status, 200)
         self.assertTrue(result["ok"])
-        for module in ("indexed_heap", "union_find", "sort_indices", "kruskal"):
+        for module in ("indexed_heap", "union_find", "sort_indices", "kruskal_sorted", "kruskal"):
             self.assertIn("Algo." + module + ".Generated", result["project_files"])
 
     def test_unknown_example_project_cannot_read_arbitrary_paths(self):

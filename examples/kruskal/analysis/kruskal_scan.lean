@@ -1,6 +1,6 @@
-import Algo.kruskal.Generated
-import Algo.kruskal.Facts
-import Algo.kruskal.Points
+import Algo.kruskal_sorted.Generated
+import Algo.kruskal_sorted.Facts
+import Algo.kruskal_sorted.Points
 import Algo.union_find_init.Analysis
 import Algo2LeanLib.KruskalMath
 import Algo2LeanLib.Footprint
@@ -9,15 +9,15 @@ set_option backward.isDefEq.respectTransparency false
 set_option backward.defeqAttrib.useBackward true
 
 /-!
-Kruskal initializes singleton components, sorts edge identifiers, and compares
-representatives before selecting an edge and applying the verified union.
+The post-sorting Kruskal entry point initializes singleton components and
+compares representatives before selecting an edge and applying the verified union.
 The graph argument is independent of the storage and transition machinery.
 -/
 
 namespace KruskalAnalysis
 
 open Algo2LeanCore Algo2LeanGenerated
-open Algo.kruskal Algo.kruskal.Algo2LeanGenerated
+open Algo.kruskal_sorted Algo.kruskal_sorted.Algo2LeanGenerated
 open UnionFindAnalysis
 open Algo2Lean.Kruskal
 
@@ -147,20 +147,20 @@ theorem partition_join {n : Nat} {old next : Algo2Lean.UnionFind.State n}
 
 /-- Source-facing values needed at the edge-loop boundary. -/
 structure ScanLocals (data : ScanLayout) (index count : Int) (state : Configuration) : Prop where
-  location : kruskal.At.scan state
-  sets : kruskal.Local.sets state = some data.sets.object
-  sources : kruskal.Local.sources state = some data.sources
-  targets : kruskal.Local.targets state = some data.targets
-  order : kruskal.Local.order state = some data.order
-  chosen : kruskal.Local.chosen state = some data.chosen
-  index : kruskal.Local.index state = some index
-  count : kruskal.Local.count state = some count
+  location : kruskal_sorted.At.scan state
+  sets : kruskal_sorted.Local.sets state = some data.sets.object
+  sources : kruskal_sorted.Local.sources state = some data.sources
+  targets : kruskal_sorted.Local.targets state = some data.targets
+  order : kruskal_sorted.Local.order state = some data.order
+  chosen : kruskal_sorted.Local.chosen state = some data.chosen
+  index : kruskal_sorted.Local.index state = some index
+  count : kruskal_sorted.Local.count state = some count
 
 /-- Complete the edge loop from any configuration with these local values.
     The caller's stack and irrelevant temporary variables remain unrestricted. -/
 def ScanCall (data : ScanLayout) (heap : Heap) (index count : Int) (final : Heap) : Prop :=
   ∀ state, ScanLocals data index count state → state.heap = heap →
-    kruskal.CallFrom state final data.chosen
+    kruskal_sorted.CallFrom state final data.chosen
 
 /-- Completing an empty suffix returns the unchanged selection array. -/
 theorem scan_done (data : ScanLayout) (heap : Heap) (index count : Int)
@@ -174,20 +174,19 @@ theorem scan_done (data : ScanLayout) (heap : Heap) (index count : Int)
     cases frame with
     | invalid => cases location
     | import_0 => cases location
-    | import_2 => cases location
-    | fn_kruskal pc s =>
+    | fn_kruskal_sorted pc s =>
       have atLoop : pc = 4 := by
-        unfold kruskal.At.scan at location
+        unfold kruskal_sorted.At.scan at location
         split at location <;> simp_all
       subst pc
       change h = heap at heq
       subst h
-      simp [kruskal.Local.chosen, kruskal.Local.index, kruskal.Local.count] at chosen idx cnt
+      simp [kruskal_sorted.Local.chosen, kruskal_sorted.Local.index, kruskal_sorted.Local.count] at chosen idx cnt
       intro caller
-      apply Reaches.prepend (Step.kruskal_pc4 _ _ _)
-      apply Reaches.prepend (Step.kruskal_pc3_false _ _ _ (by simp [idx, cnt]; omega))
-      apply Reaches.prepend (Step.kruskal_pc2 _ _ _)
-      simpa only [chosen] using Reaches.single (Step.kruskal_pc1 heap _ caller (by simpa [chosen]))
+      apply Reaches.prepend (Step.kruskal_sorted_pc4 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc3_false _ _ _ (by simp [idx, cnt]; omega))
+      apply Reaches.prepend (Step.kruskal_sorted_pc2 _ _ _)
+      simpa only [chosen] using Reaches.single (Step.kruskal_sorted_pc1 heap _ caller (by simpa [chosen]))
 
 /-- Two representative lookups precede the conditional selection and union.
     The union result is intentionally ignored, as in textbook MST-KRUSKAL. -/
@@ -219,64 +218,63 @@ theorem scan_continue (data : ScanLayout) (heap after final : Heap) (index count
     cases frame with
     | invalid => cases location
     | import_0 => cases location
-    | import_2 => cases location
-    | fn_kruskal pc s =>
+    | fn_kruskal_sorted pc s =>
       have atLoop : pc = 4 := by
-        unfold kruskal.At.scan at location
+        unfold kruskal_sorted.At.scan at location
         split at location <;> simp_all
       subst pc
       change h = heap at heq
       subst h
-      simp [kruskal.Local.sets, kruskal.Local.sources, kruskal.Local.targets,
-        kruskal.Local.order, kruskal.Local.chosen, kruskal.Local.index, kruskal.Local.count]
+      simp [kruskal_sorted.Local.sets, kruskal_sorted.Local.sources, kruskal_sorted.Local.targets,
+        kruskal_sorted.Local.order, kruskal_sorted.Local.chosen, kruskal_sorted.Local.index, kruskal_sorted.Local.count]
         at sets src tgt ord chosen idx cnt
       intro caller
-      apply Reaches.prepend (Step.kruskal_pc4 _ _ _)
-      apply Reaches.prepend (Step.kruskal_pc3_true _ _ _ (by simpa [idx, cnt]))
-      apply Reaches.prepend (Step.kruskal_pc27 _ _ _ (by simpa [ord]))
-      apply Reaches.prepend (Step.kruskal_pc26 _ _ _ (by simpa [src]))
-      apply Reaches.prepend (Step.kruskal_pc25 _ _ _ (by simpa [tgt]))
-      apply Reaches.prepend (Step.kruskal_pc24 _ _ _)
-      apply Reaches.prepend (Step.kruskal_pc23 _ _ _)
-      apply Reaches.prepend (Step.kruskal_pc22 _ _ _ (by simpa only [sets] using! findA.1))
-      apply Reaches.prepend (Step.kruskal_pc21 _ _ _)
-      apply Reaches.prepend (Step.kruskal_pc20 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc4 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc3_true _ _ _ (by simpa [idx, cnt]))
+      apply Reaches.prepend (Step.kruskal_sorted_pc27 _ _ _ (by simpa [ord]))
+      apply Reaches.prepend (Step.kruskal_sorted_pc26 _ _ _ (by simpa [src]))
+      apply Reaches.prepend (Step.kruskal_sorted_pc25 _ _ _ (by simpa [tgt]))
+      apply Reaches.prepend (Step.kruskal_sorted_pc24 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc23 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc22 _ _ _ (by simpa only [sets] using! findA.1))
+      apply Reaches.prepend (Step.kruskal_sorted_pc21 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc20 _ _ _)
       simp only [sets, src, tgt, ord, chosen, idx] at *
       apply (ModuleCall.summary import_0_simulates _ caller findA.2).trans
-      apply Reaches.prepend (Step.kruskal_pc19 _ _ _)
-      apply Reaches.prepend (Step.kruskal_pc18 _ _ _)
-      apply Reaches.prepend (Step.kruskal_pc17 _ _ _ (by exact findB.1))
-      apply Reaches.prepend (Step.kruskal_pc16 _ _ _)
-      apply Reaches.prepend (Step.kruskal_pc15 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc19 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc18 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc17 _ _ _ (by exact findB.1))
+      apply Reaches.prepend (Step.kruskal_sorted_pc16 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc15 _ _ _)
       apply (ModuleCall.summary import_0_simulates _ caller findB.2).trans
-      apply Reaches.prepend (Step.kruskal_pc14 _ _ _)
-      apply Reaches.prepend (Step.kruskal_pc13 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc14 _ _ _)
+      apply Reaches.prepend (Step.kruskal_sorted_pc13 _ _ _)
       by_cases distinct : left ≠ right
       · rw [if_pos distinct] at join
         obtain ⟨result, join⟩ := join
-        apply Reaches.prepend (Step.kruskal_pc12_true _ _ _ (by simpa))
-        apply Reaches.prepend (Step.kruskal_pc11 _ _ _ chosenAllocated)
-        apply Reaches.prepend (Step.kruskal_pc10 _ _ _)
-        apply Reaches.prepend (Step.kruskal_pc9 _ _ _ (by exact join.1))
-        apply Reaches.prepend (Step.kruskal_pc8 _ _ _)
-        apply Reaches.prepend (Step.kruskal_pc7 _ _ _)
-        apply Reaches.prepend (Step.kruskal_pc6 _ _ _)
+        apply Reaches.prepend (Step.kruskal_sorted_pc12_true _ _ _ (by simpa))
+        apply Reaches.prepend (Step.kruskal_sorted_pc11 _ _ _ chosenAllocated)
+        apply Reaches.prepend (Step.kruskal_sorted_pc10 _ _ _)
+        apply Reaches.prepend (Step.kruskal_sorted_pc9 _ _ _ (by exact join.1))
+        apply Reaches.prepend (Step.kruskal_sorted_pc8 _ _ _)
+        apply Reaches.prepend (Step.kruskal_sorted_pc7 _ _ _)
+        apply Reaches.prepend (Step.kruskal_sorted_pc6 _ _ _)
         apply (ModuleCall.summary import_0_simulates _ caller join.2).trans
-        apply Reaches.prepend (Step.kruskal_pc5 _ _ _)
-        refine rest (.active _ (.fn_kruskal 4 _) []) ?_ rfl caller
-        exact ⟨True.intro, by simp [kruskal.Local.sets], by simp [kruskal.Local.sources],
-          by simp [kruskal.Local.targets], by simp [kruskal.Local.order],
-          by simp [kruskal.Local.chosen], by simp [kruskal.Local.index],
-          by simp [kruskal.Local.count, cnt]⟩
+        apply Reaches.prepend (Step.kruskal_sorted_pc5 _ _ _)
+        refine rest (.active _ (.fn_kruskal_sorted 4 _) []) ?_ rfl caller
+        exact ⟨True.intro, by simp [kruskal_sorted.Local.sets], by simp [kruskal_sorted.Local.sources],
+          by simp [kruskal_sorted.Local.targets], by simp [kruskal_sorted.Local.order],
+          by simp [kruskal_sorted.Local.chosen], by simp [kruskal_sorted.Local.index],
+          by simp [kruskal_sorted.Local.count, cnt]⟩
       · rw [if_neg distinct] at join
         subst after
-        apply Reaches.prepend (Step.kruskal_pc12_false _ _ _ (by simp [distinct]))
-        apply Reaches.prepend (Step.kruskal_pc5 _ _ _)
-        refine rest (.active _ (.fn_kruskal 4 _) []) ?_ rfl caller
-        exact ⟨True.intro, by simp [kruskal.Local.sets], by simp [kruskal.Local.sources],
-          by simp [kruskal.Local.targets], by simp [kruskal.Local.order],
-          by simp [kruskal.Local.chosen], by simp [kruskal.Local.index],
-          by simp [kruskal.Local.count, cnt]⟩
+        apply Reaches.prepend (Step.kruskal_sorted_pc12_false _ _ _ (by simp [distinct]))
+        apply Reaches.prepend (Step.kruskal_sorted_pc5 _ _ _)
+        refine rest (.active _ (.fn_kruskal_sorted 4 _) []) ?_ rfl caller
+        exact ⟨True.intro, by simp [kruskal_sorted.Local.sets], by simp [kruskal_sorted.Local.sources],
+          by simp [kruskal_sorted.Local.targets], by simp [kruskal_sorted.Local.order],
+          by simp [kruskal_sorted.Local.chosen], by simp [kruskal_sorted.Local.index],
+          by simp [kruskal_sorted.Local.count, cnt]⟩
 /-- One iteration preserves the graph representation and consumes the first
     pending edge. Only the two disjoint-set arrays and result flags may change. -/
 theorem ScanInvariant.advance {n : Nat} {data : ScanLayout} {heap after : Heap}
@@ -552,33 +550,6 @@ theorem scan_verified {n : Nat} (data : ScanLayout) (heap : Heap)
     scan_contract data heap model index count pending selected invariant length
   exact ⟨final, nextModel, result, execution, finalInvariant, scan, frame, clocks, bound⟩
 
-/-- The source entry point allocates the empty result, constructs singleton
-    components, sorts the edges, and enters the explicitly named edge loop. -/
-theorem kruskal_calls (heap initialized sorted final : Heap)
-    (size count : Int) (sources targets weights order : SeqRef) (sets : UnionFindAnalysis.Layout)
-    (valid : kruskal.ValidInput heap (size, sources, targets, weights, count))
-    (construction : Algo.union_find.UnionFind.Call (heap.allocate (fun _ => 0)) size initialized sets.object)
-    (sorting : Algo.sort_indices.sort_indices.Call initialized (weights, count) sorted order)
-    (scan : ScanCall ⟨sets, sources, targets, order, heap.nextRef⟩ (sorted.tick "kruskal") 0 count final) :
-    kruskal.Call heap (size, sources, targets, weights, count) final heap.nextRef := by
-  refine ⟨valid, ?_⟩
-  intro caller
-  apply Reaches.prepend (Step.kruskal_pc39 _ _ _)
-  apply Reaches.prepend (Step.kruskal_pc38 _ _ _)
-  apply Reaches.prepend (Step.kruskal_pc37 _ _ _)
-  apply Reaches.prepend (Step.kruskal_pc36 _ _ _)
-  apply Reaches.prepend (Step.kruskal_pc35 _ _ _)
-  apply (ModuleCall.summary import_0_simulates _ caller construction.2).trans
-  apply Reaches.prepend (Step.kruskal_pc34 _ _ _)
-  apply Reaches.prepend (Step.kruskal_pc33 _ _ _)
-  apply Reaches.prepend (Step.kruskal_pc32 _ _ _)
-  apply Reaches.prepend (Step.kruskal_pc31 _ _ _)
-  apply (ModuleCall.summary import_2_simulates _ caller sorting.2).trans
-  apply Reaches.prepend (Step.kruskal_pc30 _ _ _)
-  apply Reaches.prepend (Step.kruskal_pc29 _ _ _)
-  apply Reaches.prepend (Step.kruskal_pc28 _ _ _)
-  refine scan (.active _ (.fn_kruskal 4 _) []) ?_ rfl caller
-  exact ⟨True.intro, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 /-- A finite array prefix determines the inductive order view. -/
 theorem Order.of_indexed (heap : Heap) (ref : SeqRef) (index : Int) (pending : List Edge)
     (agreement : ∀ (i : Nat) (within : i < pending.length),
@@ -624,7 +595,7 @@ theorem Rep.preserve {n : Nat} {before after : Heap} {layout : UnionFindAnalysis
 def initialHeap (heap : Heap) (size : Nat) : Heap :=
   newHeap (heap.allocate (fun _ => 0)) size
 
-/-- The result and disjoint-set arrays precede the freshly sorted edge order. -/
+/-- Fresh result and disjoint-set arrays accompany the supplied edge order. -/
 def initialLayout (heap : Heap) (_size : Nat) (sources targets order : SeqRef) : ScanLayout :=
   ⟨newLayout (heap.allocate (fun _ => 0)), sources, targets, order, heap.nextRef⟩
 
@@ -639,12 +610,14 @@ theorem initial_read_old (heap : Heap) (size : Nat) (ref : SeqRef) (old : ref < 
     (initialHeap heap size).read ref = heap.read ref :=
   (initial_footprint heap size).read ref old (by simp)
 
-/-- Sorting protects the initialized components and empty result flags. -/
+/-- A preserved initialized heap and a protected edge order establish the scan invariant. -/
 theorem initial_invariant (heap sorted : Heap) (size : Nat) (sources targets order : SeqRef)
     (pending : List Edge)
     (sourceAllocated : sources < heap.nextRef) (targetAllocated : targets < heap.nextRef)
     (frame : (initialHeap heap size).Footprint sorted [] [] [])
-    (fresh : (initialHeap heap size).nextRef ≤ order) (orderAllocated : order < sorted.nextRef)
+    (orderProtected : order ∉ [(initialLayout heap size sources targets order).sets.parent,
+      (initialLayout heap size sources targets order).sets.rank, heap.nextRef])
+    (orderAllocated : order < sorted.nextRef)
     (bounds : ValidInput size pending)
     (sourceValues : ∀ edge ∈ pending, heap.read sources edge.id = edge.source)
     (targetValues : ∀ edge ∈ pending, heap.read targets edge.id = edge.target)
@@ -689,8 +662,14 @@ theorem initial_invariant (heap sorted : Heap) (size : Nat) (sources targets ord
     change sorted.read heap.nextRef id = _
     rw [frame.read heap.nextRef chosenInit (by simp), chosenValues]
     simp
-  all_goals
-    simp only [initialLayout, newLayout, Heap.allocate_nextRef, List.mem_cons, List.not_mem_nil, or_false, not_or]
+  · simp only [initialLayout, newLayout, Heap.allocate_nextRef, List.mem_cons, List.not_mem_nil, or_false, not_or]
+    simp only [SeqRef] at *
+    omega
+  · simp only [initialLayout, newLayout, Heap.allocate_nextRef, List.mem_cons, List.not_mem_nil, or_false, not_or]
+    simp only [SeqRef] at *
+    omega
+  · exact orderProtected
+  · simp only [initialLayout, newLayout, Heap.allocate_nextRef, List.mem_cons, List.not_mem_nil, or_false, not_or]
     simp only [SeqRef] at *
     omega
 

@@ -1,0 +1,29 @@
+# The post-sorting phase of CLRS MST-KRUSKAL (fourth edition, Section 21.2).
+# order lists every edge identifier once, in nondecreasing weight order.
+# Edge identifiers are 0, ..., count - 1; endpoint arrays contain vertices
+# in 0, ..., size - 1. The zero/one flag sequence represents the edge set A.
+from union_find import UnionFind
+
+
+def kruskal_sorted(size: Int, sources: Seq, targets: Seq, weights: Seq, count: Int, order: Seq) -> Seq:
+    chosen = const(0)
+    # Construct one singleton set for each vertex (the textbook MAKE-SET loop).
+    sets = UnionFind(size)
+    index = 0
+    tick("kruskal")
+    # @scan
+    while index < count:
+        edge = order[index]
+        a = sources[edge]
+        b = targets[edge]
+        tick("kruskal")
+        left = sets.find(a)
+        right = sets.find(b)
+        # @test
+        if left != right:
+            # @select
+            chosen[edge] = 1
+            # @join
+            sets.union(a, b)
+        index += 1
+    return chosen

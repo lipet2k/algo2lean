@@ -42,7 +42,7 @@ _PROJECTS = {
     "kruskal": (
         "Kruskal",
         "kruskal.algo",
-        "Build a minimum spanning forest with reusable union-find, path compression, union by rank, and heap-based edge sorting.",
+        "Build a minimum spanning forest with union by rank and path compression; compare total running time with the faster entry for already-sorted edges.",
     ),
     "prim": (
         "Prim with a Fibonacci Heap",

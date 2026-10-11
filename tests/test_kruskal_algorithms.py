@@ -1,6 +1,6 @@
 """Independent behavior and Lean regressions for the concrete Kruskal project.
 
-Only the four fixed, repository-owned Algo2Lean sources below are executed.
+Only the five fixed, repository-owned Algo2Lean sources below are executed.
 The finite-graph oracle enumerates spanning forests and uses graph traversal;
 it does not reproduce Kruskal, disjoint sets, or the imported heap algorithm.
 """
@@ -25,14 +25,15 @@ TRUSTED_IMPORTS = {
     "indexed_heap": {},
     "union_find": {},
     "sort_indices": {"indexed_heap": frozenset({"MinHeap"})},
+    "kruskal_sorted": {"union_find": frozenset({"UnionFind"})},
     "kruskal": {
-        "union_find": frozenset({"UnionFind"}),
         "sort_indices": frozenset({"sort_indices"}),
+        "kruskal_sorted": frozenset({"kruskal_sorted"}),
     },
 }
 
 
-def trusted_environment(entry):
+def trusted_environment(entry, initial_clocks=None):
     """Load an allowlisted source graph without executing Python import hooks.
 
     Compilation first validates the actual Algo2Lean project. AST imports are
@@ -44,6 +45,7 @@ def trusted_environment(entry):
         raise ValueError("Only the fixed Kruskal example modules can be executed")
     compile_project(entry, root=PROJECT)
     clocks = {"caller_work": 23}
+    clocks.update(initial_clocks or {})
     loaded = {}
 
     def tick(name, amount=1):
@@ -198,14 +200,28 @@ class KeyedSortBehaviorTests(unittest.TestCase):
 
 
 class KruskalBehaviorTests(unittest.TestCase):
-    def check_graph(self, size, edges):
-        environment, clocks = trusted_environment("kruskal")
+    def check_graph(self, size, edges, *, order=None, initial_clocks=None):
+        entry = "kruskal" if order is None else "kruskal_sorted"
+        environment, clocks = trusted_environment(entry, initial_clocks)
+        baseline = dict(clocks)
         sources = sequence([edge[0] for edge in edges])
         targets = sequence([edge[1] for edge in edges])
         weights = sequence([edge[2] for edge in edges])
         inputs = (sources, targets, weights)
+        arguments = (size, sources, targets, weights, len(edges))
+        if order is not None:
+            self.assertEqual(sorted(order), list(range(len(edges))))
+            self.assertEqual([edges[index][2] for index in order],
+                             sorted(edge[2] for edge in edges))
+            sorted_ids = sequence(order)
+            inputs += (sorted_ids,)
+            arguments += (sorted_ids,)
         saved = [dict(values._values) for values in inputs]
-        chosen = environment["kruskal"](size, sources, targets, weights, len(edges))
+        outside = [{index: values[index] for index in (-7, -1, len(edges), len(edges) + 13)}
+                   for values in inputs]
+        chosen = environment[entry](*arguments)
+        increments = {clock: clocks.get(clock, 0) - baseline.get(clock, 0)
+                      for clock in clocks.keys() | baseline.keys()}
         flags = [chosen[index] for index in range(len(edges))]
         self.assertTrue(all(value in (0, 1) for value in flags))
         selected = [index for index, value in enumerate(flags) if value == 1]
@@ -218,24 +234,30 @@ class KruskalBehaviorTests(unittest.TestCase):
                          "The forest must attain the global exhaustive minimum")
         for index in selected:
             self.assertNotEqual(edges[index][0], edges[index][1], "Self-loops cannot belong to a forest")
-        for values, before in zip(inputs, saved):
+        for values, before, outside_values in zip(inputs, saved, outside):
             self.assertIsNot(chosen, values)
             self.assertEqual(values._values, before)
+            self.assertEqual({index: values[index] for index in outside_values}, outside_values)
         for index in (-7, -1, len(edges), len(edges) + 13):
             self.assertEqual(chosen[index], 0)
         count = len(edges)
-        self.assertEqual(clocks.get("kruskal", 0), count + 1)
-        self.assertEqual(clocks.get("uf_init", 0), size + 1)
-        self.assertEqual(clocks.get("uf_union", 0), len(selected))
-        self.assertEqual(clocks.get("sort_steps", 0), 2 * count)
-        find_work = clocks.get("uf_find", 0) + clocks.get("uf_compress", 0)
+        self.assertEqual(increments.get("kruskal", 0), count + 1)
+        self.assertEqual(increments.get("uf_init", 0), size + 1)
+        self.assertEqual(increments.get("uf_union", 0), len(selected))
+        self.assertEqual(increments.get("sort_steps", 0), 2 * count if order is None else 0)
+        find_work = increments.get("uf_find", 0) + increments.get("uf_compress", 0)
         vertex_depth = max(0, size.bit_length() - 1)
         self.assertLessEqual(find_work, 2 * (count + len(selected)) * (2 * vertex_depth + 1))
-        sort_work = sum(clocks.get(name, 0) for name in
+        sort_work = sum(increments.get(name, 0) for name in
                         ("sort_steps", "heap_comparisons", "heap_swaps"))
         edge_depth = (count + 1).bit_length() - 1
         self.assertLessEqual(sort_work, 2 * count * (3 * edge_depth + 2))
-        self.assertEqual(clocks["caller_work"], 23)
+        self.assertEqual(clocks["caller_work"], baseline["caller_work"])
+        if order is not None:
+            for name in ("sort_steps", "heap_comparisons", "heap_swaps"):
+                self.assertEqual(increments.get(name, 0), 0,
+                                 "The sorted entry must not sort or operate a sorting heap")
+        return selected
 
     def test_empty_isolated_loops_parallel_negative_disconnected_and_tree(self):
         cases = [
@@ -286,6 +308,78 @@ class KruskalBehaviorTests(unittest.TestCase):
         self.assertGreater(sum(edges[index][2] for index in (0, 1)), optimum)
 
 
+class SortedKruskalBehaviorTests(unittest.TestCase):
+    check_graph = KruskalBehaviorTests.check_graph
+
+    # Distinct nonzero baselines make resetting or overwriting any clock visible.
+    initial_clocks = {
+        "sort_steps": 109, "heap_comparisons": 223, "heap_swaps": 307,
+        "uf_init": 419, "uf_find": 503, "uf_compress": 601,
+        "uf_union": 709, "kruskal": 809, "caller_work": 10**70,
+    }
+
+    def test_sorted_input_skips_sorting_with_arbitrary_starting_counters(self):
+        cases = [
+            (0, []), (1, []), (5, []),
+            (1, [(0, 0, -20), (0, 0, 0), (0, 0, 17)]),
+            (2, [(0, 1, 8), (0, 1, -3), (1, 0, -3), (1, 1, -100)]),
+            (6, [(0, 1, 9), (1, 2, -4), (0, 2, 2), (3, 4, -8),
+                 (3, 4, 1), (5, 5, -100)]),
+            (4, [(0, 1, 1), (1, 2, 1), (2, 3, 1), (3, 0, 1),
+                 (0, 2, 1), (1, 3, 1)]),
+            (3, [(0, 1, 10**60), (1, 2, -(10**80)), (0, 2, -(10**80) - 1)]),
+        ]
+        for size, edges in cases:
+            # Reverse the tie order: no stability assumption belongs to this API.
+            order = sorted(range(len(edges)), key=lambda index: (edges[index][2], -index))
+            with self.subTest(size=size, edges=edges):
+                self.check_graph(size, edges, order=order, initial_clocks=self.initial_clocks)
+
+    def test_seeded_sorted_orders_against_exhaustive_minimum(self):
+        rng = random.Random(202610104)
+        for attempt in range(64):
+            size = rng.randrange(0, 7)
+            count = rng.randrange(0, 10) if size else 0
+            edges = [(rng.randrange(size), rng.randrange(size), rng.randrange(-4, 5))
+                     for _ in range(count)]
+            order = list(range(count))
+            rng.shuffle(order)
+            order.sort(key=lambda index: edges[index][2])
+            with self.subTest(attempt=attempt, size=size, edges=edges, order=order):
+                self.check_graph(size, edges, order=order, initial_clocks=self.initial_clocks)
+
+    def test_input_order_controls_equal_weight_choices(self):
+        edges = [(0, 1, 5), (1, 2, 5), (0, 2, 5)]
+        forward = self.check_graph(3, edges, order=[0, 1, 2],
+                                   initial_clocks=self.initial_clocks)
+        reverse = self.check_graph(3, edges, order=[2, 1, 0],
+                                   initial_clocks=self.initial_clocks)
+        self.assertEqual(forward, [0, 1])
+        self.assertEqual(reverse, [1, 2])
+
+    def test_sorted_entry_has_no_sorter_in_its_source_dependencies(self):
+        compilation = compile_project("kruskal_sorted", root=PROJECT)
+        self.assertEqual(set(compilation.project.modules), {"union_find", "kruskal_sorted"})
+
+    def test_repeated_calls_preserve_inputs_and_prior_output(self):
+        environment, clocks = trusted_environment("kruskal_sorted", self.initial_clocks)
+        sources, targets, weights, order = map(sequence, ([0, 1, 0], [1, 2, 2], [7, -3, 2], [1, 2, 0]))
+        arguments = (3, sources, targets, weights, 3, order)
+        first = environment["kruskal_sorted"](*arguments)
+        saved = dict(first._values)
+        second = environment["kruskal_sorted"](*arguments)
+        self.assertIsNot(first, second)
+        self.assertEqual(first._values, saved)
+        self.assertEqual([second[index] for index in range(3)], [0, 1, 1])
+        second[0] = 77
+        self.assertEqual(first._values, saved)
+        self.assertEqual([order[index] for index in range(3)], [1, 2, 0])
+        for name in ("sort_steps", "heap_comparisons", "heap_swaps"):
+            self.assertEqual(clocks[name], self.initial_clocks[name])
+        self.assertEqual(clocks["kruskal"] - self.initial_clocks["kruskal"], 8)
+        self.assertEqual(clocks["caller_work"], self.initial_clocks["caller_work"])
+
+
 @unittest.skipUnless(shutil.which("lean"), "Lean 4 is not installed")
 class ConcreteKruskalLeanTests(unittest.TestCase):
     def test_keyed_sort_analysis(self):
@@ -300,6 +394,12 @@ class ConcreteKruskalLeanTests(unittest.TestCase):
             compilation = compile_project(bundle["entry"], root=directory, sources=bundle["sources"])
             result = check_project(compilation, proof_sources=bundle["analyses"],
                                    analysis_module="Algo.kruskal.Analysis", timeout=300)
+        self.assertTrue(result.ok, result.output)
+        self.assertNotIn("declaration uses `sorry`", result.output)
+
+    def test_sorted_kruskal_analysis(self):
+        compilation = compile_project("kruskal_sorted", root=PROJECT)
+        result = check_project(compilation, analysis_module="Algo.kruskal_sorted.Analysis", timeout=300)
         self.assertTrue(result.ok, result.output)
         self.assertNotIn("declaration uses `sorry`", result.output)
 

@@ -1,30 +1,41 @@
-import Algo.kruskal_scan.Analysis
-import Algo.kruskal_input.Analysis
+import Algo.kruskal_sorted.Analysis
 import Algo.kruskal_clocks.Analysis
+import Algo.kruskal.Facts
+import Algo.kruskal_bounds.Analysis
 
 set_option backward.isDefEq.respectTransparency false
 set_option backward.defeqAttrib.useBackward true
 
 /-!
-Kruskal's algorithm on finite undirected weighted graphs. The public interface
-uses integer sequences for source vertices, target vertices, edge weights, and
-returned selection flags. Correctness and running time reuse the independent
-sorting, union-find, and graph analyses.
+Kruskal's complete algorithm sorts edge identifiers, then calls the independently
+verified sorted-edge entry point. The two runtime results distinguish the total
+work from work after sorting. Both reuse the same union-by-rank and full path
+compression contracts and apply from arbitrary caller counters.
 -/
 
 namespace KruskalAnalysis
 
-open Algo2LeanGenerated Algo.kruskal Algo2Lean.Kruskal
+open Algo2LeanCore Algo2LeanGenerated Algo.kruskal Algo2Lean.Kruskal
 open KruskalInput
 
-/-- Unit weights for sorting, heap operations, union-find operations, and edge
-    scanning. Arithmetic and infinite-sequence access use the source cost model. -/
-def runtime (costs : Clocks) : Nat := SortIndicesAnalysis.runtime costs + work costs
+/-- The total of the eight source-event clocks, shared by both entry points. -/
+abbrev runtime := KruskalSortedAnalysis.runtime
 
-/-- Sorting costs O(E log E); the separately verified union-find contract makes
-    the remaining work O(V + E alpha(V)), including initialization and scanning. -/
+/-- Exact sorting budget plus the independently proved post-sorting budget. -/
 noncomputable def runtimeBound (vertices edges : Nat) : Nat :=
-  SortIndicesAnalysis.runtimeBound edges + vertices + 2 + edges * (10 * Algo2Lean.Ackermann.alpha vertices + 14)
+  SortIndicesAnalysis.runtimeBound edges + KruskalSortedAnalysis.runtimeBound vertices edges
+
+/-- The sorting term absorbs the inverse-Ackermann contribution. The constant
+    unit covers empty inputs, while V retains the cost of isolated vertices. -/
+def runtimeScale (vertices edges : Nat) : Nat :=
+  vertices + 1 + edges * (edges + 1).log2
+
+/-- One constant controls every finite graph, with no density assumption. -/
+theorem runtimeBound_le (vertices edges : Nat) :
+    runtimeBound vertices edges ≤ 44 * runtimeScale vertices edges := by
+  simpa only [runtimeBound, runtimeScale, SortIndicesAnalysis.runtimeBound,
+    KruskalSortedAnalysis.runtimeBound, Nat.add_assoc] using
+    KruskalBounds.total_budget_le vertices edges
 
 private theorem sorting_work {before after : Heap} {count : Int}
     (budget : SortIndicesAnalysis.Budget count (2 * count.toNat) before after) :
@@ -52,24 +63,6 @@ private theorem sorting_preserves_work {before after : Heap}
     preserved.clocks "uf_union" (by decide) (by decide) (by decide),
     preserved.clocks "kruskal" (by decide) (by decide) (by decide)]
 
-private theorem scan_preserves_sorting (heap final : Heap)
-    (clocks : ∀ clock, clock ∉ ["kruskal", "uf_find", "uf_compress", "uf_union"] →
-      final.clocks clock = (heap.tick "kruskal").clocks clock) :
-    SortIndicesAnalysis.runtime final.clocks = SortIndicesAnalysis.runtime heap.clocks := by
-  simp only [SortIndicesAnalysis.runtime, Clocks.weighted, List.map_cons, List.map_nil,
-    List.sum_cons, List.sum_nil]
-  rw [clocks "sort_steps" (by decide), clocks "heap_comparisons" (by decide),
-    clocks "heap_swaps" (by decide)]
-  simp [Heap.tick]
-
-private theorem initialization_preserves_sorting (heap : Heap) (size : Nat) :
-    SortIndicesAnalysis.runtime (initialHeap heap size).clocks =
-      SortIndicesAnalysis.runtime heap.clocks := by
-  simp only [SortIndicesAnalysis.runtime, Clocks.weighted, List.map_cons, List.map_nil,
-    List.sum_cons, List.sum_nil]
-  rw [initial_clocks _ _ _ (by decide), initial_clocks _ _ _ (by decide),
-    initial_clocks _ _ _ (by decide)]
-
 /-- The sorter protects every previously allocated caller location. -/
 private theorem sorting_footprint {before after : Heap}
     (preserved : SortIndicesAnalysis.Preserves before after) : before.Footprint after [] [] [] := by
@@ -85,19 +78,41 @@ private theorem sorting_footprint {before after : Heap}
   · intro ref old _
     rw [preserved.collections]
 
-/-- Weighted runtime adds across exact clock increments. -/
+/-- The two source calls compose without inspecting either implementation. -/
+theorem kruskal_calls (heap sorted final : Heap) (size count : Int)
+    (sources targets weights order chosen : SeqRef)
+    (allocated : kruskal.ValidInput heap (size, sources, targets, weights, count))
+    (sorting : Algo.sort_indices.sort_indices.Call heap (weights, count) sorted order)
+    (scanning : Algo.kruskal_sorted.kruskal_sorted.Call sorted
+      (size, sources, targets, weights, count, order) final chosen)
+    (resultAllocated : chosen < final.nextRef) :
+    kruskal.Call heap (size, sources, targets, weights, count) final chosen := by
+  open Algo.kruskal.Algo2LeanGenerated in
+    refine ⟨allocated, ?_⟩
+    intro caller
+    apply Reaches.prepend (Step.kruskal_pc12 _ _ caller)
+    apply Reaches.prepend (Step.kruskal_pc11 _ _ caller)
+    apply Reaches.prepend (Step.kruskal_pc10 _ _ caller)
+    apply (ModuleCall.summary import_1_simulates _ caller sorting.2).trans
+    apply Reaches.prepend (Step.kruskal_pc9 _ _ caller)
+    apply Reaches.prepend (Step.kruskal_pc8 _ _ caller)
+    apply Reaches.prepend (Step.kruskal_pc7 _ _ caller)
+    apply Reaches.prepend (Step.kruskal_pc6 _ _ caller)
+    apply Reaches.prepend (Step.kruskal_pc5 _ _ caller)
+    apply Reaches.prepend (Step.kruskal_pc4 _ _ caller)
+    apply Reaches.prepend (Step.kruskal_pc3 _ _ caller)
+    apply Reaches.prepend (Step.kruskal_pc2 _ _ caller)
+    apply (ModuleCall.summary import_3_simulates _ caller scanning.2).trans
+    exact Reaches.single (Step.kruskal_pc1 _ _ caller resultAllocated)
+
+/-- Weighted runtime adds across actual caller-relative counter increments. -/
 theorem runtime_increments {before after : Heap} {costs : Clocks}
     (effect : before.Increments after costs) :
-    runtime after.clocks = runtime before.clocks + runtime costs := by
-  simp only [runtime, SortIndicesAnalysis.runtime, Clocks.weighted, List.map_cons,
-    List.map_nil, List.sum_cons, List.sum_nil, work, UnionFindAnalysis.work]
-  rw [effect "sort_steps", effect "heap_comparisons", effect "heap_swaps",
-    effect "uf_init", effect "uf_find", effect "uf_compress", effect "uf_union", effect "kruskal"]
-  omega
+    runtime after.clocks = runtime before.clocks + runtime costs :=
+  KruskalSortedAnalysis.runtime_increments effect
 
-/-- The algorithm terminates on every finite valid graph. Its output flags name
-    a minimum spanning forest, and its clocks satisfy the explicit cost bound.
-    Sequence references permit aliasing among the three input arrays. -/
+/-- Every valid finite graph has a returning call selecting a minimum spanning
+    forest. Sorting and the sorted-edge call preserve all existing caller data. -/
 theorem call_complete (heap : Heap) (size count : Int) (sources targets weights : SeqRef)
     (allocated : kruskal.ValidInput heap (size, sources, targets, weights, count))
     (input : WellFormed size count (heap.read sources) (heap.read targets)) :
@@ -107,59 +122,34 @@ theorem call_complete (heap : Heap) (size count : Int) (sources targets weights 
       Flags (final.read chosen) selected ∧
       runtime final.clocks ≤ runtime heap.clocks + runtimeBound size.toNat count.toNat ∧
       heap.Footprint final [] [] [] ∧ heap.nextRef ≤ chosen ∧ chosen < final.nextRef := by
-  let initialized := initialHeap heap size.toNat
-  have initFrame := initial_footprint heap size.toNat
   obtain ⟨sorted, order, sortCall, sortedIds, preserved, fresh, orderAllocated, budget⟩ :=
-    SortIndicesAnalysis.call initialized weights count
-      (Nat.lt_of_lt_of_le allocated.2.2 initFrame.nextRef) input.count_nonnegative
-  have sameWeights : initialized.read weights = heap.read weights :=
-    initial_read_old heap size.toNat weights allocated.2.2
-  rw [sameWeights] at sortedIds
-  obtain ⟨pending, sorting⟩ := sorted_edges (heap.read sources) (heap.read targets)
-    (heap.read weights) (sorted.read order) count sortedIds
-  have sortFrame := sorting_footprint preserved
-  have initial := initial_invariant heap sorted size.toNat sources targets order pending
-    allocated.1 allocated.2.1 sortFrame fresh orderAllocated (sorting.valid input)
-    sorting.source sorting.target sorting.order
-  obtain ⟨final, model, selected, scanCall, finalInvariant, scan, frame, clocks, worstCase, bound⟩ :=
-    scan_contract (initialLayout heap size.toNat sources targets order)
-      (sorted.tick "kruskal") (Algo2Lean.UnionFind.initial size.toNat) 0 count pending []
-      initial (by rw [sorting.length]; have nonnegative := input.count_nonnegative; omega)
-  have composed := kruskal_calls heap initialized sorted final size count sources targets weights order
-    (UnionFindAnalysis.newLayout (heap.allocate (fun _ => 0))) allocated
-    (by simpa only [initialized, initialHeap, UnionFindAnalysis.newLayout,
-      Int.toNat_of_nonneg input.size_nonnegative] using!
-      UnionFindAnalysis.constructor_summary (heap.allocate (fun _ => 0)) size.toNat)
-    sortCall scanCall
-  have prefixFrame := (initFrame.trans sortFrame).tick "kruskal"
-  have wholeFrame := (prefixFrame.weaken
-    (moreSequences := [(initialLayout heap size.toNat sources targets order).sets.parent,
-      (initialLayout heap size.toNat sources targets order).sets.rank,
-      (initialLayout heap size.toNat sources targets order).chosen])
-    (moreObjects := []) (moreCollections := []) (by simp) (by simp) (by simp)).trans frame
-  refine ⟨final, heap.nextRef, selected, composed, sorting.minimum scan, finalInvariant.flags,
-    ?_, ?_, Nat.le_refl _, finalInvariant.chosenAllocated⟩
-  · have sortBound := sorting_work budget
-    have unchangedWork := sorting_preserves_work preserved
-    have unchangedSort := scan_preserves_sorting sorted final clocks
-    have unchangedInitSort := initialization_preserves_sorting heap size.toNat
-    have initialWork := initial_work heap size.toNat
-    have tickWork : work (sorted.tick "kruskal").clocks = work sorted.clocks + 1 := by
-      simp [work, UnionFindAnalysis.work, Heap.tick]; omega
-    rw [tickWork, unchangedWork, sorting.length, Algo2Lean.UnionFind.initial_potential] at bound
-    change work initialized.clocks = _ at initialWork
-    change SortIndicesAnalysis.runtime initialized.clocks = _ at unchangedInitSort
-    simp only [runtime, runtimeBound]
-    rw [unchangedSort]
-    omega
-  · refine ⟨wholeFrame.nextRef, wholeFrame.nextObject, wholeFrame.nextCollection,
-      wholeFrame.classes, wholeFrame.types, ?_, wholeFrame.otherObjects, wholeFrame.otherCollections⟩
-    intro ref old _
-    apply wholeFrame.otherSequences ref old
-    simp only [initialLayout, UnionFindAnalysis.newLayout, Heap.allocate_nextRef,
-      List.mem_cons, List.not_mem_nil, or_false, not_or]
-    simp only [SeqRef] at *
-    omega
+    SortIndicesAnalysis.call heap weights count allocated.2.2 input.count_nonnegative
+  have sameSources := preserved.sequences sources allocated.1
+  have sameTargets := preserved.sequences targets allocated.2.1
+  have sameWeights := preserved.sequences weights allocated.2.2
+  have sortedInput : WellFormed size count (sorted.read sources) (sorted.read targets) := by
+    simpa only [sameSources, sameTargets] using input
+  have sortedValid : Algo.kruskal_sorted.kruskal_sorted.ValidInput sorted
+      (size, sources, targets, weights, count, order) :=
+    ⟨Nat.lt_of_lt_of_le allocated.1 preserved.refs,
+      Nat.lt_of_lt_of_le allocated.2.1 preserved.refs,
+      Nat.lt_of_lt_of_le allocated.2.2 preserved.refs, orderAllocated⟩
+  obtain ⟨final, chosen, selected, scanCall, minimum, flags, scanBound, frame, chosenFresh,
+      chosenAllocated, clocks⟩ :=
+    KruskalSortedAnalysis.call_complete sorted size count sources targets weights order
+      sortedValid sortedInput (by simpa only [sameWeights] using sortedIds)
+  rw [sameSources, sameTargets, sameWeights] at minimum
+  refine ⟨final, chosen, selected,
+    kruskal_calls heap sorted final size count sources targets weights order chosen
+      allocated sortCall scanCall chosenAllocated,
+    minimum, flags, ?_, (sorting_footprint preserved).trans frame,
+    Nat.le_trans preserved.refs chosenFresh, chosenAllocated⟩
+  have sortBound := sorting_work budget
+  have unchangedWork := sorting_preserves_work preserved
+  simp only [runtime, KruskalSortedAnalysis.runtime] at scanBound ⊢
+  unfold runtimeBound
+  rw [unchangedWork] at scanBound
+  omega
 
 /-- The reusable entry-point contract includes fresh output storage, preservation
     of every existing caller location, and the actual increments of all clocks.
@@ -180,6 +170,44 @@ theorem call_contract (heap : Heap) (size count : Int) (sources targets weights 
   refine ⟨final, chosen, selected, execution, minimum, flags, frame, fresh, allocated, increments, ?_⟩
   rw [runtime_increments increments] at bound
   omega
+
+/-- The complete reusable contract retains explicit coefficients for callers
+    that need a numerical bound on the full algorithm. -/
+theorem total_call_contract (heap : Heap) (size count : Int) (sources targets weights : SeqRef)
+    (allocated : kruskal.ValidInput heap (size, sources, targets, weights, count))
+    (input : WellFormed size count (heap.read sources) (heap.read targets)) :
+    ∃ final chosen selected,
+      kruskal.Call heap (size, sources, targets, weights, count) final chosen ∧
+      MinimumSpanningForest (edges (heap.read sources) (heap.read targets) (heap.read weights) count) selected ∧
+      Flags (final.read chosen) selected ∧
+      heap.Footprint final [] [] [] ∧ heap.nextRef ≤ chosen ∧ chosen < final.nextRef ∧
+      heap.Increments final (Heap.cost heap final) ∧
+      runtime (Heap.cost heap final) ≤ runtimeBound size.toNat count.toNat :=
+  call_contract heap size count sources targets weights allocated input
+
+-- Main result: Running time (total)
+/-- The full source algorithm returns a minimum spanning forest with total
+    recorded work O(V + E log(E+1) + 1). The positive constant is independent
+    of every input and initial counter; no inverse-Ackermann term remains in
+    this total scale. Output freshness and caller storage are also guaranteed. -/
+theorem correctness_and_running_time :
+    ∃ C : Nat, 0 < C ∧
+    ∀ (heap : Heap) (size count : Int) (sources targets weights : SeqRef),
+      kruskal.ValidInput heap (size, sources, targets, weights, count) →
+      WellFormed size count (heap.read sources) (heap.read targets) →
+      ∃ final chosen selected,
+        kruskal.Call heap (size, sources, targets, weights, count) final chosen ∧
+        MinimumSpanningForest (edges (heap.read sources) (heap.read targets) (heap.read weights) count) selected ∧
+        Flags (final.read chosen) selected ∧
+        heap.Footprint final [] [] [] ∧ heap.nextRef ≤ chosen ∧ chosen < final.nextRef ∧
+        heap.Increments final (Heap.cost heap final) ∧
+        runtime (Heap.cost heap final) ≤ C * runtimeScale size.toNat count.toNat := by
+  refine ⟨44, by decide, ?_⟩
+  intro heap size count sources targets weights allocated input
+  obtain ⟨final, chosen, selected, execution, minimum, flags, frame, fresh, valid, increments, bound⟩ :=
+    total_call_contract heap size count sources targets weights allocated input
+  exact ⟨final, chosen, selected, execution, minimum, flags, frame, fresh, valid, increments,
+    Nat.le_trans bound (runtimeBound_le _ _)⟩
 
 /-- A compact value-and-work corollary of the full reusable call contract. -/
 theorem call (heap : Heap) (size count : Int) (sources targets weights : SeqRef)
@@ -240,7 +268,7 @@ theorem verified {size count : Int} {sources targets weights chosen : Seq} {cost
     exact flags
   refine ⟨minimum_from_flags minimum selection, ?_⟩
   have baseline : runtime loaded.1.clocks = 0 := by
-    simp [loaded, runtime, SortIndicesAnalysis.runtime, Clocks.weighted, work, UnionFindAnalysis.work]
+    simp [loaded, runtime, KruskalSortedAnalysis.runtime, SortIndicesAnalysis.runtime, Clocks.weighted, work, UnionFindAnalysis.work]
   have increments : Heap.cost loaded.1 final = final.clocks := by
     funext clock
     simp [Heap.cost, loaded]
@@ -260,7 +288,6 @@ theorem correct {size count : Int} {sources targets weights chosen : Seq}
   obtain ⟨costs, counted⟩ := execution.withCost
   exact (verified input counted).1
 
--- Main result: Running time
 /-- The total of all eight recorded operation clocks is bounded by
     2E(3 log2(E+1)+2) + V + 2 + E(10 alpha(V)+14). This is the source-level
     unit-cost model for integer arithmetic and sequence access. -/
@@ -278,5 +305,26 @@ theorem connected_correct {size count : Int} {sources targets weights chosen : S
     MinimumSpanningTree size.toNat (edges sources targets weights count)
       (selectedEdges sources targets weights chosen count) :=
   (correct input execution).tree (by omega) (input.valid weights) connected
+
+-- Main result: Running time (after sorting)
+/-- Re-export the sorted-entry contract beside the total bound for comparison.
+    Its cost starts after the caller supplies the sorted order, and includes
+    singleton initialization and the complete edge scan. -/
+theorem running_time_after_sorting :
+    ∃ C : Nat, 0 < C ∧
+    ∀ (heap : Heap) (size count : Int) (sources targets weights order : SeqRef),
+      Algo.kruskal_sorted.kruskal_sorted.ValidInput heap (size, sources, targets, weights, count, order) →
+      WellFormed size count (heap.read sources) (heap.read targets) →
+      SortIndicesAnalysis.SortedPermutation (heap.read weights) count (heap.read order) →
+      ∃ final chosen selected,
+        Algo.kruskal_sorted.kruskal_sorted.Call heap (size, sources, targets, weights, count, order) final chosen ∧
+        MinimumSpanningForest (edges (heap.read sources) (heap.read targets) (heap.read weights) count) selected ∧
+        Flags (final.read chosen) selected ∧
+        heap.Footprint final [] [] [] ∧ heap.nextRef ≤ chosen ∧ chosen < final.nextRef ∧
+        heap.Increments final (Heap.cost heap final) ∧
+        KruskalSortedAnalysis.runtime (Heap.cost heap final) ≤ C * KruskalSortedAnalysis.runtimeScale size.toNat count.toNat ∧
+        (∀ clock, clock ∉ ["uf_init", "uf_find", "uf_compress", "uf_union", "kruskal"] →
+          (Heap.cost heap final) clock = 0) :=
+  KruskalSortedAnalysis.correctness_and_running_time
 
 end KruskalAnalysis

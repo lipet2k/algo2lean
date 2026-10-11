@@ -1,5 +1,14 @@
 # Change log
 
+## 2026-10-10 — Separate Kruskal sorting and edge-scan runtimes
+
+- Add `kruskal_sorted`, which accepts an already-sorted permutation of edge identifiers, initializes singleton components, and runs the textbook edge scan. The full `kruskal` sorts once and calls that entry point.
+- Reuse the existing union-by-rank and full-path-compression contracts. Prove minimum-spanning-forest correctness, termination, output freshness, caller-storage preservation, and counter increments for both entry points; prove sorting clocks remain unchanged in the sorted call.
+- Expose uniform main bounds `O(V + E log(E+1) + 1)` overall and `O(V + E alpha(V) + 1)` after sorting, with explicit finite bounds retained. Prove absorption of the inverse-Ackermann term without assuming connectedness or a relationship between V and E.
+- Show Correctness, Running time (total), and Running time (after sorting) in the example. Preserve compiler v0.1.4 and all shared data-structure implementations.
+
+Validation: 16 Kruskal behavior/Lean regressions, eight catalog checks, the targeted HTTP project regression, and 29 proof-outline checks pass. Independent exhaustive forest comparisons cover signed weights, parallel edges, loops, disconnected and empty graphs, and alternative tie orders. Repeated-call proofs compose both contracts from arbitrary counters. The main theorems and arithmetic bound use only standard Lean axioms.
+
 ## 2026-10-10 — Include Prim in the import-catalog regression
 
 - Update the existing HTTP catalog regression to expect Prim in both the project identifiers and folder list.

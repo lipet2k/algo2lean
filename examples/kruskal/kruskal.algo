@@ -1,30 +1,10 @@
-# Minimum spanning forest by CLRS MST-KRUSKAL (fourth edition, Section 21.2).
-# Edge identifiers are 0, ..., count - 1; endpoint arrays contain vertices
-# in 0, ..., size - 1. The zero/one flag sequence represents the edge set A.
-from union_find import UnionFind
+# CLRS MST-KRUSKAL (fourth edition, Section 21.2): sort edge identifiers,
+# then scan them using union by rank and path compression.
+# The separate kruskal_sorted entry point reuses an order supplied by a caller.
 from sort_indices import sort_indices
+from kruskal_sorted import kruskal_sorted
 
 
 def kruskal(size: Int, sources: Seq, targets: Seq, weights: Seq, count: Int) -> Seq:
-    chosen = const(0)
-    # Construct one singleton set for each vertex (the textbook MAKE-SET loop).
-    sets = UnionFind(size)
     order = sort_indices(weights, count)
-    index = 0
-    tick("kruskal")
-    # @scan
-    while index < count:
-        edge = order[index]
-        a = sources[edge]
-        b = targets[edge]
-        tick("kruskal")
-        left = sets.find(a)
-        right = sets.find(b)
-        # @test
-        if left != right:
-            # @select
-            chosen[edge] = 1
-            # @join
-            sets.union(a, b)
-        index += 1
-    return chosen
+    return kruskal_sorted(size, sources, targets, weights, count, order)
