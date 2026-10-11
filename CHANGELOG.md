@@ -1,5 +1,14 @@
 # Change log
 
+## 2026-10-11 — Separate UI, download-package, and full proof checks
+
+- Skip Lean for presentation and documentation updates when their proof and package inputs already passed. Check editor export and website packaging changes with three isolated downloaded-project builds instead of rerunning every algorithm proof.
+- Reuse successful package checks independently while retaining a verified full-check ancestor with unchanged proof inputs. Compare cumulative changes so a later UI commit cannot hide an unchecked algorithm or proof change; record both baselines in the workflow summary.
+- Preserve full checks for compiler, proofs, toolchain, CI policy, unknown files, and unavailable baseline evidence. Manual and release checks still run the complete suite without caches; website deployment still requires a successful check of current main.
+- Keep compiled Lean modules across UI and test edits. Cache identity still includes the platform, toolchain, compiler/checker implementation, and each module's source and dependencies. Preserve compiler version 0.1.4 and archived releases.
+
+Validation: planner and site/archive tests pass, covering three-tier selection, real Git histories, renames, unchecked proof changes, and failed or missing baseline evidence. All three isolated Lean package builds pass in about seven seconds locally; GitHub setup adds overhead. Actionlint accepts the workflows. The CI-policy change itself requires one full check before subsequent updates can reuse it.
+
 ## 2026-10-11 — Download complete analysis projects and label code files
 
 - Make Save analysis download a ZIP with the current source and proof, generated definitions and named-line interfaces, transitive proof dependencies, shared Lean libraries, license, pinned toolchain, and Lake setup. Preserve import names and make the selected analysis the default build target.

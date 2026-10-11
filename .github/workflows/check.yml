@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      run-lean: ${{ steps.plan.outputs.run-lean }}
+      lean-mode: ${{ steps.plan.outputs.lean-mode }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -45,7 +45,7 @@ jobs:
         run: python -m unittest discover -v
       - name: Check every editor test
         run: node --test tests/test_*.js
-      - name: Determine whether proof inputs need Lean checking
+      - name: Select UI, package, or full Lean checks
         id: plan
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,11 +53,11 @@ jobs:
         run: python scripts/ci_plan.py
 
   lean:
-    name: Lean semantics and proofs
+    name: ${{ needs.compiler-and-editor.outputs.lean-mode == 'packages' && 'Lean download packages' || 'Lean semantics and proofs' }}
     needs: compiler-and-editor
-    if: needs.compiler-and-editor.outputs.run-lean != 'false'
+    if: needs.compiler-and-editor.outputs.lean-mode != 'none'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: ${{ needs.compiler-and-editor.outputs.lean-mode == 'packages' && 10 || 45 }}
     env:
       # Stable paths for the Python checkers' content-addressed caches.
       TMPDIR: /tmp
@@ -69,6 +69,7 @@ jobs:
         with:
           python-version: '3.11'
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: needs.compiler-and-editor.outputs.lean-mode != 'packages'
         with:
           node-version: '22'
           package-manager-cache: false
@@ -82,24 +83,33 @@ jobs:
           use-mathlib-cache: false
           use-github-cache: false
       - name: Require Lean before running semantic checks
-        run: lean --version
+        run: |
+          lean --version
+          lake --version
+      - name: Check downloaded Lean projects
+        if: needs.compiler-and-editor.outputs.lean-mode == 'packages'
+        # Build standalone, shared-library, and imported-analysis bundles in
+        # isolated directories. All non-Lean export/site tests ran above.
+        run: python -m unittest tests.test_analysis_export.AnalysisExportBuildTests -v
       - name: Restore compiled Lean modules
         id: lean-cache
-        if: (github.event_name == 'push' || github.event_name == 'pull_request') && inputs.force_full_lean != true
+        if: needs.compiler-and-editor.outputs.lean-mode != 'packages' && (github.event_name == 'push' || github.event_name == 'pull_request') && inputs.force_full_lean != true
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             ${{ env.TMPDIR }}/algo2lean-lean-cache
             ${{ env.TMPDIR }}/algo2lean-project-cache
           # Internal module keys include source/dependency identities. This
-          # outer namespace also invalidates changed checker/test policy.
-          key: lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'algo2lean/**/*.py', 'tests/**/*.py', '.github/workflows/check.yml') }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          # outer namespace invalidates compiler/checker changes. Test and UI
+          # edits can reuse unchanged modules; assertions still run afresh.
+          key: lean-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'algo2lean/**/*.py') }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            lean-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'algo2lean/**/*.py', 'tests/**/*.py', '.github/workflows/check.yml') }}-
+            lean-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'algo2lean/**/*.py') }}-
       - name: Check compiler, generated definitions, and analysis proofs
+        if: needs.compiler-and-editor.outputs.lean-mode != 'packages'
         run: python -m unittest discover -v
       - name: Save compiled Lean modules from successful main checks
-        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.lean-cache.outcome == 'success'
+        if: success() && needs.compiler-and-editor.outputs.lean-mode != 'packages' && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.lean-cache.outcome == 'success'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |

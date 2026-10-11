@@ -1,4 +1,4 @@
-"""Lean may be reused only from a verified full check of unchanged proof inputs."""
+"""CI reuses proof checks while independently checking changed download packages."""
 
 import os
 from pathlib import Path
@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from scripts.ci_plan import changed_paths, is_ui_path, plan_checks
+from scripts.ci_plan import Plan, changed_paths, is_package_path, is_ui_path, main, plan_checks, required_mode
 
 
 REPOSITORY = "example/algo2lean"
@@ -42,6 +42,19 @@ def full_jobs(**changes):
     return {"total_count": 1, "jobs": [job]}
 
 
+def package_jobs(**changes):
+    job = {
+        "name": "Lean download packages",
+        "conclusion": "success",
+        "steps": [
+            {"name": "Require Lean before running semantic checks", "conclusion": "success"},
+            {"name": "Check downloaded Lean projects", "conclusion": "success"},
+        ],
+        **changes,
+    }
+    return {"total_count": 1, "jobs": [job]}
+
+
 class LeanPlanTests(unittest.TestCase):
     def plan(self, jobs=None, runs=None, paths=None, **options):
         responses = [{"workflow_runs": runs if runs is not None else [successful_run()]},
@@ -51,13 +64,162 @@ class LeanPlanTests(unittest.TestCase):
             result = plan_checks("push", REPOSITORY, HEAD, **options)
         return result, api
 
+    def test_main_emits_workflow_mode_and_verified_baselines(self):
+        plans = [Plan("full", "Full verification required."),
+                 Plan("packages", "Only package checks required.", BASELINE),
+                 Plan("none", "Verified checks reused.", BASELINE, "c" * 40)]
+        for selected in plans:
+            with self.subTest(mode=selected.mode), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory) / "output"
+                summary = Path(directory) / "summary"
+                output.write_text("existing-output=true\n")
+                summary.write_text("Existing summary\n")
+                environment = {
+                    "GITHUB_EVENT_NAME": "push", "GITHUB_REPOSITORY": REPOSITORY,
+                    "GITHUB_RUN_ID": "456", "FORCE_FULL_LEAN": "false",
+                    "GITHUB_OUTPUT": str(output), "GITHUB_STEP_SUMMARY": str(summary),
+                }
+                with patch.dict(os.environ, environment), \
+                     patch("scripts.ci_plan.subprocess.check_output", return_value=HEAD + "\n") as git, \
+                     patch("scripts.ci_plan.plan_checks", return_value=selected) as planner, \
+                     patch("builtins.print"):
+                    main()
+                git.assert_called_once_with(["git", "rev-parse", "HEAD"], text=True)
+                planner.assert_called_once_with("push", REPOSITORY, HEAD, force_full=False, current_run_id="456")
+                self.assertEqual(output.read_text(), "existing-output=true\nlean-mode=" + selected.mode + "\n")
+                report = summary.read_text()
+                self.assertTrue(report.startswith("Existing summary\n## Lean check plan: " + selected.mode))
+                self.assertIn(selected.reason, report)
+                self.assertEqual("Verified full-check baseline:" in report, bool(selected.baseline))
+                self.assertEqual("Verified package-check baseline:" in report, bool(selected.package_baseline))
+                for baseline in [selected.baseline, selected.package_baseline]:
+                    if baseline:
+                        self.assertIn("`" + baseline + "`", report)
+
     def test_successful_full_check_allows_ui_changes(self):
         result, api = self.plan(paths=["editor/styles.css", "README.md", "tests/test_interface.js"])
         self.assertFalse(result.run_lean)
+        self.assertEqual(result.mode, "none")
         self.assertEqual(result.baseline, BASELINE)
         self.assertEqual(api.call_count, 2)
         self.assertIn("workflows/check.yml/runs", api.call_args_list[0].args[0])
         self.assertIn("/123/jobs?filter=latest", api.call_args_list[1].args[0])
+
+    def test_path_tiers_are_explicit_and_unknown_inputs_require_full_checks(self):
+        for path in ["editor/styles.css", "docs/HOSTING.md", "docs/nested/GUIDE.md",
+                     "tests/test_interface.js", "CHANGELOG.md"]:
+            with self.subTest(path=path):
+                self.assertTrue(is_ui_path(path))
+                self.assertEqual(required_mode([path]), "none")
+        for path in ["editor/analysis_export.py", "editor/server.py", "editor/compiler-worker.js",
+                     "editor/browser-host.js", "scripts/build_site.py", "scripts/update_examples_site.py",
+                     "scripts/release_site.py", "scripts/check_browser_runtime.mjs",
+                     "tests/test_analysis_export.py", "tests/test_site_build.py",
+                     "tests/test_current_examples_site.py", "tests/test_release_site.py"]:
+            with self.subTest(path=path):
+                self.assertFalse(is_ui_path(path))
+                self.assertTrue(is_package_path(path))
+                self.assertEqual(required_mode(["editor/styles.css", path]), "packages")
+        for path in ["editor/new_adapter.py", "algo2lean/compiler.py", "algo2lean/Algo2Lean.lean",
+                     "examples/analysis/Proof.lean", "scripts/ci_plan.py", "tests/test_ci_plan.py",
+                     ".github/workflows/check.yml", "lean-toolchain", "docs/example.algo"]:
+            with self.subTest(path=path):
+                self.assertFalse(is_package_path(path))
+                self.assertEqual(required_mode(["editor/styles.css", "editor/server.py", path]), "full")
+        self.assertEqual(required_mode([]), "none")
+
+    def test_packaging_edits_use_targeted_checks_from_verified_full_anchor(self):
+        result, api = self.plan(paths=["editor/analysis_export.py", "docs/HOSTING.md"])
+        self.assertEqual(result.mode, "packages")
+        self.assertTrue(result.run_lean)
+        self.assertEqual(result.baseline, BASELINE)
+        self.assertEqual(api.call_count, 2)
+
+    def test_successful_package_check_and_full_anchor_allow_later_ui_edits(self):
+        package_sha = "c" * 40
+        with patch("scripts.ci_plan.github_api", side_effect=[
+            {"workflow_runs": [successful_run(package_sha, 124), successful_run(BASELINE, 123)]},
+            package_jobs(), full_jobs(),
+        ]), patch("scripts.ci_plan.changed_paths", side_effect=lambda base, head:
+                  ["editor/styles.css"] if base == package_sha else
+                  ["editor/analysis_export.py", "editor/styles.css"]):
+            result = plan_checks("push", REPOSITORY, HEAD)
+        self.assertEqual(result.mode, "none")
+        self.assertEqual(result.baseline, BASELINE)
+
+    def test_package_check_cannot_replace_full_proof_anchor(self):
+        result, _ = self.plan(jobs=package_jobs(), paths=["editor/styles.css"])
+        self.assertEqual(result.mode, "full")
+        self.assertEqual(result.baseline, "")
+
+    def test_new_packaging_edit_requires_another_package_check(self):
+        package_sha = "c" * 40
+        with patch("scripts.ci_plan.github_api", side_effect=[
+            {"workflow_runs": [successful_run(package_sha, 124), successful_run(BASELINE, 123)]},
+            package_jobs(), full_jobs(),
+        ]), patch("scripts.ci_plan.changed_paths", return_value=["editor/analysis_export.py"]):
+            result = plan_checks("push", REPOSITORY, HEAD)
+        self.assertEqual(result.mode, "packages")
+        self.assertEqual(result.baseline, BASELINE)
+
+    def test_package_success_never_hides_unchecked_proof_change(self):
+        package_sha = "c" * 40
+        with patch("scripts.ci_plan.github_api", side_effect=[
+            {"workflow_runs": [successful_run(package_sha, 124), successful_run(BASELINE, 123)]},
+            package_jobs(),
+        ]), patch("scripts.ci_plan.changed_paths", side_effect=lambda base, head:
+                  ["editor/styles.css"] if base == package_sha else
+                  ["editor/analysis_export.py", "examples/Proof.lean", "editor/styles.css"]):
+            result = plan_checks("push", REPOSITORY, HEAD)
+        self.assertEqual(result.mode, "full")
+
+    def test_failed_skipped_or_incomplete_package_checks_do_not_allow_skipping(self):
+        package_sha = "c" * 40
+        cases = {
+            "skipped job": package_jobs(conclusion="skipped"),
+            "failed job": package_jobs(conclusion="failure"),
+            "wrong job": package_jobs(name="Some unrelated package test"),
+            "missing steps": package_jobs(steps=[]),
+            "only installation": package_jobs(steps=package_jobs()["jobs"][0]["steps"][:1]),
+            "skipped package step": package_jobs(steps=[
+                package_jobs()["jobs"][0]["steps"][0],
+                {"name": "Check downloaded Lean projects", "conclusion": "skipped"},
+            ]),
+            "duplicate jobs": {"total_count": 2, "jobs": package_jobs()["jobs"] * 2},
+            "incomplete response": {"total_count": 101, "jobs": package_jobs()["jobs"]},
+        }
+        for description, jobs in cases.items():
+            with self.subTest(description=description), \
+                 patch("scripts.ci_plan.github_api", side_effect=[
+                     {"workflow_runs": [successful_run(package_sha, 124), successful_run(BASELINE, 123)]},
+                     jobs, full_jobs(),
+                 ]), patch("scripts.ci_plan.changed_paths", side_effect=lambda base, head:
+                           ["editor/styles.css"] if base == package_sha else
+                           ["editor/server.py", "editor/styles.css"]):
+                result = plan_checks("push", REPOSITORY, HEAD)
+                self.assertEqual(result.mode, "packages")
+
+    def test_ui_chain_can_look_back_past_skipped_runs_to_package_and_full_checks(self):
+        package_sha, ui_sha = "c" * 40, "d" * 40
+        with patch("scripts.ci_plan.github_api", side_effect=[
+            {"workflow_runs": [successful_run(ui_sha, 125), successful_run(package_sha, 124),
+                               successful_run(BASELINE, 123)]},
+            {"total_count": 2, "jobs": [full_jobs(conclusion="skipped")["jobs"][0],
+                                         package_jobs(conclusion="skipped")["jobs"][0]]},
+            package_jobs(), full_jobs(),
+        ]), patch("scripts.ci_plan.changed_paths", side_effect=lambda base, head:
+                  ["editor/server.py", "editor/styles.css"] if base == BASELINE else
+                  ["editor/styles.css"]):
+            result = plan_checks("push", REPOSITORY, HEAD)
+        self.assertEqual(result.mode, "none")
+        self.assertEqual(result.baseline, BASELINE)
+
+    def test_policy_and_workflow_changes_bootstrap_with_a_full_check(self):
+        for path in ["scripts/ci_plan.py", "tests/test_ci_plan.py", ".github/workflows/check.yml"]:
+            with self.subTest(path=path):
+                result, api = self.plan(paths=["editor/server.py", path])
+                self.assertEqual(result.mode, "full")
+                self.assertEqual(api.call_count, 1)
 
     def test_pull_request_compares_the_actual_head_against_full_baseline(self):
         with patch("scripts.ci_plan.github_api", side_effect=[{"workflow_runs": [successful_run()]}, full_jobs()]), \
@@ -116,15 +278,16 @@ class LeanPlanTests(unittest.TestCase):
                 changes.assert_not_called()
 
     def test_allowlist_does_not_hide_proof_or_build_input_changes(self):
-        for path in ["editor/worker.js", "editor/compiler-worker.js", "editor/unknown.js",
+        for path in ["editor/worker.js", "editor/unknown.js",
                      "editor/nested/app.js", "tests/test_compiler.py", "tests/nested/test_ui.js",
                      "examples/Proof.lean", "examples/program.algo", "lean-toolchain",
                      "lakefile.lean", "lake-manifest.json", "pyproject.toml",
-                     ".github/workflows/check.yml", "scripts/ci_plan.py", "docs/unknown.md"]:
+                     ".github/workflows/check.yml", "scripts/ci_plan.py", "docs/code.py",
+                     "tests/test_ci_plan.py", "docs/Proof.lean"]:
             with self.subTest(path=path):
                 self.assertFalse(is_ui_path(path))
                 result, api = self.plan(paths=["editor/styles.css", path])
-                self.assertTrue(result.run_lean)
+                self.assertEqual(result.mode, "full")
                 self.assertEqual(api.call_count, 1)
 
     def test_untrusted_or_current_runs_are_not_reused(self):
@@ -135,7 +298,7 @@ class LeanPlanTests(unittest.TestCase):
                         {"head_sha": "not-a-commit"}, {"id": "123"}, {"id": True}]:
             with self.subTest(changes=changes):
                 result, api = self.plan(runs=[successful_run(**changes)])
-                self.assertTrue(result.run_lean)
+                self.assertEqual(result.mode, "full")
                 self.assertEqual(api.call_count, 1)
         result, api = self.plan(current_run_id="123")
         self.assertTrue(result.run_lean)
@@ -223,6 +386,29 @@ class LeanPlanGitHistoryTests(unittest.TestCase):
             result = plan_checks("push", REPOSITORY, head)
         self.assertTrue(result.run_lean)
         self.assertEqual(api.call_count, 2)
+
+    def test_real_ui_package_ui_history_reuses_each_verified_layer(self):
+        package = self.commit({"editor/analysis_export.py": "# Package implementation\n"})
+        head = self.commit({"editor/styles.css": "body { color: blue; }\n"})
+        self.assertEqual(changed_paths(package, head), ["editor/styles.css"])
+        with patch("scripts.ci_plan.github_api", side_effect=[
+            {"workflow_runs": [successful_run(package, 124), successful_run(self.base, 123)]},
+            package_jobs(), full_jobs(),
+        ]):
+            result = plan_checks("push", REPOSITORY, head)
+        self.assertEqual(result.mode, "none")
+        self.assertEqual(result.baseline, self.base)
+
+    def test_real_package_success_does_not_hide_an_unchecked_proof_commit(self):
+        self.commit({"examples/Proof.lean": "theorem sound : True := by sorry\n"})
+        package = self.commit({"editor/analysis_export.py": "# Package implementation\n"})
+        head = self.commit({"editor/styles.css": "body { color: blue; }\n"})
+        with patch("scripts.ci_plan.github_api", side_effect=[
+            {"workflow_runs": [successful_run(package, 124), successful_run(self.base, 123)]},
+            package_jobs(),
+        ]):
+            result = plan_checks("push", REPOSITORY, head)
+        self.assertEqual(result.mode, "full")
 
     def test_rename_from_proof_file_to_ui_path_requires_full_check(self):
         self.git("mv", "examples/Proof.lean", "editor/app.js")
