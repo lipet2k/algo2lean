@@ -10,7 +10,9 @@
   const analysis = $("analysis");
   const analysisViewport = $("analysis-editor");
   const analysisFilename = $("analysis-filename");
-  const proofOutline = window.Algo2LeanProofOutline.create($("analysis-outline"), { document, onJump: jumpToAnalysis });
+  let interfaceCatalog = window.Algo2LeanInterface.createCatalog();
+  const proofOutline = window.Algo2LeanProofOutline.create($("analysis-outline"), { document, onJump: jumpToAnalysis,
+    highlight: (text, entry) => window.Algo2LeanInterface.highlight(text, interfaceCatalog, analysis.value.slice(0, entry.start)) });
   const analysisSearch = window.Algo2LeanCodeSearch?.create({ textarea: analysis, viewport: analysisViewport,
     document, scope: $("analysis-workspace"), label: "analysis" });
   if (analysisSearch) analysisViewport.before(analysisSearch.element);
@@ -521,23 +523,21 @@
   }
 
   function highlight(value, lean = false) {
-    const words = lean
-      ? new Set(["def", "inductive", "where", "namespace", "end", "abbrev", "import", "if", "then", "else", "let", "in", "match", "with", "by", "fun", "open", "set_option", "deriving", "theorem", "example", "private", "mutual"])
-      : new Set(["class", "def", "import", "from", "as", "if", "else", "elif", "while", "for", "in", "return", "pass", "and", "or", "not", "is", "None", "True", "False", "break", "continue"]);
-    const pattern = lean ? /--[^\n]*|"(?:[^"\\]|\\.)*"|\b\d+\b|\b[A-Za-z_][A-Za-z_0-9']*\b/g : /#[^\n]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b\d+\b|\b[A-Za-z_][A-Za-z_0-9]*\b/g;
+    if (lean) return window.Algo2LeanInterface.highlight(value, interfaceCatalog);
+    const words = new Set(["class", "def", "import", "from", "as", "if", "else", "elif", "while", "for", "in", "return", "pass", "and", "or", "not", "is", "None", "True", "False", "break", "continue"]);
+    const pattern = /#[^\n]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b\d+\b|\b[A-Za-z_][A-Za-z_0-9]*\b/g;
     let cursor = 0;
     let html = "";
     for (const match of value.matchAll(pattern)) {
       html += escapeHtml(value.slice(cursor, match.index));
       const token = match[0];
       let kind = "";
-      if (token.startsWith("#") || token.startsWith("--")) kind = "comment";
+      if (token.startsWith("#")) kind = "comment";
       else if (token.startsWith('"') || token.startsWith("'")) kind = "string";
       else if (/^\d/.test(token)) kind = "number";
       else if (words.has(token)) kind = "keyword";
       else if (["Int", "Seq", "Bool", "Prop", "Nat", "Unit", "True", "False"].includes(token)) kind = "type";
-      else if (/^\s*\(/.test(value.slice(match.index + token.length)) || token.startsWith("is_Output_") ||
-        (lean && ["Returns", "ReturnsWithCost", "Run", "Call", "CallFrom", "ValidTranscript", "ValidHeapTranscript"].includes(token))) kind = "function";
+      else if (/^\s*\(/.test(value.slice(match.index + token.length))) kind = "function";
       html += kind ? `<span class="token-${kind}">${escapeHtml(token)}</span>` : escapeHtml(token);
       cursor = match.index + token.length;
     }
@@ -1028,13 +1028,15 @@
 
   function showRelations(functions) {
     window.Algo2LeanInterface.render($("relations"), functions, {
-      document, goToSource: jumpTo,
+      document, goToSource: jumpTo, catalog: interfaceCatalog,
       generatedFile: `${generatedModule}.lean`, pointsFile: `${generatedPointsModule}.lean`,
       factsFile: generatedModule.endsWith(".Generated") ? `${generatedModule.slice(0, -10)}.Facts.lean` : undefined,
     });
   }
 
   function showGenerated(result, snapshot) {
+    interfaceCatalog = window.Algo2LeanInterface.createCatalog(result.functions,
+      [result.shared_lean, result.lean, result.points_lean, ...Object.values(result.project_files || {})]);
     const module = result.module || moduleForFilename(snapshot.filename);
     const pointsModule = result.points_module || `${module}Points`;
     const previousView = lastResult?.publicModule === module ? lastResult.view : "public";
@@ -1065,6 +1067,7 @@
     $("shared-summary").textContent = `Shared Lean library · ${result.stats?.shared_lines || 0} reusable lines`;
     if ($("shared-details").open) $("shared-code").innerHTML = highlight(lastResult.shared, true);
     showRelations(result.functions);
+    renderAnalysis(true);
   }
 
   function selectGeneratedView(view) {
@@ -1213,10 +1216,10 @@
     $("analysis-cursor-position").textContent = `Ln ${before.split("\n").length}, Col ${before.length - before.lastIndexOf("\n")}`;
   }
 
-  function renderAnalysis() {
+  function renderAnalysis(refreshInterface = false) {
     $("analysis-line-numbers").textContent = Array.from({ length: analysis.value.split("\n").length }, (_, index) => index + 1).join("\n");
-    $("analysis-measure").textContent = analysis.value + "\n";
-    proofOutline.update(analysis.value);
+    $("analysis-measure").innerHTML = highlight(analysis.value + "\n", true);
+    proofOutline.update(analysis.value, refreshInterface);
     analysisSearch?.refresh();
     updateAnalysisPosition();
   }

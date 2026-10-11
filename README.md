@@ -124,6 +124,11 @@ byte-for-byte unchanged; only its separate named-line interface changes.
 
 Write source in **.algo**. The **Lean Interface** panel groups generated
 declarations and shows their signatures, meanings, and arguments when selected.
+Interface names use the same three colors in this panel, generated Lean,
+analysis code, and theorem previews: blue for propositions, purple for theorems,
+and green for values and types. Text labels explain the colors. The collapsed
+**Advanced · local execution** group exposes `Step` and configuration tools for
+local proofs; ordinary contracts use the source function's `Call` or `Returns`.
 The algorithm definitions and named-line interface have separate export controls.
 **Check both files** checks generated definitions. **Check analysis** checks the
 separate handwritten Lean proof against the current algorithm.

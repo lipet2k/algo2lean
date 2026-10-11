@@ -14,6 +14,9 @@
   --warning: #845710;
   --warning-soft: #fff5df;
   --focus: #207ba3;
+  --interface-proposition: #195c9b;
+  --interface-theorem: #784398;
+  --interface-definition: #146b56;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-family: var(--sans);
@@ -127,12 +130,12 @@ pre, code, kbd { font-family: var(--mono); }
 #highlight, #analysis-measure { min-height: 100%; background: transparent; pointer-events: none; }
 #highlight-code { font: inherit; }
 #source, #analysis { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border: 0; border-radius: 0; resize: none; background: transparent; caret-color: var(--ink); outline: none; overflow: hidden; }
-#source { color: transparent; -webkit-text-fill-color: transparent; }
+#source, #analysis { color: transparent; -webkit-text-fill-color: transparent; }
 #source::selection, #analysis::selection { background: rgba(98, 160, 210, .24); }
 #highlight .token-comment, #highlight .token-keyword { font-style: normal; font-weight: inherit; }
 #analysis, #analysis-measure { tab-size: 2; }
-#analysis { color: var(--ink); }
-#analysis-measure { visibility: hidden; }
+#analysis-measure { color: var(--ink); }
+#analysis-measure .token-comment, #analysis-measure .token-keyword { font-style: normal; font-weight: inherit; }
 .token-comment { color: #64758a; font-style: italic; }
 .token-keyword { color: #7354a0; font-weight: 500; }
 .token-type { color: #98602a; }
@@ -189,6 +192,12 @@ pre, code, kbd { font-family: var(--mono); }
 .diagnostic-location { white-space: nowrap; font: 11px var(--mono); color: #8f302d; }
 .diagnostic-message { overflow-wrap: anywhere; }
 .relations { margin-top: 14px; }
+.interface-proposition { color: var(--interface-proposition); }
+.interface-theorem { color: var(--interface-theorem); }
+.interface-definition { color: var(--interface-definition); }
+.interface-legend { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0 0 12px; font-size: 12px; }
+.interface-legend span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: currentColor; }
+.interface-kind { margin: 0 0 5px; font-size: 12px; font-weight: 600; }
 .interface-group { border-top: 1px solid var(--border); }
 .interface-group-title { min-height: 44px; padding: 12px 0; font-size: 13px; font-weight: 600; color: var(--ink); }
 .interface-entries { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 0 0 16px; }
@@ -197,6 +206,9 @@ pre, code, kbd { font-family: var(--mono); }
 .interface-button { display: block; max-width: 100%; min-height: 38px; padding: 8px 12px; text-align: left; background: var(--surface); color: #12685f; border: 1px solid #d7e3e6; border-radius: 5px; font: 12px/1.6 var(--mono); overflow-wrap: anywhere; }
 .interface-button:hover { background: var(--teal-soft); border-color: var(--teal); }
 .interface-button[aria-expanded="true"] { background: var(--teal-soft); border-color: var(--teal); color: #07534e; }
+.interface-button.interface-proposition { color: var(--interface-proposition); }
+.interface-button.interface-theorem { color: var(--interface-theorem); }
+.interface-button.interface-definition { color: var(--interface-definition); }
 .interface-spec { margin-top: 8px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
 .interface-signature { margin: 0 0 12px; color: var(--ink); font: 12px/1.8 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .interface-meaning { max-width: 90ch; }
@@ -245,7 +257,7 @@ pre, code, kbd { font-family: var(--mono); }
 @media (max-width: 800px) { .document-toolbar { align-items: flex-start; flex-wrap: wrap; gap: 8px 16px; } .example-control { margin-left: auto; } .workbench { grid-template-columns: 1fr; } .source-pane { border-right: 0; border-bottom: 1px solid #bdcbdc; } .source-editor { height: 390px; } .output-container { height: 340px; } .source-editor, .output-container { min-height: 300px; } }
 @media (max-width: 500px) { .app-header { min-height: 92px; padding: 20px 16px; } .identity { gap: 8px; } .identity h1 { font-size: 22px; } .identity p { font-size: 11px; } .brand-mark { width: 34px; height: 34px; } .workspace { padding: 16px 12px; } .document-toolbar { gap: 8px; } .file-controls { width: 100%; flex-wrap: wrap; } .filename-field { flex: 1; gap: 5px; } .filename-field input { width: 134px; max-width: 100%; } .save-state { font-size: 11px; min-width: 0; } .toolbar-divider { display: none; } .file-controls .button { padding: 8px; } .example-control { width: 100%; justify-content: space-between; } .example-control select { width: 215px; } .pane-heading { min-height: 64px; padding: 10px 12px; } .output-actions { gap: 0; } .pane-title { gap: 6px; } .pane-title h2 { font-size: 13px; } .state-tag { font-size: 10px; padding: 3px 5px; } #source, #highlight { font-size: 16px; } .code-canvas { grid-template-columns: 38px minmax(0, 1fr); } #source, #highlight { padding: 18px 12px; } .line-gutter pre { padding-top: 18px; padding-right: 8px; } .pane-footer { padding: 9px 12px; gap: 8px; } #editor-help { font-size: 10px; max-width: 195px; } .feedback-panel { padding: 15px 14px; } .feedback-header { gap: 8px; } .draft-status { flex-basis: 100%; margin-left: 0; } .compile-status { padding-left: 8px; } .diagnostic { gap: 7px; flex-wrap: wrap; } .workspace-footer { flex-direction: column; align-items: flex-start; gap: 4px; } .button, .check-button, select { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
-@media (forced-colors: active) { #source, .generated-selection { color: CanvasText; -webkit-text-fill-color: CanvasText; background: Canvas; } #highlight, .generated-highlight { visibility: hidden; } }
+@media (forced-colors: active) { #source, #analysis, .generated-selection { color: CanvasText; -webkit-text-fill-color: CanvasText; background: Canvas; } #highlight, #analysis-measure, .generated-highlight { visibility: hidden; } }
 
 .library-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
 .lean-details p { line-height: 1.6; }

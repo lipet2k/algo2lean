@@ -30,10 +30,45 @@ named counter increments to the same completed execution. The local accessor
 [explicit cost counters](COSTS.md) for weighted ticks, call-summary reuse, and
 the checked loop analysis.
 
-`f.ValidHeapTranscript`, `f.Run`, and `f.Call` are advanced interfaces
-for explicit shared objects and call proofs. The structures below explain those
-interfaces and the underlying semantics; you do not need to construct them to
-state ordinary output or intermediate-state properties.
+For reusable correctness and runtime contracts, prefer `f.Call`: it describes a
+completed invocation under any caller stack, starting with the caller's actual
+heap and counters. Derive `f.Returns` and `f.ReturnsWithCost` results as convenient
+views. `f.Run` describes a top-level execution; `f.CallFrom` completes an invocation
+from a supplied intermediate configuration. `f.ValidHeapTranscript` exposes a
+history with an explicit input heap. These interfaces share the same semantics.
+
+### Choosing the statement interface
+
+Keep theorem and helper-lemma statements at the level of source operations:
+
+| Purpose | Interface |
+| --- | --- |
+| Reusable complete invocation | `f.Call` |
+| Returned mathematical value and optional costs | `f.Returns`, `f.ReturnsWithCost` |
+| Local loop invariant or continuation | `f.At.label`, `f.Local.x`, `f.Element.a`, `f.CallFrom` |
+| Object representation | Generated `Ref_Class`, `is_Class`, `field_Class_field`, and typed sequence descriptors |
+| One local transition | `Step before after`, with `Configuration` arguments |
+| Several steps or a transcript invariant | Shared `Reaches`, `Valid`, `Deterministic`, and `Terminal` |
+
+The editor's **Lean Interface** panel uses blue for propositions, purple for
+theorems, and green for values and types. The same colors appear in generated
+definitions, named-line definitions, analysis code, and main-result previews.
+Each interface specification also gives its kind in words. Shared storage tools
+and the small **Advanced · local execution** group start collapsed.
+
+The advanced layer includes configuration heap/stack projections and essential
+execution types. A local assignment lemma can assume only `Step before after`
+and a named location, without constructing a transcript. Generated `State_f`
+records, numbered slots, and numbered transition constructors belong inside
+proof bodies. Named observations and small mathematical predicates keep the
+statements independent of these implementation details.
+
+Coloring recognizes catalogued names and ordinary namespace/open declarations;
+it is a navigation aid, not Lean elaboration or proof checking. Type-directed
+notation such as `run.returns` or `heap.read` can remain uncolored even when it
+uses a public interface. The explicit names `f.ReturnsWithCost.returns`,
+`f.Returns.withCost`, and `Heap.read` are recognized. The two output/cost
+conversion helpers remain available; neither introduces a separate execution.
 
 The [companion algorithm](examples/interface.algo) and
 [Lean examples](examples/interface.lean) demonstrate the interface with checked

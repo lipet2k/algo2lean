@@ -651,16 +651,18 @@ test("analysis measurement follows edits, opened files, and empty proofs without
   await app.ready();
   const analysis = app.elements.get("analysis");
   const measure = app.elements.get("analysis-measure");
-  assert.equal(measure.textContent, analysis.value + "\n");
+  const measuredText = () => measure.innerHTML.replace(/<[^>]*>/g, "")
+    .replace(/&(?:amp|lt|gt|quot);/g, (entity) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"' })[entity]);
+  assert.equal(measuredText(), analysis.value + "\n");
   const longProof = "-- " + "wide proof ".repeat(50) + "\ntheorem test : True := by\n  trivial\n\n";
   await app.editAnalysis(longProof);
-  assert.equal(measure.textContent, longProof + "\n");
+  assert.equal(measuredText(), longProof + "\n");
   assert.equal(app.elements.get("analysis-line-numbers").textContent, "1\n2\n3\n4\n5");
   await app.openFile("analysis-file-picker", "NewProof.lean", "-- new proof\r\nexample : True := by trivial\r\n");
-  assert.equal(measure.textContent, "-- new proof\nexample : True := by trivial\n\n");
-  assert.equal(measure.textContent, analysis.value + "\n");
+  assert.equal(measuredText(), "-- new proof\nexample : True := by trivial\n\n");
+  assert.equal(measuredText(), analysis.value + "\n");
   await app.editAnalysis("");
-  assert.equal(measure.textContent, "\n");
+  assert.equal(measuredText(), "\n");
   assert.equal(app.elements.get("analysis-line-numbers").textContent, "1");
 });
 

@@ -138,7 +138,7 @@
       }
       const occurrence = occurrences.get(name) || 0;
       occurrences.set(name, occurrence + 1);
-      entries.push({ name, namespace: scopes.filter(Boolean).join("."),
+      entries.push({ name, start, namespace: scopes.filter(Boolean).join("."),
         id: JSON.stringify([name, occurrence]), label: marker || null, description: doc, line: lineAt(start),
         statement: separator >= 0 ? source.slice(start, separator).trim() : null });
     }
@@ -153,7 +153,7 @@
       ? JSON.stringify([entry.namespace, entry.name, exampleKey(entry.statement, true)]) : null;
   }
 
-  function create(container, { document, onJump }) {
+  function create(container, { document, onJump, highlight }) {
     let previous = null;
     let selected = null;
     const examples = new Map();
@@ -178,8 +178,8 @@
         previous = null;
         if (current !== null) this.update(current);
       },
-      update(source) {
-        if (source === previous) return;
+      update(source, refreshInterface = false) {
+        if (source === previous && !refreshInterface) return;
         previous = source;
         const entries = declarations(source);
         const labels = examples.size ? examples.get(exampleKey(source)) : null;
@@ -237,6 +237,7 @@
           }
           const statement = document.createElement(entry.statement ? "pre" : "p");
           statement.textContent = entry.statement || "Open this declaration in the proof editor to read its full statement.";
+          if (entry.statement && highlight) statement.innerHTML = highlight(entry.statement, entry);
           preview.append(statement);
           const jump = document.createElement("button");
           jump.type = "button";

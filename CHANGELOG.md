@@ -1,5 +1,14 @@
 # Change log
 
+## 2026-10-11 — Highlight and document the human Lean interface
+
+- Use one catalog and three accessible semantic colors for interface propositions, theorems, and values/types across generated code, named-line code, analysis, statement previews, and interface specifications. Add text labels and preserve code/selection geometry.
+- Discover imported function and object-field interfaces, recognize quoted project namespaces, and expose shared storage tools plus a collapsed advanced execution group. Keep compiler-generated import aliases and numbered implementation details outside the documented interface.
+- Retain output/cost conversion helpers and document reusable Call contracts, local At/Local/CallFrom proofs, and the limited scope of lexical highlighting.
+- Add regressions for Lean comments, literals, Unicode/quoted identifiers, imported namespaces, declaration kinds, exact source preservation, and source-facing example statements. Keep compiler version 0.1.4 and archived releases unchanged.
+
+Validation: 204 JavaScript regressions and 38 site/server tests pass. Browser checks confirm consistent generated/analysis/preview colors, imported project interfaces, and matching selection/highlight geometry after scrolling. All three colors exceed 6:1 contrast on white. Highlighting the 331 KB Fibonacci analysis takes about 38 ms in a local Node smoke check; this is not a browser rendering benchmark. The affected Lean analyses passed in the preceding commit.
+
 ## 2026-10-11 — Keep analysis helper statements source-facing
 
 - Rewrite ten Fibonacci-heap and Kruskal sorting loop helpers using named locations, source-variable observations, configuration heap/stack projections, and CallFrom or Reaches. Keep generated states, slots, and numbered transitions inside proof bodies.
