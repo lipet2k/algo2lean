@@ -1,5 +1,12 @@
 # Change log
 
+## 2026-10-11 — Group interface buttons into rows by declaration kind
+
+- Within each interface category, place propositions, theorems, and values/types on separate rows, in the color legend's order. Preserve source order within each kind and omit empty rows.
+- Keep specifications expandable within their row and label each row for assistive technology. Leave compiler output and version 0.1.4 unchanged.
+
+Validation: 135 interface/highlighting/editor regressions pass. Browser checks confirm one color per row, vertical separation between kinds, and correct layout with an expanded specification.
+
 ## 2026-10-11 — Highlight and document the human Lean interface
 
 - Use one catalog and three accessible semantic colors for interface propositions, theorems, and values/types across generated code, named-line code, analysis, statement previews, and interface specifications. Add text labels and preserve code/selection geometry.

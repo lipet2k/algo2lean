@@ -412,6 +412,15 @@
       section.setAttribute("aria-labelledby", heading.id);
       const list = element("div", "interface-entries");
       section.append(heading, list);
+      const rows = new Map();
+      for (const [kind, label] of Object.entries(KINDS)) {
+        if (!group.entries.some((entry) => classify(entry) === kind)) continue;
+        const row = element("div", "interface-kind-row");
+        row.setAttribute("role", "group");
+        row.setAttribute("aria-label", label);
+        rows.set(kind, row);
+        list.append(row);
+      }
       for (const entry of group.entries) {
         const id = `${prefix}-entry-${entrySerial++}`;
         const wrapper = element("div", "interface-entry");
@@ -468,7 +477,7 @@
           if (event.key === "Escape") { event.preventDefault(); close(true); }
         });
         wrapper.append(button, panel);
-        list.append(wrapper);
+        rows.get(kind).append(wrapper);
       }
       container.append(section);
     }

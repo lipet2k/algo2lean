@@ -200,7 +200,8 @@ pre, code, kbd { font-family: var(--mono); }
 .interface-kind { margin: 0 0 5px; font-size: 12px; font-weight: 600; }
 .interface-group { border-top: 1px solid var(--border); }
 .interface-group-title { min-height: 44px; padding: 12px 0; font-size: 13px; font-weight: 600; color: var(--ink); }
-.interface-entries { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 0 0 16px; }
+.interface-entries { display: grid; gap: 8px; padding: 0 0 16px; }
+.interface-kind-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; min-width: 0; }
 .interface-entry { max-width: 100%; }
 .interface-entry.is-open { flex-basis: 100%; }
 .interface-button { display: block; max-width: 100%; min-height: 38px; padding: 8px 12px; text-align: left; background: var(--surface); color: #12685f; border: 1px solid #d7e3e6; border-radius: 5px; font: 12px/1.6 var(--mono); overflow-wrap: anywhere; }
