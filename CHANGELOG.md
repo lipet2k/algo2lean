@@ -1,5 +1,13 @@
 # Change log
 
+## 2026-10-10 — State the post-sorting Kruskal bound in the result description
+
+- Replace implementation-oriented preview text with the mathematical guarantee `T ≤ C · (V + E · α(V) + 1)`, explaining the input-independent constant and inverse Ackermann function.
+- State the sorted-order precondition, minimum-spanning-forest result, instrumented cost model, inclusion of initialization and scanning, and coverage of empty/disconnected graphs in both post-sorting theorem descriptions.
+- Preserve every theorem statement and proof, the compiler version, and archived releases.
+
+Validation: all 29 proof-outline checks pass; the editor parser exposes the mathematical description and all theorem statements remain unchanged. This update changes example documentation only.
+
 ## 2026-10-10 — Separate Kruskal sorting and edge-scan runtimes
 
 - Add `kruskal_sorted`, which accepts an already-sorted permutation of edge identifiers, initializes singleton components, and runs the textbook edge scan. The full `kruskal` sorts once and calls that entry point.

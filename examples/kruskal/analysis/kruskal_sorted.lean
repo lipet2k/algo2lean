@@ -185,10 +185,16 @@ theorem call_contract (heap : Heap) (size count : Int) (sources targets weights 
 
 
 -- Main result: Correctness and running time
-/-- With edges already ordered by weight, the actual source call returns a
-    minimum spanning forest in O(V + E alpha(V) + 1) recorded work. The same
-    positive constant works for every graph, supplied order, and caller heap.
-    The output is fresh, caller storage is preserved, and sorting costs zero. -/
+/-- Given an undirected graph with V vertices and E integer-weighted edges,
+    and a permutation of all edges in nondecreasing weight order, Kruskal returns
+    a minimum spanning
+    forest with recorded running time
+    T ≤ C · (V + E · α(V) + 1),
+    where α is the inverse Ackermann function and C > 0 is a constant independent
+    of the graph and the caller's initial state. Thus T = O(V + E α(V) + 1).
+    T counts instrumented operation ticks, including vertex initialization and
+    the complete edge scan; the cost of sorting is excluded. The guarantee also
+    covers empty and disconnected graphs. -/
 theorem correctness_and_running_time :
     ∃ C : Nat, 0 < C ∧
     ∀ (heap : Heap) (size count : Int) (sources targets weights order : SeqRef),

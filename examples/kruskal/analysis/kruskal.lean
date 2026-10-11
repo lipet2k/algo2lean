@@ -307,9 +307,16 @@ theorem connected_correct {size count : Int} {sources targets weights chosen : S
   (correct input execution).tree (by omega) (input.valid weights) connected
 
 -- Main result: Running time (after sorting)
-/-- Re-export the sorted-entry contract beside the total bound for comparison.
-    Its cost starts after the caller supplies the sorted order, and includes
-    singleton initialization and the complete edge scan. -/
+/-- Given an undirected graph with V vertices and E integer-weighted edges,
+    and a permutation of all edges in nondecreasing weight order, Kruskal returns
+    a minimum spanning
+    forest with recorded running time
+    T ≤ C · (V + E · α(V) + 1),
+    where α is the inverse Ackermann function and C > 0 is a constant independent
+    of the graph and the caller's initial state. Thus T = O(V + E α(V) + 1).
+    T counts instrumented operation ticks, including vertex initialization and
+    the complete edge scan; the cost of sorting is excluded. The guarantee also
+    covers empty and disconnected graphs. -/
 theorem running_time_after_sorting :
     ∃ C : Nat, 0 < C ∧
     ∀ (heap : Heap) (size count : Int) (sources targets weights order : SeqRef),
