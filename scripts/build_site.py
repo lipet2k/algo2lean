@@ -100,7 +100,7 @@ def release_files(root, runtime, commit=None):
     compiler = zip_bytes(payload)
     files = runtime_files(runtime, configuration)
     for path in sorted((root / "editor").iterdir()):
-        if path.suffix in {".html", ".js", ".css"}:
+        if path.suffix in {".html", ".js", ".css"} or path.name == "analysis_export.py":
             files[path.name] = path.read_bytes()
     page = files["index.html"].decode("utf-8")
     page = page.replace('href="/', 'href="').replace('src="/', 'src="')

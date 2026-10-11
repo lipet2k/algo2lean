@@ -84,7 +84,7 @@
     <div class="workbench">
       <section class="pane source-pane" aria-labelledby="source-heading">
         <div class="pane-heading">
-          <div class="pane-title"><span class="pane-dot" aria-hidden="true"></span><h2 id="source-heading">.algo</h2><span class="subtle-label">Source</span></div>
+          <div class="pane-identity"><div class="pane-title"><span class="pane-dot" aria-hidden="true"></span><h2 id="source-heading">.algo</h2><span class="subtle-label">Source</span></div><code id="source-pane-filename" class="pane-filename">merge_sort.algo</code></div>
           <button id="compile-button" class="button button-primary" type="button" title="Compile to Lean (⌘ / Ctrl Enter)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5 3 7 5-7 5Z" fill="currentColor"/></svg><span>Compile</span><kbd class="compile-shortcut">⌘ ↵</kbd></button>
         </div>
         <div class="source-editor code-viewport" id="source-editor">
@@ -92,7 +92,7 @@
             <div class="line-gutter" aria-hidden="true"><pre id="line-numbers">1</pre></div>
             <div class="code-content">
               <pre id="highlight" aria-hidden="true"><code id="highlight-code"></code></pre>
-              <textarea id="source" aria-label="Algo2Lean source code" aria-describedby="scroll-help editor-help" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+              <textarea id="source" aria-label="Algo2Lean source code" aria-describedby="source-pane-filename scroll-help editor-help" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
             </div>
           </div>
         </div>
@@ -102,7 +102,7 @@
       <div class="generated-panes">
       <section class="pane lean-pane" aria-labelledby="lean-heading">
         <div class="pane-heading">
-          <div class="pane-title"><span class="pane-dot lean-dot" aria-hidden="true"></span><h2 id="lean-heading">Algorithm definitions</h2><span id="lean-state" class="state-tag">Not generated</span></div>
+          <div class="pane-identity"><div class="pane-title"><span class="pane-dot lean-dot" aria-hidden="true"></span><h2 id="lean-heading">Algorithm definitions</h2><span id="lean-state" class="state-tag">Not generated</span></div><code id="lean-pane-filename" class="pane-filename">MergeSortGenerated.lean</code></div>
           <div class="output-actions"><button id="copy-button" class="button button-quiet" type="button" disabled>Copy</button><button id="export-button" class="button button-quiet" type="button" disabled>Export .lean</button></div>
         </div>
         <p class="output-description">Outputs and execution semantics. This file stays identical when only line names change.</p>
@@ -116,7 +116,7 @@
           <div id="lean-output" class="lean-output code-viewport" hidden>
             <div class="generated-canvas code-content">
               <pre class="generated-highlight" aria-hidden="true"><code id="lean-code"></code></pre>
-              <textarea id="lean-selection" class="generated-selection" readonly aria-label="Generated algorithm definitions, read only" aria-describedby="scroll-help" wrap="off" spellcheck="false"></textarea>
+              <textarea id="lean-selection" class="generated-selection" readonly aria-label="Generated algorithm definitions, read only" aria-describedby="lean-pane-filename scroll-help" wrap="off" spellcheck="false"></textarea>
             </div>
           </div>
         </div>
@@ -125,7 +125,7 @@
 
       <section class="pane lean-pane points-pane" aria-labelledby="points-heading">
         <div class="pane-heading">
-          <div class="pane-title"><span class="pane-dot lean-dot" aria-hidden="true"></span><h2 id="points-heading">Named-line interface</h2><span id="points-state" class="state-tag">Not generated</span></div>
+          <div class="pane-identity"><div class="pane-title"><span class="pane-dot lean-dot" aria-hidden="true"></span><h2 id="points-heading">Named-line interface</h2><span id="points-state" class="state-tag">Not generated</span></div><code id="points-pane-filename" class="pane-filename">MergeSortGeneratedPoints.lean</code></div>
           <div class="output-actions"><button id="copy-points-button" class="button button-quiet" type="button" disabled>Copy</button><button id="export-points-button" class="button button-quiet" type="button" disabled>Export .lean</button></div>
         </div>
         <p class="output-description">Imports the algorithm definitions and adds locations and local observations for your proofs.</p>
@@ -134,7 +134,7 @@
           <div id="points-output" class="lean-output code-viewport" hidden>
             <div class="generated-canvas code-content">
               <pre class="generated-highlight" aria-hidden="true"><code id="points-code"></code></pre>
-              <textarea id="points-selection" class="generated-selection" readonly aria-label="Generated named-line interface, read only" aria-describedby="scroll-help" wrap="off" spellcheck="false"></textarea>
+              <textarea id="points-selection" class="generated-selection" readonly aria-label="Generated named-line interface, read only" aria-describedby="points-pane-filename scroll-help" wrap="off" spellcheck="false"></textarea>
             </div>
           </div>
         </div>
@@ -149,10 +149,10 @@
       <div id="relations" class="relations" hidden></div>
       <details id="lean-details" class="lean-details" hidden><summary>Lean checker output</summary><pre id="check-output" tabindex="0" aria-label="Lean checker output" aria-describedby="scroll-help"></pre></details>
       <details id="shared-details" class="lean-details" hidden>
-        <summary id="shared-summary">Shared Lean library</summary>
+        <summary id="shared-summary">Shared Lean library · Algo2Lean.lean</summary>
         <p>The algorithm definitions import <code>Algo2Lean</code>. Keep the library in your Lean project, or export the algorithm definitions with the library included. The named-line interface stays in its separate file.</p>
         <div class="library-actions"><button id="library-button" class="button button-quiet" type="button" disabled>Download Algo2Lean.lean</button><button id="standalone-button" class="button button-quiet" type="button" disabled>Export standalone algorithm</button></div>
-        <pre id="shared-output" tabindex="0" aria-label="Shared Lean library, read only" aria-describedby="scroll-help"><code id="shared-code"></code></pre>
+        <pre id="shared-output" tabindex="0" aria-label="Shared Lean library, read only" aria-describedby="shared-summary scroll-help"><code id="shared-code"></code></pre>
       </details>
       <p id="file-message" class="file-message" role="status" hidden></p>
     </section>
@@ -176,16 +176,16 @@
 
     <section id="analysis-workspace" class="pane analysis-pane" aria-labelledby="analysis-heading">
       <div class="pane-heading">
-        <div class="pane-title"><span class="pane-dot lean-dot" aria-hidden="true"></span><h2 id="analysis-heading">Lean analysis</h2><span id="analysis-state" class="state-tag">Not checked</span></div>
+        <div class="pane-identity"><div class="pane-title"><span class="pane-dot lean-dot" aria-hidden="true"></span><h2 id="analysis-heading">Lean analysis</h2><span id="analysis-state" class="state-tag">Not checked</span></div><code id="analysis-pane-filename" class="pane-filename">Analysis.lean</code></div>
         <button id="analyze-button" class="button button-primary" type="button" title="Check analysis (⌘ / Ctrl Enter in the analysis editor)">Check analysis <kbd class="analysis-shortcut">⌘ ↵</kbd></button>
       </div>
-      <p id="hosted-proof-notice" class="hosted-proof-notice" hidden><strong>Proof checking is not currently available on this website.</strong> You can check the supplied proofs using your own Lean installation or an editor with Lean support. Use Save analysis to download a proof.</p>
+      <p id="hosted-proof-notice" class="hosted-proof-notice" hidden><strong>Proof checking is not currently available on this website.</strong> Use Save analysis to download a complete Lean project, including the proof and shared libraries. Extract the ZIP and open its folder in your Lean editor, or run <code>lake build</code> with Lean installed.</p>
       <div class="analysis-toolbar">
         <div class="file-controls">
           <div class="filename-field"><label for="analysis-filename">Analysis file</label><input id="analysis-filename" value="Analysis.lean" maxlength="255" spellcheck="false" autocomplete="off" aria-describedby="analysis-save-state"></div>
           <span id="analysis-save-state" class="save-state">Starter</span>
           <button id="analysis-open-button" class="button button-quiet" type="button">Open .lean</button>
-          <button id="analysis-save-button" class="button button-quiet" type="button" title="Save analysis (⌘ / Ctrl S in the analysis editor)">Save analysis</button>
+          <button id="analysis-save-button" class="button button-quiet" type="button" title="Download analysis and all Lean dependencies as a ZIP (⌘ / Ctrl S)">Save analysis</button>
           <button id="analysis-find-button" class="button button-quiet" type="button" title="Find in analysis (⌘ / Ctrl F)">Find</button>
           <input id="analysis-file-picker" class="visually-hidden" type="file" accept=".lean,text/plain" tabindex="-1">
         </div>
@@ -201,7 +201,7 @@
           <div class="line-gutter" aria-hidden="true"><pre id="analysis-line-numbers">1</pre></div>
           <div class="code-content">
             <pre id="analysis-measure" aria-hidden="true"></pre>
-            <textarea id="analysis" aria-label="Lean analysis code" aria-describedby="scroll-help analysis-import-help analysis-editor-help" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+            <textarea id="analysis" aria-label="Lean analysis code" aria-describedby="analysis-pane-filename scroll-help analysis-import-help analysis-editor-help" wrap="off" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
           </div>
         </div>
       </div>

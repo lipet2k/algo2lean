@@ -342,6 +342,10 @@ class Element {
   setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
 }
 
+function archiveResponse(content = "zip bytes") {
+  return { ok: true, blob: async () => new Blob([content], { type: "application/zip" }) };
+}
+
 function editor(local = new MemoryStorage(), session = new MemoryStorage(), options = {}) {
   const requests = [];
   const downloads = [];
@@ -384,6 +388,7 @@ function editor(local = new MemoryStorage(), session = new MemoryStorage(), opti
         const custom = await options.fetch(url, request);
         if (custom) return custom;
       }
+      if (url === "/api/analysis-export" || url === "/api/project-export") return archiveResponse();
       const body = request?.body ? JSON.parse(request.body) : {};
       const module = body.project_sources ? "Algo." + body.filename.replace(/\.algo$/, "").replace(/\//g, ".") : null;
       return { ok: true, blob: async () => new Blob(["zip bytes"], { type: "application/zip" }),
@@ -562,6 +567,38 @@ test("generated text controls contain the exact current Lean in both panes", asy
   }
 });
 
+test("pane filenames follow standalone renames and example changes without relabeling stale output", async () => {
+  const app = editor();
+  await app.ready();
+  const label = (id) => app.elements.get(id + "-pane-filename").textContent;
+  await app.elements.get("compile-button").click();
+  assert.equal(label("source"), "merge_sort.algo");
+  assert.equal(label("lean"), "MergeSortGenerated.lean");
+  assert.equal(label("points"), "MergeSortGeneratedPoints.lean");
+  assert.equal(label("analysis"), "Analysis.lean");
+  assert.match(app.elements.get("shared-summary").textContent, /Algo2Lean\.lean/);
+
+  const previousOutput = app.elements.get("lean-selection").value;
+  await app.rename("filename", "renamed_sort");
+  await app.rename("analysis-filename", "SortProof");
+  assert.equal(label("source"), "renamed_sort.algo");
+  assert.equal(label("analysis"), "SortProof.lean");
+  assert.equal(app.elements.get("lean-selection").value, previousOutput);
+  assert.equal(label("lean"), "MergeSortGenerated.lean");
+  assert.equal(label("points"), "MergeSortGeneratedPoints.lean");
+  await app.elements.get("compile-button").click();
+  assert.equal(label("lean"), "RenamedSortGenerated.lean");
+  assert.equal(label("points"), "RenamedSortGeneratedPoints.lean");
+
+  app.elements.get("examples").value = "0";
+  await app.elements.get("examples").dispatch("change");
+  await app.ready();
+  assert.equal(label("source"), "other.algo");
+  assert.equal(label("lean"), "OtherGenerated.lean");
+  assert.equal(label("points"), "OtherGeneratedPoints.lean");
+  assert.equal(label("analysis"), "Analysis.lean");
+});
+
 test("shared execution browsing preserves public proof imports and exports the displayed files", async () => {
   const publicModule = "Algo.even.Generated";
   const publicPoints = "Algo.even.Points";
@@ -583,14 +620,22 @@ test("shared execution browsing preserves public proof imports and exports the d
     }) };
   } });
   await app.ready();
+  await openProject(app, "mutual", {
+    "even.algo": "from odd import odd\ndef even(n: Int) -> Int:\n    return odd(n)\n",
+    "odd.algo": "from even import even\ndef odd(n: Int) -> Int:\n    return even(n)\n",
+  });
   await app.elements.get("compile-button").click();
   const proof = app.elements.get("analysis").value;
   assert.equal(app.elements.get("generated-view-control").hidden, false);
   assert.equal(app.elements.get("lean-selection").value, files[publicModule]);
+  assert.equal(app.elements.get("lean-pane-filename").textContent, "Algo/even/Generated.lean");
+  assert.equal(app.elements.get("points-pane-filename").textContent, "Algo/even/Points.lean");
   app.elements.get("generated-view").value = "execution";
   await app.elements.get("generated-view").dispatch("change");
   assert.equal(app.elements.get("lean-selection").value, files[sharedModule]);
   assert.equal(app.elements.get("points-selection").value, files[sharedPoints]);
+  assert.equal(app.elements.get("lean-pane-filename").textContent, "Algo/_a2l_groups/Gtest/Generated.lean");
+  assert.equal(app.elements.get("points-pane-filename").textContent, "Algo/_a2l_groups/Gtest/Points.lean");
   assert.equal(app.elements.get("analysis-module").textContent, publicModule);
   assert.equal(app.elements.get("analysis-points-module").textContent, publicPoints);
   assert.equal(app.elements.get("analysis").value, proof);
@@ -609,6 +654,8 @@ test("shared execution browsing preserves public proof imports and exports the d
   await app.elements.get("compile-button").click();
   assert.equal(app.elements.get("generated-view-control").hidden, true);
   assert.equal(app.elements.get("lean-selection").value, files[publicModule]);
+  assert.equal(app.elements.get("lean-pane-filename").textContent, "Algo/even/Generated.lean");
+  assert.equal(app.elements.get("points-pane-filename").textContent, "Algo/even/Points.lean");
 });
 
 test("named-point navigation scrolls the shared source viewport only after the explicit source action", async () => {
@@ -1291,6 +1338,100 @@ test("saving each file updates only its own baseline in the paired draft", async
   await app.flush();
 });
 
+test("Save analysis packages the latest standalone source and proof while preserving the Lean filename", async () => {
+  const app = editor();
+  await app.ready();
+  const originalSource = app.elements.get("source").value;
+  const latestSource = "def work() -> Int:\n    return 7\n";
+  const latestProof = "import WorkGeneratedPoints\n-- latest handwritten proof\n";
+  await app.rename("filename", "work.algo");
+  await app.edit(latestSource);
+  await app.rename("analysis-filename", "WorkProof.lean");
+  await app.editAnalysis(latestProof);
+  await app.elements.get("analysis-save-button").click();
+  const exported = app.requests.filter(({ url }) => url === "/api/analysis-export").at(-1);
+  assert.equal(exported.request.method, "POST");
+  assert.equal(exported.request.headers["Content-Type"], "application/json");
+  assert.equal(exported.request.headers["X-Algo2Lean-Project"], undefined);
+  assert.deepEqual(exported.body, { source: latestSource, filename: "work.algo",
+    analysis: latestProof, analysis_filename: "WorkProof.lean" });
+  assert.deepEqual(app.downloads.map(({ name }) => name), ["WorkProof.zip"]);
+  assert.equal((await fetch(app.downloads[0].href)).headers.get("Content-Type"), "application/zip");
+  assert.equal(app.elements.get("analysis-filename").value, "WorkProof.lean");
+  assert.equal(app.elements.get("analysis-save-state").textContent, "Downloaded");
+  assert.match(app.elements.get("save-state").textContent, /Unsaved/);
+  assert.equal(app.records()[0].savedSource, originalSource);
+  assert.equal(app.records()[0].savedAnalysis, latestProof);
+  assert.equal(app.records()[0].savedAnalysisFilename, "WorkProof.lean");
+  assert.match(app.elements.get("analysis-file-message").textContent, /shared Lean libraries and all resolved imports/);
+  assert.match(app.elements.get("analysis-file-message").textContent, /Downloading does not check the proof/);
+});
+
+test("failed analysis packages leave the proof unsaved and restore the Save analysis button", async () => {
+  const failures = [
+    { response: { ok: false, status: 404 }, message: /Restart the local editor/ },
+    { response: { ok: false, status: 422, json: async () => ({ analysis_diagnostics: [{ message: "Missing imported proof" }] }) }, message: /Missing imported proof/ },
+    { error: new Error("Network unavailable"), message: /Network unavailable/ },
+    { response: { ok: true, blob: async () => { throw new Error("Archive interrupted"); } }, message: /Archive interrupted/ },
+  ];
+  for (const failure of failures) {
+    const app = editor(undefined, undefined, { fetch: async (url) => {
+      if (url !== "/api/analysis-export") return null;
+      if (failure.error) throw failure.error;
+      return failure.response;
+    } });
+    await app.ready();
+    const savedProof = app.elements.get("analysis").value;
+    await app.editAnalysis("-- unsaved proof to keep");
+    await app.rename("analysis-filename", "Pending.lean");
+    await app.elements.get("analysis-save-button").click();
+    await app.flush();
+    assert.equal(app.downloads.length, 0);
+    assert.match(app.elements.get("analysis-save-state").textContent, /Unsaved/);
+    assert.match(app.elements.get("analysis-file-message").textContent, failure.message);
+    assert.equal(app.elements.get("analysis-save-button").disabled, false);
+    assert.equal(app.elements.get("analysis-save-button").textContent, "Save analysis");
+    assert.equal(app.elements.get("analysis-filename").value, "Pending.lean");
+    assert.equal(app.records()[0].savedAnalysis, savedProof);
+    assert.equal(app.records()[0].savedAnalysisFilename, "Analysis.lean");
+  }
+});
+
+test("late analysis package responses cannot download or mark files saved after edits or renames", async () => {
+  const changes = [
+    ["source edit", (app) => app.edit("def latest() -> Int:\n    return 9\n")],
+    ["proof edit", (app) => app.editAnalysis("-- newer unsaved proof")],
+    ["source rename", (app) => app.rename("filename", "renamed.algo")],
+    ["proof rename", (app) => app.rename("analysis-filename", "RenamedProof.lean")],
+  ];
+  for (const [description, change] of changes) {
+    let finishArchive;
+    const app = editor(undefined, undefined, { fetch: async (url) => url === "/api/analysis-export"
+      ? { ok: true, blob: () => new Promise((resolve) => { finishArchive = resolve; }) } : null });
+    await app.ready();
+    const savedProof = app.elements.get("analysis").value;
+    await app.editAnalysis("-- proof before pending download");
+    const pending = app.elements.get("analysis-save-button").click();
+    await app.ready();
+    assert.equal(app.elements.get("analysis-save-button").disabled, true, description);
+    await change(app);
+    const currentSource = app.elements.get("source").value;
+    const currentProof = app.elements.get("analysis").value;
+    const currentName = app.elements.get("analysis-filename").value;
+    finishArchive(new Blob(["old archive"], { type: "application/zip" }));
+    await pending;
+    await app.flush();
+    assert.equal(app.downloads.length, 0, description);
+    assert.equal(app.elements.get("source").value, currentSource, description);
+    assert.equal(app.elements.get("analysis").value, currentProof, description);
+    assert.equal(app.elements.get("analysis-filename").value, currentName, description);
+    assert.match(app.elements.get("analysis-save-state").textContent, /Unsaved/, description);
+    assert.match(app.elements.get("analysis-file-message").textContent, /workspace changed/i, description);
+    assert.equal(app.elements.get("analysis-save-button").disabled, false, description);
+    assert.equal(app.records()[0].savedAnalysis, savedProof, description);
+  }
+});
+
 test("cross-tab notifications expose the paired recovery choice without replacing pending analysis", async () => {
   const app = editor();
   await app.ready();
@@ -1633,7 +1774,7 @@ test("a dirty inactive project module is protected when browser storage fails", 
   assert.equal(app.elements.get("source").value, "unsaved main module");
 });
 
-test("project source and analysis downloads keep their module paths intact", async () => {
+test("project source and analysis package downloads keep their module paths intact", async () => {
   const app = editor();
   await app.ready();
   await openProject(app, "nested", { "pkg/item.algo": PROJECT_LIBRARY, "analysis/pkg/item.lean": "-- proof" });
@@ -1641,9 +1782,112 @@ test("project source and analysis downloads keep their module paths intact", asy
   await app.elements.get("analysis-save-button").click();
   assert.equal(app.elements.get("filename").value, "pkg/item.algo");
   assert.equal(app.elements.get("analysis-filename").value, "analysis/pkg/item.lean");
-  assert.deepEqual(app.downloads.map(({ name }) => name), ["item.algo", "item.lean"]);
+  assert.deepEqual(app.downloads.map(({ name }) => name), ["item.algo", "item.zip"]);
   await app.elements.get("compile-button").click();
   assert.equal(app.requests.at(-1).body.filename, "pkg/item.algo");
+});
+
+test("Save analysis packages pending project sources, companion proofs, and support imports", async () => {
+  const app = editor();
+  await app.ready();
+  await openProject(app, "nested", { "main.algo": PROJECT_SOURCE, "pkg/item.algo": PROJECT_LIBRARY,
+    "analysis/main.lean": "-- saved main proof", "analysis/pkg/item.lean": "-- saved item proof",
+    "analysis/support/facts.lean": "-- imported support proof" });
+  await app.edit("latest main source");
+  await app.editAnalysis("-- latest main proof");
+  await selectModule(app, "pkg/item.algo");
+  await app.edit("latest item source");
+  await app.editAnalysis("import Algo.support.facts.Analysis\n-- latest item proof");
+  await app.elements.get("analysis-save-button").click();
+  const exported = app.requests.filter(({ url }) => url === "/api/analysis-export").at(-1);
+  assert.equal(exported.request.headers["X-Algo2Lean-Project"], "1");
+  assert.equal(exported.body.filename, "pkg/item.algo");
+  assert.equal(exported.body.analysis_filename, "item.lean");
+  assert.equal(exported.body.source, "latest item source");
+  assert.equal(exported.body.analysis, "import Algo.support.facts.Analysis\n-- latest item proof");
+  assert.deepEqual(exported.body.project_sources, { "main.algo": "latest main source", "pkg/item.algo": "latest item source" });
+  assert.deepEqual(exported.body.project_analyses, {
+    "Algo.main.Analysis": "-- latest main proof",
+    "Algo.pkg.item.Analysis": "import Algo.support.facts.Analysis\n-- latest item proof",
+    "Algo.support.facts.Analysis": "-- imported support proof",
+  });
+  assert.equal(app.downloads.at(-1).name, "item.zip");
+  assert.equal(app.elements.get("analysis-filename").value, "analysis/pkg/item.lean");
+  assert.equal(app.elements.get("analysis-pane-filename").textContent, "analysis/pkg/item.lean");
+  const files = projectRecords(app)[0].data.files;
+  assert.equal(files["pkg/item.algo"].savedAnalysis, exported.body.analysis);
+  assert.equal(files["pkg/item.algo"].savedAnalysisFilename, "analysis/pkg/item.lean");
+  assert.equal(files["pkg/item.algo"].savedSource, PROJECT_LIBRARY);
+  assert.equal(files["main.algo"].savedAnalysis, "-- saved main proof");
+});
+
+test("late analysis packages do not download or mark another project module saved", async () => {
+  let finishResponse;
+  const app = editor(undefined, undefined, { fetch: async (url) => url === "/api/analysis-export"
+    ? new Promise((resolve) => { finishResponse = resolve; }) : null });
+  await app.ready();
+  await openProject(app, "sample", { "main.algo": PROJECT_SOURCE, "library.algo": PROJECT_LIBRARY,
+    "analysis/main.lean": "-- saved main proof", "analysis/library.lean": "-- saved library proof" });
+  await app.editAnalysis("-- pending main proof");
+  const pending = app.elements.get("analysis-save-button").click();
+  await app.ready();
+  await selectModule(app, "library.algo");
+  await app.editAnalysis("-- pending library proof");
+  finishResponse(archiveResponse("old main archive"));
+  await pending;
+  await app.flush();
+  assert.equal(app.downloads.length, 0);
+  assert.equal(app.elements.get("filename").value, "library.algo");
+  assert.equal(app.elements.get("analysis").value, "-- pending library proof");
+  assert.match(app.elements.get("analysis-save-state").textContent, /Unsaved/);
+  const files = projectRecords(app)[0].data.files;
+  assert.equal(files["main.algo"].savedAnalysis, "-- saved main proof");
+  assert.equal(files["library.algo"].savedAnalysis, "-- saved library proof");
+});
+
+test("late analysis packages cannot replace save state after switching to a different project", async () => {
+  let finishArchive;
+  const app = editor(undefined, undefined, { fetch: async (url) => url === "/api/analysis-export"
+    ? { ok: true, blob: () => new Promise((resolve) => { finishArchive = resolve; }) } : null });
+  await app.ready();
+  await openProject(app, "first", { "main.algo": PROJECT_SOURCE, "analysis/main.lean": "-- first saved proof" });
+  await app.editAnalysis("-- pending first proof");
+  const pending = app.elements.get("analysis-save-button").click();
+  await app.ready();
+  await openProject(app, "second", { "main.algo": PROJECT_LIBRARY, "analysis/main.lean": "-- second saved proof" });
+  await app.editAnalysis("-- pending second proof");
+  const currentMessage = app.elements.get("analysis-file-message").textContent;
+  finishArchive(new Blob(["first archive"], { type: "application/zip" }));
+  await pending;
+  await app.flush();
+  assert.equal(app.downloads.length, 0);
+  assert.equal(app.elements.get("project-name").textContent, "second");
+  assert.equal(app.elements.get("analysis").value, "-- pending second proof");
+  assert.equal(app.elements.get("analysis-file-message").textContent, currentMessage);
+  assert.match(app.elements.get("analysis-save-state").textContent, /Unsaved/);
+  assert.equal(app.elements.get("analysis-save-button").disabled, false);
+  for (const record of projectRecords(app)) {
+    assert.equal(record.data.files["main.algo"].savedAnalysis, `-- ${record.data.name} saved proof`);
+  }
+});
+
+test("pane filenames retain nested paths when switching project modules and returning to a standalone file", async () => {
+  const app = editor();
+  await app.ready();
+  await openProject(app, "nested", {
+    "main.algo": PROJECT_SOURCE, "pkg/item.algo": PROJECT_LIBRARY,
+    "analysis/main.lean": "-- main proof", "analysis/pkg/item.lean": "-- item proof",
+  });
+  const filenames = () => ["source", "lean", "points", "analysis"]
+    .map((pane) => app.elements.get(pane + "-pane-filename").textContent);
+  assert.deepEqual(filenames(), ["main.algo", "Algo/main/Generated.lean", "Algo/main/Points.lean", "analysis/main.lean"]);
+  await selectModule(app, "pkg/item.algo");
+  assert.deepEqual(filenames(), ["pkg/item.algo", "Algo/pkg/item/Generated.lean", "Algo/pkg/item/Points.lean", "analysis/pkg/item.lean"]);
+  await selectModule(app, "main.algo");
+  assert.deepEqual(filenames(), ["main.algo", "Algo/main/Generated.lean", "Algo/main/Points.lean", "analysis/main.lean"]);
+  await app.elements.get("close-project-button").click();
+  await app.ready();
+  assert.deepEqual(filenames(), ["merge_sort.algo", "MergeSortGenerated.lean", "MergeSortGeneratedPoints.lean", "Analysis.lean"]);
 });
 
 test("project archive downloads include pending source and proof edits", async () => {
@@ -2329,6 +2573,22 @@ test("hosted editor routes compilation through its browser backend and describes
   await app.elements.get("analyze-button").click();
   assert.equal(app.requests.some(({ url }) => url === "/api/check" || url === "/api/analyze"), false);
   assert.match(app.elements.get("analysis-status").textContent, /local Algo2Lean editor/);
+});
+
+test("hosted Save analysis requests the same archive endpoint through the browser backend", async () => {
+  const app = editor(undefined, undefined, { hosted: true });
+  await app.ready();
+  await app.edit("def browser_work() -> Int:\n    return 3\n");
+  await app.editAnalysis("-- browser proof");
+  await app.rename("analysis-filename", "BrowserProof.lean");
+  await app.elements.get("analysis-save-button").click();
+  const exported = app.requests.filter(({ url }) => url === "/api/analysis-export").at(-1);
+  assert.equal(exported.body.source, app.elements.get("source").value);
+  assert.equal(exported.body.analysis, "-- browser proof");
+  assert.equal(exported.body.analysis_filename, "BrowserProof.lean");
+  assert.equal(app.downloads.at(-1).name, "BrowserProof.zip");
+  assert.equal(app.elements.get("analysis-filename").value, "BrowserProof.lean");
+  assert.equal(app.elements.get("analysis-save-state").textContent, "Downloaded");
 });
 
 test("hosted editor downloads generation manifests through the worker backend", async () => {

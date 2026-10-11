@@ -7,7 +7,7 @@ included in the site, so compilation does not send source to a server or load
 compiler dependencies from a CDN.
 
 Building the site creates files; it does not publish them or configure a domain.
-The Python editor remains available through `python3 -m algo2lean serve --open`.
+The Python editor remains available through `python3 -m editor.server --open`.
 
 ## Build and preview
 

@@ -61,7 +61,7 @@ function visibleText(html) {
 function coloredNames(html) {
   const result = [];
   for (const match of html.matchAll(/<span\b([^>]*)>([^<]*)<\/span>/g)) {
-    const kind = match[1].match(/\binterface-(proposition|theorem|definition)\b/)?.[1];
+    const kind = match[1].match(/\binterface-(proposition|theorem|definition|type)\b/)?.[1];
     if (kind) result.push({ text: unescapeHtml(match[2]), kind });
   }
   return result;
@@ -69,6 +69,12 @@ function coloredNames(html) {
 
 function names(source, catalog) {
   return coloredNames(highlight(source, catalog));
+}
+
+function syntaxTypes(html) {
+  return [...html.matchAll(/<span\b([^>]*)>([^<]*)<\/span>/g)]
+    .filter((match) => /\btoken-type\b/.test(match[1]))
+    .map((match) => unescapeHtml(match[2]));
 }
 
 test("interface colors distinguish declarations within the same display group", () => {
@@ -148,7 +154,7 @@ Algo.worker.Algo2LeanGenerated.Step Algo.worker.Algo2LeanGenerated.Frame
     { text: "Algo.worker.work.Returns.withCost", kind: "theorem" },
     { text: "Algo.worker.work.initial", kind: "definition" },
     { text: "Algo.worker.Algo2LeanGenerated.Step", kind: "proposition" },
-    { text: "Algo.worker.Algo2LeanGenerated.Frame", kind: "definition" },
+    { text: "Algo.worker.Algo2LeanGenerated.Frame", kind: "type" },
   ]);
 });
 
@@ -276,8 +282,8 @@ end Algo.demo.Algo2LeanGenerated
   const catalog = createCatalog([], [source]);
   const body = "Step Configuration Frame State_work Frame.fn_work s.v0 Ref_Box is_Box field_Box_value field_Box_value_set seq_Box";
   assert.deepEqual(coloredNames(highlight(body, catalog, "open Algo.demo.Algo2LeanGenerated\n")), [
-    { text: "Step", kind: "proposition" }, { text: "Configuration", kind: "definition" },
-    { text: "Frame", kind: "definition" }, { text: "Ref_Box", kind: "definition" },
+    { text: "Step", kind: "proposition" }, { text: "Configuration", kind: "type" },
+    { text: "Frame", kind: "type" }, { text: "Ref_Box", kind: "type" },
     { text: "is_Box", kind: "proposition" }, { text: "field_Box_value", kind: "definition" },
     { text: "field_Box_value_set", kind: "theorem" }, { text: "seq_Box", kind: "definition" },
   ]);
@@ -296,6 +302,11 @@ test("real shared-library declarations supply exact headers and nested namespace
   assert.equal(catalog.get('Algo2LeanGenerated.SequenceType.valid'), 'proposition');
   assert.equal(catalog.get('Algo2LeanGenerated.SequenceType.get'), 'definition');
   assert.equal(catalog.get('Algo2LeanCore.Config.heap'), 'definition');
+  for (const name of ['Heap', 'Seq', 'SeqRef', 'ObjectRef', 'CollectionRef', 'Clocks', 'SequenceType']) {
+    assert.equal(catalog.get('Algo2LeanGenerated.' + name), 'type');
+  }
+  assert.equal(catalog.get('Algo2LeanCore.Config'), 'type');
+  assert.equal(catalog.get('Algo2LeanCore.Stack'), 'type');
   const headers = new Map(catalog.extraEntries.map(x => [x.name, x.signature]));
   assert.equal(headers.get('Algo2LeanCore.Config.heap'), 'def Config.heap : Config Heap Frame Result → Heap');
   assert.equal(headers.get('Algo2LeanGenerated.SequenceType.valid'), 'def valid (h : Heap) (ref : CollectionRef) : Prop');
@@ -344,6 +355,109 @@ test("quoted project namespace components resolve through normal Lean spellings"
   const source = 'namespace Algo.«library».Algo2LeanGenerated\nabbrev Ref_Box := ObjectRef\nabbrev Ref__a2l_import_0_Box := ObjectRef\nend Algo.«library».Algo2LeanGenerated\nnamespace Algo.«library»\ndef work.Call : Prop := True\nend Algo.«library»\n';
   const catalog = createCatalog([], [source]);
   assert.deepEqual(names('Algo.library.work.Call Algo.«library».work.Call', catalog).map(x=>x.kind), ['proposition', 'proposition']);
-  assert.deepEqual(names('open Algo.library.Algo2LeanGenerated\nRef_Box Ref__a2l_import_0_Box', catalog), [{text:'Ref_Box',kind:'definition'}]);
+  assert.deepEqual(names('open Algo.library.Algo2LeanGenerated\nRef_Box Ref__a2l_import_0_Box', catalog), [{text:'Ref_Box',kind:'type'}]);
   assert.equal(catalog.extraEntries.some(x => x.name.includes('_a2l_import_')), false);
+});
+
+test("shared interface types are distinct from getters and other values", () => {
+  const catalog = createCatalog([], [GENERATED]);
+  const source = 'open Algo2LeanGenerated\nHeap Seq Clocks SeqRef SequenceType Heap.read Heap.write SequenceType.get Clocks.single';
+  assert.deepEqual(names(source, catalog), [
+    { text: 'Heap', kind: 'type' },
+    { text: 'Seq', kind: 'type' },
+    { text: 'Clocks', kind: 'type' },
+    { text: 'SeqRef', kind: 'type' },
+    { text: 'SequenceType', kind: 'type' },
+    { text: 'Heap.read', kind: 'definition' },
+    { text: 'Heap.write', kind: 'definition' },
+    { text: 'SequenceType.get', kind: 'definition' },
+    { text: 'Clocks.single', kind: 'definition' },
+  ]);
+});
+
+test("imported Adjacency resolves as a syntax type through its namespace", () => {
+  const source = `import Algo2LeanLib.Dijkstra
+Adjacency Other.Adjacency
+namespace Proof
+open Algo2Lean.Dijkstra
+Adjacency
+end Proof
+Adjacency Algo2Lean.Dijkstra.Adjacency _root_.Algo2Lean.Dijkstra.Adjacency
+`;
+  const html = highlight(source, createCatalog());
+  assert.deepEqual(syntaxTypes(html), [
+    'Adjacency', 'Algo2Lean.Dijkstra.Adjacency', '_root_.Algo2Lean.Dijkstra.Adjacency',
+  ]);
+  assert.deepEqual(coloredNames(html), []);
+  assert.equal(visibleText(html), source);
+});
+
+test("local data declarations and aliases receive type syntax without joining the public interface", () => {
+  const prefix = `namespace Local
+structure Packet where
+  key : Int
+inductive Choice where
+  | first
+  | second
+def Explicit : Type := Int
+abbrev Count := Int
+abbrev CountAlias := Count
+abbrev Adjacency := Int → List (Int × Int)
+abbrev Edges := Int → Int → Int → Prop
+abbrev Nested := (Int → Nat) × List (Int × Int)
+`;
+  const source = 'Packet Choice Explicit Count CountAlias Adjacency Edges Nested';
+  const html = highlight(source, createCatalog(), prefix);
+  assert.deepEqual(syntaxTypes(html), source.split(' '));
+  assert.deepEqual(coloredNames(html), []);
+  assert.equal(visibleText(html), source);
+});
+
+test("data types from catalog sources resolve in imported namespaces and previews", () => {
+  const library = `namespace Library
+structure Packet where
+  key : Int
+abbrev PacketAlias := Packet
+end Library
+`;
+  const catalog = createCatalog([], [library]);
+  const source = 'Packet PacketAlias Library.Packet Other.Packet';
+  const html = highlight(source, catalog, 'namespace Proof\nopen Library\n');
+  assert.deepEqual(syntaxTypes(html), ['Packet', 'PacketAlias', 'Library.Packet']);
+  assert.deepEqual(coloredNames(html), []);
+  assert.equal(visibleText(html), source);
+  assert.deepEqual(syntaxTypes(highlight('Packet', catalog, 'namespace Proof\nopen Library\nend Proof\n')), []);
+});
+
+test("propositions and ordinary uppercase values are not inferred to be data types", () => {
+  const prefix = `structure Evidence : Prop where
+  holds : True
+inductive Route : Int → Prop where
+  | start : Route 0
+def Predicate (n : Int) : Prop := n = 0
+def UpperValue : Int := 7
+abbrev CountValue := 7
+abbrev Truth := True
+abbrev Equality := Int = Int
+abbrev EmptyPredicate := Nat → False
+`;
+  const source = 'Evidence Route Predicate UpperValue CountValue Truth Equality EmptyPredicate UnknownType';
+  const html = highlight(source, createCatalog(), prefix);
+  assert.deepEqual(syntaxTypes(html), []);
+  assert.deepEqual(coloredNames(html), []);
+  assert.equal(visibleText(html), source);
+});
+
+test("type discovery ignores declarations hidden in comments and strings", () => {
+  const prefix = `/-- structure Ghost where -/
+/- abbrev Hidden := Int /- structure Nested where -/ -/
+def message : String := "abbrev Fake := Int"
+structure Actual where
+  key : Int
+`;
+  const source = 'Ghost Hidden Nested Fake Actual';
+  const html = highlight(source, createCatalog(), prefix);
+  assert.deepEqual(syntaxTypes(html), ['Actual']);
+  assert.deepEqual(coloredNames(html), []);
+  assert.equal(visibleText(html), source);
 });

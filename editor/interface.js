@@ -17,9 +17,12 @@
   ];
   let renderSerial = 0;
 
-  const KINDS = { proposition: "Proposition", theorem: "Theorem", definition: "Value / type" };
-  const WORDS = new Set("def abbrev theorem lemma example inductive structure where namespace section end import open scoped if then else let in match with by fun set_option deriving private protected noncomputable mutual variable variables instance opaque axiom".split(" "));
-  const TYPES = new Set("Int Seq Bool Prop Nat Unit True False Heap Clocks SeqRef Configuration Transcript Stack".split(" "));
+  const KINDS = { proposition: "Proposition", theorem: "Theorem", definition: "Value", type: "Type" };
+  const WORDS = new Set("def abbrev theorem lemma example inductive structure class where namespace section end import open scoped if then else let in match with by fun set_option deriving private protected noncomputable mutual variable variables instance opaque axiom".split(" "));
+  const TYPES = new Set("Int Seq Bool Prop Type Sort Nat Unit String Char List Option Array Fin Prod Sum Except Heap Clocks SeqRef Configuration Transcript Stack".split(" "));
+  // These imported mathematical aliases are used by bundled analyses, whose
+  // editor response does not include the library source. Keep them qualified.
+  const LIBRARY_TYPES = ["Algo2Lean.Dijkstra.Adjacency", "Algo2Lean.Dijkstra.Edges"];
   const COMPONENT = "(?:«[^»\\r\\n]*»|[\\p{L}_][\\p{L}\\p{N}\\p{M}_'!?]*)";
   const IDENTIFIER = new RegExp(COMPONENT + "(?:\\." + COMPONENT + ")*", "uy");
   const NUMBER = /\d+/y;
@@ -30,14 +33,14 @@
   // deliberately excluded; a proof body can still inspect their definitions.
   const ADVANCED = {
     Step: ["proposition", "One permitted transition between the supplied configurations. Use it for a local transition lemma; no whole execution is required."],
-    Configuration: ["definition", "An execution snapshot containing the heap and either the active frame and suspended callers, or a returned result."],
-    Frame: ["definition", "The active invocation. Its constructors and numbered control locations are implementation details used inside proofs."],
-    Result: ["definition", "A returned value tagged with its source function. Prefer the ordinary result argument of Call in contracts."],
-    Stack: ["definition", "Suspended callers, with the most recent caller first."],
-    Transcript: ["definition", "A finite list of execution configurations. Validity is a separate proposition."],
+    Configuration: ["type", "An execution snapshot containing the heap and either the active frame and suspended callers, or a returned result."],
+    Frame: ["type", "The active invocation. Its constructors and numbered control locations are implementation details used inside proofs."],
+    Result: ["type", "A returned value tagged with its source function. Prefer the ordinary result argument of Call in contracts."],
+    Stack: ["type", "Suspended callers, with the most recent caller first."],
+    Transcript: ["type", "A finite list of execution configurations. Validity is a separate proposition."],
   };
   const CORE = {
-    Config: ["definition", "The shared execution-configuration type, parameterized by heap, frame, and result types."],
+    Config: ["type", "The shared execution-configuration type, parameterized by heap, frame, and result types."],
     "Config.heap": ["definition", "Read the heap in an active or completed configuration."],
     "Config.stack": ["definition", "Read the suspended caller stack; completed configurations have an empty stack."],
     Stack: ADVANCED.Stack,
@@ -76,6 +79,7 @@
     "SequenceType.copy": "Allocate a separate typed sequence with the same contents.",
   };
   const STORAGE_PROPS = new Set(["SequenceType.valid", "Heap.ClocksMonotone", "Heap.Increments"]);
+  const STORAGE_TYPES = new Set(["Heap", "Seq", "SeqRef", "ObjectRef", "CollectionRef", "Clocks", "SequenceType"]);
   const COST_TOOLS = new Set(["Heap.ClocksMonotone", "Heap.Increments", "Heap.weightedCost", "Clocks.weighted"]);
 
   function extraInterface(namespace, name, command) {
@@ -85,7 +89,7 @@
     if (!/(?:^|\.)Algo2LeanGenerated$/.test(namespace)) return null;
     if (ADVANCED[name]) return { category: "advanced", kind: ADVANCED[name][0], meaning: ADVANCED[name][1] };
     if (namespace === "Algo2LeanGenerated" && STORAGE[name]) return { category: "storage",
-      kind: STORAGE_PROPS.has(name) ? "proposition" : "definition", meaning: STORAGE[name] };
+      kind: STORAGE_PROPS.has(name) ? "proposition" : STORAGE_TYPES.has(name) ? "type" : "definition", meaning: STORAGE[name] };
     const prefix = name.match(/^(Ref|is|field|set|create|seq)_/);
     if (!prefix || name.includes("_a2l_import_")) return null;
     const meaning = {
@@ -97,7 +101,7 @@
       seq: "The typed sequence descriptor for this source element type. Use its valid, get, set, create, const, and copy operations.",
     };
     const theorem = ["theorem", "lemma"].includes(command);
-    return { category: "storage", kind: theorem ? "theorem" : prefix[1] === "is" ? "proposition" : "definition",
+    return { category: "storage", kind: theorem ? "theorem" : prefix[1] === "is" ? "proposition" : prefix[1] === "Ref" ? "type" : "definition",
       meaning: theorem ? "Reading the named field after its typed update returns the supplied value, under the stated validity hypothesis." : meaning[prefix[1]] };
   }
 
@@ -212,8 +216,78 @@
           if (tokens[j].text.includes("(")) break;
         }
       }
-      visit(token, { namespace, opened, scopeId, command, next });
+      visit(token, { namespace, opened, scopeId, command, next, index: i });
     }
+  }
+
+  function simpleTypeAlias(tokens, start, offset, types, context) {
+    let depth = 0;
+    let needsType = true;
+    let seen = false;
+    for (let i = start; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (token.kind === "comment") continue;
+      if (token.kind === "plain") {
+        const text = i === start ? token.text.slice(offset) : token.text;
+        for (const char of text) {
+          if (char === "\n" && !depth && seen) return !needsType;
+          // Equality, logical connectives, and other term operators cannot
+          // establish a type alias. Leave complex expressions to Lean itself.
+          if (!/[\s()[\]{},×→]/u.test(char)) return false;
+          if ("([{⦃".includes(char)) depth++;
+          else if (")]}⦄".includes(char)) depth--;
+          else if (char === "→" || char === "×") needsType = true;
+        }
+      } else if (token.kind === "identifier") {
+        if (needsType && !resolve(token.text, types, context)) return false;
+        needsType = false;
+        seen = true;
+      } else if (token.kind !== "number" || needsType) return false;
+    }
+    return seen && !needsType && depth === 0;
+  }
+
+  // Detect declared data types and simple type aliases without elaborating Lean.
+  // Only inspect declaration headers and alias heads, never proof bodies. In
+  // particular, a capitalized name or a declaration returning Prop is not enough.
+  function collectTypes(source, tokens, types) {
+    walk(source, tokens, (token, context) => {
+      if (!context.command || !["structure", "class", "inductive", "abbrev", "def"].includes(token.text)
+          || context.next?.kind !== "identifier") return;
+      const data = ["structure", "class", "inductive"].includes(token.text);
+      let depth = 0;
+      let annotation = null;
+      let result = "";
+      let rhsOffset = null;
+      let end = context.index + 1;
+      header: for (; end < tokens.length; end++) {
+        const part = tokens[end];
+        if (part.start < context.next.end || part.kind === "comment") continue;
+        if (!depth && part.kind === "keyword") break;
+        if (part.kind === "plain") {
+          for (let i = 0; i < part.text.length; i++) {
+            const char = part.text[i];
+            if (!depth && part.text.startsWith(":=", i)) { rhsOffset = i + 2; break header; }
+            if (!depth && char === "|") break header;
+            if (!depth && char === ":") { annotation = true; continue; }
+            if (annotation) result += char;
+            if ("([{⦃".includes(char)) depth++;
+            else if (")]}⦄".includes(char)) depth--;
+          }
+        } else if (annotation) result += part.text;
+      }
+      let isType = annotation ? /^(?:Type|Sort)\b/.test(result.split("→").pop().trim()) : data;
+      if (!data && !annotation && rhsOffset !== null) isType = simpleTypeAlias(tokens, end, rhsOffset, types, context);
+      if (isType) types.set(canonical(qualify(context.namespace, context.next.text)), "type");
+    });
+    return types;
+  }
+
+  function typeCatalog(catalog) {
+    const types = new Map([...TYPES, ...LIBRARY_TYPES].map(name => [name, "type"]));
+    for (const [name, kind] of catalog.types || []) types.set(name, kind);
+    for (const [name, kind] of catalog) if (kind === "type") types.set(name, kind);
+    return types;
   }
 
   function createCatalog(functions = [], sources = []) {
@@ -229,7 +303,7 @@
       }
       for (const [name, meaning] of Object.entries(STORAGE)) {
         const fullName = "Algo2LeanGenerated." + name;
-        const kind = STORAGE_PROPS.has(name) ? "proposition" : "definition";
+        const kind = STORAGE_PROPS.has(name) ? "proposition" : STORAGE_TYPES.has(name) ? "type" : "definition";
         names.set(fullName, kind);
         extraEntries.set(fullName, { name: fullName, kind, meaning, category: "storage", arguments: [], fileLabel: COST_TOOLS.has(name) ? "Algo2LeanLib/CallCost.lean" : "Algo2Lean.lean" });
       }
@@ -237,7 +311,7 @@
     for (const source of sources) {
       if (typeof source !== "string") continue;
       walk(source, tokenize(source), (token, context) => {
-        if (!context.command || !["def", "abbrev", "theorem", "lemma", "inductive", "structure"].includes(token.text) || context.next?.kind !== "identifier") return;
+        if (!context.command || !["def", "abbrev", "theorem", "lemma", "inductive", "structure", "class"].includes(token.text) || context.next?.kind !== "identifier") return;
         const name = qualify(context.namespace, context.next.text);
         const extra = extraInterface(context.namespace, context.next.text, token.text);
         const kind = extra?.kind || memberKind(context.next.text);
@@ -249,6 +323,8 @@
     }
     for (const entry of normalizeEntries(functions)) names.set(canonical(entry.name), classify(entry));
     names.extraEntries = [...extraEntries.values()];
+    names.types = typeCatalog(names);
+    for (const source of sources) if (typeof source === "string") collectTypes(source, tokenize(source), names.types);
     return names;
   }
 
@@ -291,19 +367,22 @@
     const output = [];
     const scopes = new Map();
     const fullSource = prefix + source;
-    walk(fullSource, tokenize(fullSource), (token, context) => {
+    const tokens = tokenize(fullSource);
+    const types = collectTypes(fullSource, tokens, typeCatalog(catalog));
+    walk(fullSource, tokens, (token, context) => {
       if (token.end <= prefix.length) return;
       let role = null;
       if (token.kind === "identifier") {
         if (!scopes.has(context.scopeId)) scopes.set(context.scopeId, new Map());
         const cache = scopes.get(context.scopeId);
-        if (!cache.has(token.text)) cache.set(token.text, resolve(token.text, catalog, context));
+        if (!cache.has(token.text)) cache.set(token.text, resolve(token.text, catalog, context)
+          || (resolve(token.text, types, context) ? "syntax-type" : null));
         role = cache.get(token.text);
       }
       const syntax = ["comment", "string", "number", "keyword"].includes(token.kind) ? token.kind
         : TYPES.has(token.text) ? "type" : null;
-      const cls = role ? "interface-" + role : syntax ? "token-" + syntax : "";
-      const title = role ? ` title="${KINDS[role]}"` : "";
+      const cls = role === "syntax-type" ? "token-type" : role ? "interface-" + role : syntax ? "token-" + syntax : "";
+      const title = role && role !== "syntax-type" ? ` title="${KINDS[role]}"` : "";
       const text = escapeHtml(token.text.slice(Math.max(0, prefix.length - token.start)));
       output.push(cls ? `<span class="${cls}"${title}>${text}</span>` : text);
     });

@@ -1,5 +1,22 @@
 # Change log
 
+## 2026-10-11 — Download complete analysis projects and label code files
+
+- Make Save analysis download a ZIP with the current source and proof, generated definitions and named-line interfaces, transitive proof dependencies, shared Lean libraries, license, pinned toolchain, and Lake setup. Preserve import names and make the selected analysis the default build target.
+- Report missing imports and source errors instead of presenting an incomplete bundle as ready to check. Keep failed or superseded downloads from marking newer edits as saved.
+- Add an editor-only packaging adapter and local launcher (`python3 -m editor.server`). The current hosted editor uses that adapter with the unchanged archived compiler and runtime; no compiler files, version number, or archived release bytes change.
+- Show filenames and extensions on all code panes, including generated module paths and the shared library. Update labels on renames, project/example switches, and generated-module selection.
+
+Validation: all 219 JavaScript editor tests and 13 site-build tests pass. The export suite passes 13 tests, including three isolated Lake builds and local HTTP request protections. All 30 bundled example entries export with resolved imports; an extracted merge-sort package also builds its full analysis with `lake build`. Native and hosted browser downloads succeed, including the imported Dijkstra project; the current-site build preserves the complete archived compiler directories.
+
+## 2026-10-11 — Consistent type colors and compact interface buttons
+
+- Give interface types, locally declared data types, and simple type aliases the same brown as `Int`; keep values green. Recognize imported Dijkstra graph aliases by qualified namespace and keep ordinary syntax types separate from the public interface catalog.
+- Use compact buttons for theorems, values, and types while preserving proposition button size and full-size code previews. Restore the regular UI font for main-result labels such as Correctness and Running time.
+- Keep compiler version 0.1.4, generated Lean, and archived releases unchanged.
+
+Validation: all 210 JavaScript editor tests pass, including type aliases, namespace scope, proposition/value exclusions, and exact code preservation. Browser checks confirm matching `Int`/`Seq`/`Heap`/`Adjacency` colors, 26 px compact buttons, unchanged 42 px proposition buttons, and full-size monospace previews with ordinary UI fonts for main-result labels.
+
 ## 2026-10-11 — Match interface and preview typography to the code editor
 
 - Share the source/analysis editor's 14 px monospace font and 24 px line height with interface buttons, signatures, argument names, main-result buttons, and theorem code previews.

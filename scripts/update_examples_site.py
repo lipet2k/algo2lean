@@ -1,6 +1,6 @@
 """Publish current examples while retaining the exact archived compiler releases.
 
-The current editor loads its compiler worker from the existing release. Static
+The current editor loads its compiler and runtime from the existing release. Static
 catalog files supply example sources and proofs, without modifying compiler.zip,
 the release manifest, the runtime, or any versioned website directory.
 """
@@ -117,12 +117,13 @@ def build_current_site(root, previous, output, commit):
     }
     files["example-manifest.json"] = encoded(manifest)
     for path in sorted((root / "editor").iterdir()):
-        if path.suffix in {".html", ".js", ".css"} and path.name not in {"browser-host.js", "compiler-worker.js"}:
+        if path.suffix in {".html", ".js", ".css"} or path.name == "analysis_export.py":
             files[path.name] = path.read_bytes()
+    files["release-config.json"] = encoded({**config, "compiler_base": "../versions/v" + version + "/"})
     page = files["index.html"].decode("utf-8")
     page = page.replace('href="/', 'href="').replace('src="/', 'src="')
     page = page.replace('<script src="app.js" defer>',
-                        '<script src="../versions/v' + version + '/browser-host.js" defer></script>\n'
+                        '<script src="browser-host.js" defer></script>\n'
                         '  <script src="current-examples.js" defer></script>\n'
                         '  <script src="app.js" defer>')
     page = page.replace('href="../../versions.html"', 'href="../versions.html"')

@@ -3,6 +3,7 @@
 const base = new URL(".", import.meta.url);
 let runtime = null;
 let requests = Promise.resolve();
+let analysisExportReady = false;
 
 function status(message) { postMessage({ type: "status", message }); }
 
@@ -12,10 +13,18 @@ async function initialize() {
   if (!response.ok) throw new Error("This release is missing release-config.json. Reload the page or choose another release.");
   const config = await response.json();
   if (!/^[a-f0-9]{64}$/.test(config.compiler_archive_sha256 || "")) throw new Error("This release has invalid compiler metadata.");
-  const archiveURL = new URL(config.compiler_archive || "compiler.zip", base);
-  const runtimeURL = new URL(config.runtime_url || "runtime/", base);
+  // The current editor can evolve independently of the archived compiler.
+  // Only this exact, same-site version directory may supply a frozen runtime.
+  const compilerBase = config.compiler_base ? new URL(config.compiler_base, base) : base;
+  if (compilerBase.href !== base.href &&
+      (!/^[A-Za-z0-9][A-Za-z0-9.+-]*$/.test(config.version || "") ||
+       compilerBase.href !== new URL("../versions/v" + config.version + "/", base).href)) {
+    throw new Error("The editor's compiler location is invalid.");
+  }
+  const archiveURL = new URL(config.compiler_archive || "compiler.zip", compilerBase);
+  const runtimeURL = new URL(config.runtime_url || "runtime/", compilerBase);
   if (archiveURL.origin !== base.origin || runtimeURL.origin !== base.origin ||
-      !archiveURL.href.startsWith(base.href) || !runtimeURL.href.startsWith(base.href)) {
+      !archiveURL.href.startsWith(compilerBase.href) || !runtimeURL.href.startsWith(compilerBase.href)) {
     throw new Error("This release must serve its compiler and runtime from the same release directory.");
   }
   const archive = await fetch(archiveURL);
@@ -35,12 +44,24 @@ async function initialize() {
   return python;
 }
 
+async function prepareAnalysisExport(python) {
+  if (analysisExportReady) return;
+  const response = await fetch(new URL("analysis_export.py", base));
+  if (!response.ok) throw new Error("Analysis packaging could not load. Reload the editor and try again.");
+  python.FS.writeFile("/release/editor_analysis_export.py", await response.text());
+  await python.runPythonAsync("from editor_analysis_export import request as _algo2lean_export_request");
+  analysisExportReady = true;
+}
+
 self.onmessage = ({ data }) => {
   requests = requests.then(async () => {
     try {
       runtime = runtime || await initialize();
+      const exporting = data.path === "/api/analysis-export";
+      if (exporting) await prepareAnalysisExport(runtime);
       runtime.globals.set("_algo2lean_request_json", JSON.stringify({ path: data.path, body: data.body, project: data.project }));
-      const result = await runtime.runPythonAsync("json.dumps(_algo2lean_request(**json.loads(_algo2lean_request_json)))");
+      const handler = exporting ? "_algo2lean_export_request" : "_algo2lean_request";
+      const result = await runtime.runPythonAsync("json.dumps(" + handler + "(**json.loads(_algo2lean_request_json)))");
       runtime.globals.delete("_algo2lean_request_json");
       postMessage({ id: data.id, result: JSON.parse(result) });
     } catch (error) {

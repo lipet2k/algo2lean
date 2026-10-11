@@ -51,10 +51,19 @@ Keep theorem and helper-lemma statements at the level of source operations:
 | Several steps or a transcript invariant | Shared `Reaches`, `Valid`, `Deterministic`, and `Terminal` |
 
 The editor's **Lean Interface** panel uses blue for propositions, purple for
-theorems, and green for values and types. The same colors appear in generated
+theorems, green for values, and brown for types, matching `Int`. The same colors appear in generated
 definitions, named-line definitions, analysis code, and main-result previews.
+Data types and simple type aliases declared in analysis code also use brown;
+this syntax coloring does not add them to the public interface.
 Each interface specification also gives its kind in words. Shared storage tools
 and the small **Advanced · local execution** group start collapsed.
+
+Use **Save analysis** to download a complete Lean project as a ZIP. It includes
+the current analysis, generated algorithm and named-line files, imported proof
+modules, and required shared libraries such as `Algo2Lean.lean`. Extract it into
+its own folder and run `lake build` to check the selected proof and its imports.
+The package pins the Lean version and preserves module names and directory paths;
+no manual copying of shared libraries is required.
 
 The advanced layer includes configuration heap/stack projections and essential
 execution types. A local assignment lemma can assume only `Step before after`
@@ -63,7 +72,8 @@ records, numbered slots, and numbered transition constructors belong inside
 proof bodies. Named observations and small mathematical predicates keep the
 statements independent of these implementation details.
 
-Coloring recognizes catalogued names and ordinary namespace/open declarations;
+Coloring recognizes catalogued names, ordinary namespace/open declarations,
+data declarations, and simple aliases to known types;
 it is a navigation aid, not Lean elaboration or proof checking. Type-directed
 notation such as `run.returns` or `heap.read` can remain uncolored even when it
 uses a public interface. The explicit names `f.ReturnsWithCost.returns`,

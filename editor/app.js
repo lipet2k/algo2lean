@@ -588,9 +588,19 @@
     return `import ${module}\nimport ${module}Points\n\nopen Algo2LeanCore Algo2LeanGenerated\n\n-- State output theorems using the public relations shown by the compiler.\n-- Use the generated call interface for guarantees reusable by other algorithms.\n-- Points adds named locations and local values; omit this import if unused.\n`;
   }
 
+  function updatePaneFilenames() {
+    const leanPath = (module) => `${currentProject ? module.replace(/\./g, "/") : module}.lean`;
+    $("source-pane-filename").textContent = currentProject ? filename.value : safeFilename(filename.value, ".algo");
+    $("analysis-pane-filename").textContent = currentProject ? analysisFilename.value : safeFilename(analysisFilename.value, ".lean");
+    // Stale output still shows its original file until compilation replaces it.
+    $("lean-pane-filename").textContent = leanPath(lastResult?.module || generatedModule);
+    $("points-pane-filename").textContent = leanPath(lastResult?.pointsModule || generatedPointsModule);
+  }
+
   function showModuleNames() {
     $("analysis-module").textContent = generatedModule;
     $("analysis-points-module").textContent = generatedPointsModule;
+    updatePaneFilenames();
   }
 
   function setModule(module, pointsModule = `${module}Points`) {
@@ -611,12 +621,14 @@
   function updateSaveState(label) {
     $("save-state").textContent = dirty() ? "Unsaved file" : (label || "Saved file");
     $("save-state").classList.toggle("dirty", dirty());
+    updatePaneFilenames();
     updateExampleNotice();
   }
 
   function updateAnalysisSaveState(label) {
     $("analysis-save-state").textContent = analysisDirty() ? "Unsaved file" : (label || "Saved file");
     $("analysis-save-state").classList.toggle("dirty", analysisDirty());
+    updatePaneFilenames();
     updateExampleNotice();
   }
 
@@ -1064,7 +1076,7 @@
     selectGeneratedView(views[previousView] ? previousView : "public");
     $("shared-details").hidden = !lastResult.shared;
     $("shared-code").textContent = "";
-    $("shared-summary").textContent = `Shared Lean library · ${result.stats?.shared_lines || 0} reusable lines`;
+    $("shared-summary").textContent = `Shared Lean library · Algo2Lean.lean · ${result.stats?.shared_lines || 0} reusable lines`;
     if ($("shared-details").open) $("shared-code").innerHTML = highlight(lastResult.shared, true);
     showRelations(result.functions);
     renderAnalysis(true);
@@ -1073,6 +1085,7 @@
   function selectGeneratedView(view) {
     if (!lastResult?.views[view]) return;
     Object.assign(lastResult, lastResult.views[view], { view });
+    updatePaneFilenames();
     $("generated-view").value = view;
     // Reserve the final empty line so selecting to EOF never scrolls the textarea
     // independently of its measuring/highlight layer.
@@ -1247,7 +1260,8 @@
     analysisFileMessage("");
   }
 
-  function saveAnalysis() {
+  let analysisExport = null;
+  async function saveAnalysis() {
     const name = safeFilename(analysisFilename.value, ".lean");
     const reserved = ["Algo2Lean.lean", `${generatedModule}.lean`, `${generatedPointsModule}.lean`];
     if (reserved.some((file) => file.toLowerCase() === name.toLowerCase())) {
@@ -1255,15 +1269,51 @@
       analysisFilename.focus();
       return;
     }
+    if (analysisExport) analysisExport.abort();
+    const controller = new AbortController();
+    analysisExport = controller;
+    const project = currentProject;
+    const snapshot = { source: source.value, filename: filename.value, analysis: analysis.value,
+      analysisFilename: analysisFilename.value, revision, analysisRevision };
+    const unchanged = () => !controller.signal.aborted && project === currentProject &&
+      snapshot.revision === revision && snapshot.analysisRevision === analysisRevision &&
+      snapshot.filename === filename.value && snapshot.analysisFilename === analysisFilename.value;
+    const button = $("analysis-save-button");
+    button.disabled = true;
+    button.textContent = "Preparing package…";
+    analysisFileMessage("Preparing your proof, generated definitions, and shared Lean libraries…");
     try {
-      download(analysis.value, name);
+      const payload = { ...projectRequest(snapshot), analysis_filename: name };
+      const headers = requestHeaders();
+      const response = await request("/api/analysis-export", { method: "POST", headers,
+        body: JSON.stringify(payload), signal: controller.signal });
+      if (!response.ok) {
+        if (response.status === 404) throw new Error("Restart the local editor with python3 -m editor.server to enable full analysis packages.");
+        const error = await response.json();
+        throw new Error(error.message || error.error || error.analysis_diagnostics?.[0]?.message || error.diagnostics?.[0]?.message || "Analysis export failed.");
+      }
+      const archive = await response.blob();
+      if (!unchanged()) {
+        if (project === currentProject) analysisFileMessage("The workspace changed while the package was being prepared. Save analysis again to download the current files.");
+        return;
+      }
+      const packageName = name.replace(/\.lean$/i, "") + ".zip";
+      download(archive, packageName);
       if (!currentProject) analysisFilename.value = name;
       savedAnalysis = analysis.value;
       savedAnalysisFilename = currentProject ? analysisFilename.value : name;
       updateAnalysisSaveState("Downloaded");
       writeDraft();
-      analysisFileMessage(currentProject ? `Downloaded ${name}. Save it as ${analysisFilename.value} in your project folder, or use Download project to keep the folder layout.` : `Downloaded ${name}. Include ${generatedModule}.lean and Algo2Lean.lean in your Lean project. Export ${generatedPointsModule}.lean too if your proof imports named-line helpers.`);
-    } catch (error) { analysisFileMessage(`Could not save the analysis: ${error.message}`, true); }
+      analysisFileMessage(`Downloaded ${packageName}, including the shared Lean libraries and all resolved imports. Extract the ZIP, open its folder in your Lean editor, and run lake build to check the analysis. Downloading does not check the proof.`);
+    } catch (error) {
+      if (error.name !== "AbortError" && unchanged()) analysisFileMessage(`Could not save the analysis package: ${error.message}`, true);
+    } finally {
+      if (analysisExport === controller) {
+        analysisExport = null;
+        button.disabled = false;
+        button.textContent = "Save analysis";
+      }
+    }
   }
 
   function jumpToAnalysis(line, column) {

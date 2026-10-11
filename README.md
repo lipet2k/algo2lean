@@ -17,7 +17,7 @@ proof checking requires the local editor.
 To run locally with Python 3.9 or newer, use the repository root:
 
 ```sh
-python3 -m algo2lean serve --open
+python3 -m editor.server --open
 ```
 
 The editor opens with merge sort and its correctness and running-time analysis.
@@ -124,12 +124,20 @@ byte-for-byte unchanged; only its separate named-line interface changes.
 
 Write source in **.algo**. The **Lean Interface** panel groups generated
 declarations and shows their signatures, meanings, and arguments when selected.
-Interface names use the same three colors in this panel, generated Lean,
+Interface names use consistent colors in this panel, generated Lean,
 analysis code, and theorem previews: blue for propositions, purple for theorems,
-and green for values and types. Text labels explain the colors. The collapsed
+green for values, and the same brown as `Int` for types. Text labels explain the
+colors. Types declared in analysis code also use brown. The collapsed
 **Advanced · local execution** group exposes `Step` and configuration tools for
 local proofs; ordinary contracts use the source function's `Call` or `Returns`.
 The algorithm definitions and named-line interface have separate export controls.
+Each code box displays its filename, including the `.algo` or `.lean` extension.
+**Save analysis** downloads a ZIP containing the current proof, algorithm source,
+generated Lean, imported proofs, and shared libraries, with a pinned Lean toolchain
+and Lake configuration. Extract the ZIP and open that folder in your Lean editor;
+`lake build` checks the selected analysis. Files keep their original import names.
+If a dependency is missing, the editor reports it instead of downloading an
+incomplete package. Downloading a package does not itself check the proof.
 **Check both files** checks generated definitions. **Check analysis** checks the
 separate handwritten Lean proof against the current algorithm.
 

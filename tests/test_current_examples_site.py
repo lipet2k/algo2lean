@@ -29,6 +29,7 @@ class CurrentExamplesSiteTests(unittest.TestCase):
             "editor/app.js": "// editor\n", "editor/browser-host.js": "// frozen bridge\n",
             "editor/compiler-worker.js": "// frozen worker\n",
             "editor/current-examples.js": "// static example catalog\n",
+            "editor/analysis_export.py": "# editor-only analysis packaging\n",
         }.items():
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,10 +76,15 @@ class CurrentExamplesSiteTests(unittest.TestCase):
         for name, checksum in manifest["files"].items():
             self.assertEqual(digest((current / name).read_bytes()), checksum)
         self.assertFalse((current / "compiler.zip").exists())
-        self.assertFalse((current / "compiler-worker.js").exists())
-        self.assertFalse((current / "browser-host.js").exists())
+        self.assertEqual((current / "compiler-worker.js").read_bytes(), (self.root / "editor/compiler-worker.js").read_bytes())
+        self.assertEqual((current / "browser-host.js").read_bytes(), (self.root / "editor/browser-host.js").read_bytes())
+        self.assertEqual((current / "analysis_export.py").read_bytes(), (self.root / "editor/analysis_export.py").read_bytes())
+        config = json.loads((current / "release-config.json").read_text())
+        self.assertEqual(config["compiler_base"], "../versions/v0.1.4/")
+        frozen = json.loads((self.previous / "versions/v0.1.4/release-config.json").read_text())
+        self.assertEqual({k: v for k, v in config.items() if k != "compiler_base"}, frozen)
         page = (current / "index.html").read_text()
-        self.assertLess(page.index('src="../versions/v0.1.4/browser-host.js"'), page.index('src="current-examples.js"'))
+        self.assertLess(page.index('src="browser-host.js"'), page.index('src="current-examples.js"'))
         self.assertLess(page.index('src="current-examples.js"'), page.index('src="app.js"'))
         self.assertIn('href="../versions.html"', page)
         self.assertIn('url=current/', (self.output / "index.html").read_text())
