@@ -1,5 +1,12 @@
 # Change log
 
+## 2026-10-11 — Match interface and preview typography to the code editor
+
+- Share the source/analysis editor's 14 px monospace font and 24 px line height with interface buttons, signatures, argument names, main-result buttons, and theorem code previews.
+- Preserve editor text/selection metrics, interface colors, and compiler version 0.1.4.
+
+Validation: browser-computed fonts match across both editable code panes, interface buttons/signatures, main-result buttons, and statement previews. Whitespace checks pass; this change affects CSS only.
+
 ## 2026-10-11 — Group interface buttons into rows by declaration kind
 
 - Within each interface category, place propositions, theorems, and values/types on separate rows, in the color legend's order. Preserve source order within each kind and omit empty rows.
