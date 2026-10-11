@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: algo2lean-pages
@@ -14,6 +15,8 @@ concurrency:
 jobs:
   checks:
     uses: ./.github/workflows/check.yml
+    with:
+      force_full_lean: true
 
   build:
     name: Build and archive the versioned website

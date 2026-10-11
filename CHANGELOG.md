@@ -1,5 +1,15 @@
 # Change log
 
+## 2026-10-10 — Reuse verified Lean checks for UI updates and persist compilation caches
+
+- Keep compiler/editor checks unconditional. Skip the Lean job only when cumulative changes from a successful full `main` check are on an explicit UI/documentation allowlist; verify repository, workflow, ancestry, and the actual Lean version/test steps.
+- Default to full Lean checks for unknown files, unavailable baseline evidence, manual runs, and reusable release checks. Preserve the existing deployment requirement for a successful check of the current main commit.
+- Restore content-addressed shared-library and project-module caches within a platform/toolchain/compiler/checker/test namespace. Save caches only after successful main-branch checks; manual and release checks remain cold.
+- Document the fast path and clean-check option. Keep the compiler version and archived releases unchanged.
+
+Validation: 69 targeted planner, cache, project-checking, archive, and deployment-build tests pass. Real Git histories cover unchecked proof changes followed by UI edits, renames, and nonancestor baselines. Actionlint validates all workflows; a read-only GitHub check confirms the previous UI commit reuses its successful full-check ancestor. The first run of this workflow change still performs full Lean checking and populates the cache.
+
+
 ## 2026-10-10 — Open the first main result by default
 
 - Display the first marked main result's description and exact Lean statement as soon as an analysis loads, using the same preview as clicking its button.

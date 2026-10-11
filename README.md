@@ -211,6 +211,20 @@ otherwise they use the pinned toolchain. Node.js 18 or newer enables the editor
 regression tests without npm dependencies. Run them separately with
 `node --test tests/test_*.js`.
 
+GitHub runs compiler and editor tests on every change. For UI-only updates, it
+can reuse a successful full Lean check of an ancestor on `main` when every
+subsequent file change is on the UI/documentation allowlist. The workflow summary
+records that baseline. Changes to algorithms, proofs, compiler code, Python tests,
+toolchain, workflows, or other unlisted files require the full Lean suite; missing
+history or unavailable verification also selects the full suite.
+
+Full checks reuse compiled shared-library and project modules from successful
+`main` runs. The cache is scoped to the runner platform, Lean toolchain, compiler,
+and checking/test code; each module also has a source-and-dependency identity.
+Pull requests can read these caches but do not publish them. Manual **Check** runs
+and compiler releases run the full suite without restoring caches. Select
+**Actions → Check → Run workflow** for a clean verification.
+
 The compiler is in `algo2lean/`, the browser editor in `editor/`, shared Lean
 libraries in `Algo2Lean.lean` and `Algo2LeanLib/`, and proofs alongside the examples
 and under `proofs/`. Tests are in `tests/`.
