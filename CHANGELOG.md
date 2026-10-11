@@ -1,5 +1,13 @@
 # Change log
 
+## 2026-10-10 — Open the first main result by default
+
+- Display the first marked main result's description and exact Lean statement as soon as an analysis loads, using the same preview as clicking its button.
+- Preserve a selected theorem across analysis edits; fall back to the first main result if that theorem disappears. Opening a preview does not scroll or jump into the proof.
+- Keep the compiler version and archived releases unchanged. Leave code-box resizing unchanged after confirming that the existing handles work.
+
+Validation: all 30 proof-outline checks pass, including default selection, statement updates, removal fallback, and unmarked analyses. Browser verification confirms that merge sort's correctness statement is visible without clicking a result.
+
 ## 2026-10-10 — State the post-sorting Kruskal bound in the result description
 
 - Replace implementation-oriented preview text with the mathematical guarantee `T ≤ C · (V + E · α(V) + 1)`, explaining the input-independent constant and inverse Ackermann function.

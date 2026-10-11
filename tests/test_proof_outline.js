@@ -189,24 +189,46 @@ test("all bundled main-result markers identify declarations with full statement 
   assert.ok(markedFiles >= 30, "The public example collection exposes its main results");
 });
 
-test("main-result buttons preview exact statements and navigate only on request", () => {
+test("the first main result automatically previews its exact statement and navigates only on request", () => {
   const { container, outline, jumps } = surface();
-  outline.update("-- Main result: Exact result\n/-- Returns the supplied value. -/\ntheorem exact_value (n : Nat) : n = n := by rfl\n");
+  outline.update("theorem helper : True := by trivial\n" +
+    "-- Main result: Exact result\n/-- Returns the supplied value. -/\ntheorem exact_value (n : Nat) : n = n := by rfl\n");
   assert.equal(container.hidden, false);
   assert.equal(tag(container, "H3")[0].textContent, "Main results");
   const button = mainButtons(container)[0];
   assert.equal(button.type, "button");
-  assert.equal(button.getAttribute("aria-pressed"), "false");
-  assert.equal(preview(container).hidden, true);
-  button.click();
   assert.deepEqual(jumps, []);
   assert.equal(preview(container).hidden, false);
   assert.equal(button.getAttribute("aria-pressed"), "true");
   assert.equal(button.getAttribute("aria-controls"), preview(container).id);
+  assert.equal(tag(container, "SELECT")[0].value, "1");
   assert.ok(text(preview(container)).includes("Returns the supplied value."));
   assert.equal(tag(preview(container), "PRE")[0].textContent, "theorem exact_value (n : Nat) : n = n");
+  const initialPreview = text(preview(container));
+  button.click();
+  assert.equal(text(preview(container)), initialPreview, "the default preview matches clicking the result");
+  assert.deepEqual(jumps, []);
   tag(preview(container), "BUTTON")[0].click();
-  assert.deepEqual(jumps, [[3, 1]]);
+  assert.deepEqual(jumps, [[4, 1]]);
+});
+
+test("main-result updates preserve the chosen theorem and fall back when it is removed", () => {
+  const { container, outline, jumps } = surface();
+  const first = "-- Main result: Correctness\ntheorem correct : True := by trivial\n";
+  const second = "-- Main result: Running time\ntheorem running_time : 1 = 1 := by rfl\n";
+  outline.update(first + second);
+  mainButtons(container)[1].click();
+  outline.update("-- Additional explanation\n" + first + second.replace("1 = 1", "2 = 2"));
+  assert.equal(tag(preview(container), "PRE")[0].textContent, "theorem running_time : 2 = 2");
+  assert.equal(tag(container, "SELECT")[0].value, "1");
+  assert.deepEqual(mainButtons(container).map((button) => button.getAttribute("aria-pressed")), ["false", "true"]);
+  assert.deepEqual(jumps, []);
+  outline.update(first);
+  assert.equal(preview(container).hidden, false);
+  assert.equal(tag(preview(container), "PRE")[0].textContent, "theorem correct : True");
+  assert.equal(tag(container, "SELECT")[0].value, "0");
+  assert.equal(mainButtons(container)[0].getAttribute("aria-pressed"), "true");
+  assert.deepEqual(jumps, []);
 });
 
 test("a combined result has two short buttons sharing one exact statement", () => {
@@ -215,6 +237,8 @@ test("a combined result has two short buttons sharing one exact statement", () =
     "theorem result (n : Nat) : n = n := by rfl\n");
   const buttons = mainButtons(container);
   assert.deepEqual(buttons.map((button) => button.textContent), ["Correctness", "Running time"]);
+  assert.ok(buttons.every((button) => button.getAttribute("aria-pressed") === "true"));
+  assert.equal(tag(preview(container), "PRE")[0].textContent, "theorem result (n : Nat) : n = n");
   for (const button of buttons) {
     button.click();
     assert.equal(tag(preview(container), "PRE")[0].textContent, "theorem result (n : Nat) : n = n");
@@ -246,6 +270,7 @@ test("custom unmarked proofs remain navigable through the theorem chooser", () =
   assert.equal(tag(container, "H3")[0].textContent, "Main results");
   assert.match(text(container), /Main result:/);
   assert.equal(mainButtons(container).length, 0);
+  assert.equal(preview(container).hidden, true);
   const select = tag(container, "SELECT")[0];
   assert.equal(select.getAttribute("aria-label"), "Find a theorem");
   assert.equal(tag(select, "OPTION").length, 3);
@@ -296,7 +321,8 @@ test("bundled labels arrive after a recovered proof and ignore only comments and
   outline.setExamples([canonical]);
   assert.equal(mainButtons(container).length, 1);
   assert.equal(mainButtons(container)[0].textContent, "Exact result");
-  mainButtons(container)[0].click();
+  assert.equal(preview(container).hidden, false);
+  assert.equal(mainButtons(container)[0].getAttribute("aria-pressed"), "true");
   assert.equal(tag(preview(container), "PRE")[0].textContent, "theorem result (n : Nat) : n = n");
   tag(preview(container), "BUTTON")[0].click();
   assert.deepEqual(jumps, [[2, 1]]);

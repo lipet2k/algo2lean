@@ -281,7 +281,7 @@
             : "Load an example with a Lean analysis, or write a theorem to see its statement here.";
           container.append(hint);
         }
-        const current = entries.find((entry) => entry.id === selected);
+        const current = entries.find((entry) => entry.id === selected) || main[0];
         if (current) show(current); else selected = null;
       },
     };
