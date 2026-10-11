@@ -803,14 +803,14 @@ theorem reaches_clock_monotone {before after : Configuration}
   intro first second move previous
   exact Nat.le_trans previous (step_clock_monotone move name)
 
-theorem summary_clocks {before after : Heap} {frame : Frame} {result : Result}
-    (run : Summary Step before frame after result) (costs : Clocks)
-    (cost : Heap.cost before after = costs) (name : String) :
-    after.clocks name = before.clocks name + costs name := by
-  have monotone := reaches_clock_monotone run.root name
+/-- A finite execution adds exactly its heap cost to each initial clock. -/
+theorem reaches_clocks {before after : Configuration}
+    (run : Reaches Step before after) (costs : Clocks)
+    (cost : Heap.cost before.heap after.heap = costs) (name : String) :
+    after.heap.clocks name = before.heap.clocks name + costs name := by
+  have monotone := reaches_clock_monotone run name
   have charged := congrFun cost name
   simp only [Heap.cost] at charged
-  simp only [start, Config.heap] at monotone
   omega
 
 end MatrixStrassenAnalysis
@@ -2036,7 +2036,7 @@ theorem linear_contract (heap : Heap) (a b : SeqRef) (av bv : Seq) (count : Nat)
   · intro index
     rw [contents]
     simp only [StrassenValues.linearValues, sa.read, sb.read]
-  · exact summary_clocks run.2 _ cost
+  · exact reaches_clocks run.2.root _ cost
 
 theorem quadrant_contract (heap : Heap) (a : SeqRef) (av : Seq) (n row col : Int) (h : Nat)
     (sa : Stored heap a av) (positive : 0 < h) :
@@ -2051,7 +2051,7 @@ theorem quadrant_contract (heap : Heap) (a : SeqRef) (av : Seq) (n row col : Int
     simp only [StrassenValues.quadrantValues, quadrantIndex, Int.natCast_mul, sa.read,
       Int.fdiv_eq_ediv_of_nonneg _ (Int.natCast_nonneg h),
       Int.fmod_eq_emod_of_nonneg _ (Int.natCast_nonneg h)]
-  · exact summary_clocks run.2 _ cost
+  · exact reaches_clocks run.2.root _ cost
 
 theorem join_contract_fresh (heap : Heap) (a b c d : SeqRef) (av bv cv dv : Seq) (h : Nat)
     (sa : Stored heap a av) (sb : Stored heap b bv) (sc : Stored heap c cv) (sd : Stored heap d dv)
@@ -2069,7 +2069,7 @@ theorem join_contract_fresh (heap : Heap) (a b c d : SeqRef) (av bv cv dv : Seq)
     have dd : heap.read d = dv := funext sd.read
     rw [aa, bb, cc, dd] at contents
     exact congrFun contents index
-  · exact summary_clocks run.2 _ cost
+  · exact reaches_clocks run.2.root _ cost
 
 theorem join_contract (heap : Heap) (a b c d : SeqRef) (av bv cv dv : Seq) (h : Nat)
     (sa : Stored heap a av) (sb : Stored heap b bv) (sc : Stored heap c cv) (sd : Stored heap d dv)
@@ -2103,9 +2103,10 @@ theorem strassen_summary_fresh (depth : Nat) (heap : Heap) (a b : SeqRef) (av bv
     · intro index
       simp only [leaf_contents, StrassenValues.strassenValue, sa.read, sb.read]
     · intro name
-      have charged := summary_clocks (leaf_summary heap a b sa.allocated sb.allocated).2 _
+      have charged := reaches_clocks (leaf_summary heap a b sa.allocated sb.allocated).2.root _
         (leaf_cost heap a b) name
-      simpa [costs, Chapter4Math.calls, Chapter4Math.strassenOverhead, Clocks.add, Clocks.single]
+      simpa [start, Config.heap, costs, Chapter4Math.calls, Chapter4Math.strassenOverhead,
+        Clocks.add, Clocks.single]
         using charged
   | succ depth ih =>
     let h : Nat := 2^depth

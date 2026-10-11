@@ -277,14 +277,14 @@ theorem reaches_clock_monotone {before after : Configuration}
   intro first second move previous
   exact Nat.le_trans previous (step_clock_monotone move name)
 
-theorem summary_clocks {before after : Heap} {frame : Frame} {result : Result}
-    (run : Summary Step before frame after result) (costs : Clocks)
-    (cost : Heap.cost before after = costs) (name : String) :
-    after.clocks name = before.clocks name + costs name := by
-  have monotone := reaches_clock_monotone run.root name
+/-- A finite execution adds exactly its heap cost to each initial clock. -/
+theorem reaches_clocks {before after : Configuration}
+    (run : Reaches Step before after) (costs : Clocks)
+    (cost : Heap.cost before.heap after.heap = costs) (name : String) :
+    after.heap.clocks name = before.heap.clocks name + costs name := by
+  have monotone := reaches_clock_monotone run name
   have charged := congrFun cost name
   simp only [Heap.cost] at charged
-  simp only [start, Config.heap] at monotone
   omega
 
 end MatrixStrassenAnalysis

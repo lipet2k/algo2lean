@@ -1,5 +1,13 @@
 # Change log
 
+## 2026-10-11 — Keep analysis helper statements source-facing
+
+- Rewrite ten Fibonacci-heap and Kruskal sorting loop helpers using named locations, source-variable observations, configuration heap/stack projections, and CallFrom or Reaches. Keep generated states, slots, and numbered transitions inside proof bodies.
+- Replace Strassen's raw Summary clock helper with a reachability lemma over configurations and reuse it at all four call sites.
+- Preserve main correctness/runtime statements, source algorithms, generated semantics, conversion helpers, compiler version 0.1.4, and existing releases.
+
+Validation: standalone and imported Fibonacci-heap analyses, keyed sorting, full Kruskal analysis, bundled Strassen analysis, all 12 Chapter 4 modules, and their axiom audit pass Lean. A scan of 2,243 example theorem/helper statements finds no generated State records, numbered slots/frame constructors, or raw Summary Step references.
+
 ## 2026-10-10 — Reuse verified Lean checks for UI updates and persist compilation caches
 
 - Keep compiler/editor checks unconditional. Skip the Lean job only when cumulative changes from a successful full `main` check are on an explicit UI/documentation allowlist; verify repository, workflow, ancestry, and the actual Lean version/test steps.

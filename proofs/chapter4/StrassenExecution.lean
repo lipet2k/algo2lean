@@ -39,7 +39,7 @@ theorem linear_contract (heap : Heap) (a b : SeqRef) (av bv : Seq) (count : Nat)
   · intro index
     rw [contents]
     simp only [StrassenValues.linearValues, sa.read, sb.read]
-  · exact summary_clocks run.2 _ cost
+  · exact reaches_clocks run.2.root _ cost
 
 theorem quadrant_contract (heap : Heap) (a : SeqRef) (av : Seq) (n row col : Int) (h : Nat)
     (sa : Stored heap a av) (positive : 0 < h) :
@@ -54,7 +54,7 @@ theorem quadrant_contract (heap : Heap) (a : SeqRef) (av : Seq) (n row col : Int
     simp only [StrassenValues.quadrantValues, quadrantIndex, Int.natCast_mul, sa.read,
       Int.fdiv_eq_ediv_of_nonneg _ (Int.natCast_nonneg h),
       Int.fmod_eq_emod_of_nonneg _ (Int.natCast_nonneg h)]
-  · exact summary_clocks run.2 _ cost
+  · exact reaches_clocks run.2.root _ cost
 
 theorem join_contract_fresh (heap : Heap) (a b c d : SeqRef) (av bv cv dv : Seq) (h : Nat)
     (sa : Stored heap a av) (sb : Stored heap b bv) (sc : Stored heap c cv) (sd : Stored heap d dv)
@@ -72,7 +72,7 @@ theorem join_contract_fresh (heap : Heap) (a b c d : SeqRef) (av bv cv dv : Seq)
     have dd : heap.read d = dv := funext sd.read
     rw [aa, bb, cc, dd] at contents
     exact congrFun contents index
-  · exact summary_clocks run.2 _ cost
+  · exact reaches_clocks run.2.root _ cost
 
 theorem join_contract (heap : Heap) (a b c d : SeqRef) (av bv cv dv : Seq) (h : Nat)
     (sa : Stored heap a av) (sb : Stored heap b bv) (sc : Stored heap c cv) (sd : Stored heap d dv)
@@ -106,9 +106,10 @@ theorem strassen_summary_fresh (depth : Nat) (heap : Heap) (a b : SeqRef) (av bv
     · intro index
       simp only [leaf_contents, StrassenValues.strassenValue, sa.read, sb.read]
     · intro name
-      have charged := summary_clocks (leaf_summary heap a b sa.allocated sb.allocated).2 _
+      have charged := reaches_clocks (leaf_summary heap a b sa.allocated sb.allocated).2.root _
         (leaf_cost heap a b) name
-      simpa [costs, Chapter4Math.calls, Chapter4Math.strassenOverhead, Clocks.add, Clocks.single]
+      simpa [start, Config.heap, costs, Chapter4Math.calls, Chapter4Math.strassenOverhead,
+        Clocks.add, Clocks.single]
         using charged
   | succ depth ih =>
     let h : Nat := 2^depth

@@ -2866,52 +2866,74 @@ theorem rebuild_exists (heap : Heap) (queue : Ref_FibonacciHeap) (layout : Layou
       exact ⟨after, finalLayout, .step remaining rest, finalReady⟩
   exact terminate _ heap layout degree rfl valid
 
+/-- Rebuild the root ring from the named degree-table scan location. -/
 private theorem rebuild_effect_reaches (queue : Ref_FibonacciHeap) (maximum : Int)
     (heap after : Heap) (layout finalLayout : Layout) (degree : Int)
     (valid : layout.Valid heap queue)
     (effect : RebuildEffect queue maximum heap layout degree after finalLayout)
-    (state : State_FibonacciHeap_consolidate) (stack : Stack) :
-    Reaches Step (.active heap (.fn_FibonacciHeap_consolidate 4
-      { state with v0 := queue, v1 := layout.table, v2 := maximum, v4 := degree }) stack)
-      (resumeConfig after (.fn_FibonacciHeap_consolidate ()) stack) := by
-  induction effect generalizing state with
-  | done heap layout degree finished =>
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc4 _ _ _)
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc3_false _ _ _ (by simp; omega))
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc2 _ _ _)
-    exact Reaches.single (Step.FibonacciHeap_consolidate_pc1 _ _ _)
-  | @step heap after layout finalLayout degree remaining rest ih =>
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc4 _ _ _)
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc3_true _ _ _ (by simp [remaining]))
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc14 _ _ _)
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc13 _ _ _ valid.tableAllocated)
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc12 _ _ _ valid.tableAllocated)
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc11 _ _ _)
-    have nextValid := rebuild_layout heap queue layout valid degree
-    by_cases absent : heap.read layout.table degree < 0
-    · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc10_false _ _ _ (by simp; omega))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc5 _ _ _)
-      simpa only [rebuildHeap, rebuildLayout, absent, ↓reduceIte, rebuildClear, Heap.read_tick] using
-        ih nextValid { state with t8 := decide (degree ≤ maximum), t9 := decide (heap.read layout.table degree ≥ 0), v3 := heap.read layout.table degree }
-    · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc10_true _ _ _ (by simp; omega))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc9 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc8 _ _ _ valid.object)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc7 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc6 _ _ _)
-      have clearValid : layout.Valid (rebuildClear heap layout degree) queue :=
-        Layout.Valid.write _ _ _ (Layout.Valid.tick _ _ _ valid _ _) _ _ _
-      apply Reaches.trans ((add_root_summary _ _ _ clearValid (heap.read layout.table degree)).2 _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc5 _ _ _)
-      have tableSame : (rebuildLayout heap layout degree).table = layout.table := by
-        simp only [rebuildLayout, absent, ↓reduceIte]
-        unfold addRootLayout
-        split
-        · rfl
-        · dsimp only
-          split <;> rfl
-      have subsequent := ih nextValid { state with t8 := decide (degree ≤ maximum), t9 := decide (heap.read layout.table degree ≥ 0), v3 := heap.read layout.table degree, t10 := (), t11 := queue, t12 := heap.read layout.table degree }
-      rw [tableSame] at subsequent
-      simpa only [rebuildHeap, absent, ↓reduceIte, Heap.read_tick] using subsequent
+    (config : Configuration) (location : FibonacciHeap.consolidate.At.rebuild_roots config)
+    (readHeap : config.heap = heap)
+    (readSelf : FibonacciHeap.consolidate.Local.self config = some queue)
+    (readTable : FibonacciHeap.consolidate.Local.table config = some layout.table)
+    (readMaximum : FibonacciHeap.consolidate.Local.maximum_degree config = some maximum)
+    (readDegree : FibonacciHeap.consolidate.Local.degree config = some degree) :
+    FibonacciHeap.consolidate.CallFrom config after () := by
+  have execute (state : State_FibonacciHeap_consolidate) (stack : Stack) :
+      Reaches Step (.active heap (.fn_FibonacciHeap_consolidate 4
+        { state with v0 := queue, v1 := layout.table, v2 := maximum, v4 := degree }) stack)
+        (resumeConfig after (.fn_FibonacciHeap_consolidate ()) stack) := by
+    clear config location readHeap readSelf readTable readMaximum readDegree
+    induction effect generalizing state with
+    | done heap layout degree finished =>
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc4 _ _ _)
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc3_false _ _ _ (by simp; omega))
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc2 _ _ _)
+      exact Reaches.single (Step.FibonacciHeap_consolidate_pc1 _ _ _)
+    | @step heap after layout finalLayout degree remaining rest ih =>
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc4 _ _ _)
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc3_true _ _ _ (by simp [remaining]))
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc14 _ _ _)
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc13 _ _ _ valid.tableAllocated)
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc12 _ _ _ valid.tableAllocated)
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc11 _ _ _)
+      have nextValid := rebuild_layout heap queue layout valid degree
+      by_cases absent : heap.read layout.table degree < 0
+      · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc10_false _ _ _ (by simp; omega))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc5 _ _ _)
+        simpa only [rebuildHeap, rebuildLayout, absent, ↓reduceIte, rebuildClear, Heap.read_tick] using
+          ih nextValid { state with t8 := decide (degree ≤ maximum), t9 := decide (heap.read layout.table degree ≥ 0), v3 := heap.read layout.table degree }
+      · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc10_true _ _ _ (by simp; omega))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc9 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc8 _ _ _ valid.object)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc7 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc6 _ _ _)
+        have clearValid : layout.Valid (rebuildClear heap layout degree) queue :=
+          Layout.Valid.write _ _ _ (Layout.Valid.tick _ _ _ valid _ _) _ _ _
+        apply Reaches.trans ((add_root_summary _ _ _ clearValid (heap.read layout.table degree)).2 _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc5 _ _ _)
+        have tableSame : (rebuildLayout heap layout degree).table = layout.table := by
+          simp only [rebuildLayout, absent, ↓reduceIte]
+          unfold addRootLayout
+          split
+          · rfl
+          · dsimp only
+            split <;> rfl
+        have subsequent := ih nextValid { state with t8 := decide (degree ≤ maximum), t9 := decide (heap.read layout.table degree ≥ 0), v3 := heap.read layout.table degree, t10 := (), t11 := queue, t12 := heap.read layout.table degree }
+        rw [tableSame] at subsequent
+        simpa only [rebuildHeap, absent, ↓reduceIte, Heap.read_tick] using subsequent
+  unfold FibonacciHeap.consolidate.At.rebuild_roots at location
+  split at location <;> try contradiction
+  rename_i before locals stack
+  simp only [Config.heap] at readHeap
+  subst before
+  simp only [FibonacciHeap.consolidate.Local.self, FibonacciHeap.consolidate.Local.table,
+    FibonacciHeap.consolidate.Local.maximum_degree, FibonacciHeap.consolidate.Local.degree] at readSelf readTable readMaximum readDegree
+  change ∀ caller, _
+  intro caller
+  have actual : {locals with v0 := queue, v1 := layout.table, v2 := maximum, v4 := degree} = locals := by
+    cases locals
+    simp_all
+  simpa only [actual] using execute locals caller
 
 /-- Clear the colliding bucket before comparing and linking its two roots. -/
 def collisionStart (heap : Heap) (layout : Layout) (degree : Int) : Heap :=
@@ -3007,78 +3029,119 @@ theorem collision_exists (heap : Heap) (queue : Ref_FibonacciHeap) (layout : Lay
       exact ⟨after, finalVertex, finalDegree, links + 1, .step occupied rest, readyAfter⟩
   exact terminate _ heap vertex degree rfl valid tail
 
+/-- Resolve equal-degree collisions, returning to the named test with an empty bucket. -/
 private theorem collision_effect_reaches (heap after : Heap) (queue : Ref_FibonacciHeap)
     (layout : Layout) (vertex degree finalVertex finalDegree : Int) (links : Nat)
     (valid : layout.Valid heap queue)
     (effect : CollisionEffect layout heap vertex degree after finalVertex finalDegree links)
-    (state : State_FibonacciHeap_consolidate) (stack : Stack) :
-    ∃ finalState : State_FibonacciHeap_consolidate,
-      finalState.v0 = queue ∧ finalState.v1 = layout.table ∧ finalState.v2 = state.v2 ∧
-      finalState.v3 = finalVertex ∧ finalState.v4 = finalDegree ∧
-      Reaches Step (.active heap (.fn_FibonacciHeap_consolidate 23
-        {state with v0 := queue, v1 := layout.table, v3 := vertex, v4 := degree}) stack)
-        (.active after (.fn_FibonacciHeap_consolidate 21 finalState) stack) := by
-  induction effect generalizing state with
-  | done heap vertex degree empty =>
-    refine ⟨{state with v0 := queue, v1 := layout.table, v3 := vertex, v4 := degree, t15 := decide (heap.read layout.table degree ≥ 0)}, rfl, rfl, rfl, rfl, rfl, ?_⟩
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc23 _ _ _ valid.tableAllocated)
-    exact Reaches.single (Step.FibonacciHeap_consolidate_pc22_false _ _ _ (by simp; omega))
-  | @step heap after vertex degree finalVertex finalDegree links occupied rest ih =>
-    let ready := collisionStart heap layout degree
-    let other := heap.read layout.table degree
-    have readyValid : layout.Valid ready queue :=
-      Layout.Valid.tick _ _ _ (Layout.Valid.write _ _ _ valid _ _ _) _ _
-    have nextValid := collision_layout heap queue layout valid vertex degree
-    by_cases better : ready.read layout.keys other < ready.read layout.keys vertex
-    · dsimp only [ready, other, collisionStart] at better
-      let nextState : State_FibonacciHeap_consolidate :=
-        {state with v0 := queue, v1 := layout.table, v3 := other, v4 := degree + 1, v5 := vertex, v6 := vertex, t15 := decide (heap.read layout.table degree ≥ 0), t16 := (), t17 := queue, t18 := vertex, t19 := other, t20 := decide (ready.read layout.keys other < ready.read layout.keys vertex)}
-      obtain ⟨finalState, self, table, maximum, output, degreeOut, tail⟩ := ih nextValid nextState
-      refine ⟨finalState, self, table, maximum, output, degreeOut, ?_⟩
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc23 _ _ _ valid.tableAllocated)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc22_true _ _ _ (by simp [occupied]))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc37 _ _ _ valid.tableAllocated)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc36 _ _ _ valid.tableAllocated)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc35 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc34 _ _ _
-        (by simp [valid.readKeys, valid.keysAllocated]))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc33_true _ _ _
-        (by simpa only [keys_tick, keys_write, valid.readKeys, Option.getD_some, decide_eq_true_eq, decide_eq_false_iff_not] using better))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc32 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc31 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc30 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc29 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc28 _ _ _ readyValid.object)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc27 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc26 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc25 _ _ _)
-      apply Reaches.trans ((link_summary ready queue layout readyValid vertex other).2 _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc24 _ _ _)
-      simpa only [collisionHeap, collisionParent, collisionChild, collisionStart, better, ↓reduceIte,
-        nextState, ready, other, keys_tick, keys_write, valid.readKeys, Option.getD_some] using tail
-    · dsimp only [ready, other, collisionStart] at better
-      let nextState : State_FibonacciHeap_consolidate :=
-        {state with v0 := queue, v1 := layout.table, v3 := vertex, v4 := degree + 1, v5 := other, t15 := decide (heap.read layout.table degree ≥ 0), t16 := (), t17 := queue, t18 := other, t19 := vertex, t20 := decide (ready.read layout.keys other < ready.read layout.keys vertex)}
-      obtain ⟨finalState, self, table, maximum, output, degreeOut, tail⟩ := ih nextValid nextState
-      refine ⟨finalState, self, table, maximum, output, degreeOut, ?_⟩
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc23 _ _ _ valid.tableAllocated)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc22_true _ _ _ (by simp [occupied]))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc37 _ _ _ valid.tableAllocated)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc36 _ _ _ valid.tableAllocated)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc35 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc34 _ _ _
-        (by simp [valid.readKeys, valid.keysAllocated]))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc33_false _ _ _
-        (by simpa only [keys_tick, keys_write, valid.readKeys, Option.getD_some, decide_eq_true_eq, decide_eq_false_iff_not] using better))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc29 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc28 _ _ _ readyValid.object)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc27 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc26 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc25 _ _ _)
-      apply Reaches.trans ((link_summary ready queue layout readyValid other vertex).2 _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc24 _ _ _)
-      simpa only [collisionHeap, collisionParent, collisionChild, collisionStart, better, ↓reduceIte,
-        nextState, ready, other, keys_tick, keys_write, valid.readKeys, Option.getD_some] using tail
+    (config : Configuration) (location : FibonacciHeap.consolidate.At.equal_degree config)
+    (readHeap : config.heap = heap)
+    (readSelf : FibonacciHeap.consolidate.Local.self config = some queue)
+    (readTable : FibonacciHeap.consolidate.Local.table config = some layout.table)
+    (readVertex : FibonacciHeap.consolidate.Local.vertex config = some vertex)
+    (readDegree : FibonacciHeap.consolidate.Local.degree config = some degree) :
+    ∃ finalConfig : Configuration,
+      Reaches Step config finalConfig ∧ finalConfig.heap = after ∧
+      finalConfig.stack = config.stack ∧ FibonacciHeap.consolidate.At.equal_degree finalConfig ∧
+      FibonacciHeap.consolidate.Local.self finalConfig = some queue ∧
+      FibonacciHeap.consolidate.Local.table finalConfig = some layout.table ∧
+      FibonacciHeap.consolidate.Local.maximum_degree finalConfig =
+        FibonacciHeap.consolidate.Local.maximum_degree config ∧
+      FibonacciHeap.consolidate.Local.vertex finalConfig = some finalVertex ∧
+      FibonacciHeap.consolidate.Local.degree finalConfig = some finalDegree ∧
+      after.read layout.table finalDegree < 0 := by
+  have execute (state : State_FibonacciHeap_consolidate) (stack : Stack) :
+      ∃ finalState : State_FibonacciHeap_consolidate,
+        finalState.v0 = queue ∧ finalState.v1 = layout.table ∧ finalState.v2 = state.v2 ∧
+        finalState.v3 = finalVertex ∧ finalState.v4 = finalDegree ∧
+        Reaches Step (.active heap (.fn_FibonacciHeap_consolidate 23
+          {state with v0 := queue, v1 := layout.table, v3 := vertex, v4 := degree}) stack)
+          (.active after (.fn_FibonacciHeap_consolidate 23 finalState) stack) := by
+    clear config location readHeap readSelf readTable readVertex readDegree
+    induction effect generalizing state with
+    | done heap vertex degree empty =>
+      exact ⟨{state with v0 := queue, v1 := layout.table, v3 := vertex, v4 := degree},
+        rfl, rfl, rfl, rfl, rfl, .refl _⟩
+    | @step heap after vertex degree finalVertex finalDegree links occupied rest ih =>
+      let ready := collisionStart heap layout degree
+      let other := heap.read layout.table degree
+      have readyValid : layout.Valid ready queue :=
+        Layout.Valid.tick _ _ _ (Layout.Valid.write _ _ _ valid _ _ _) _ _
+      have nextValid := collision_layout heap queue layout valid vertex degree
+      by_cases better : ready.read layout.keys other < ready.read layout.keys vertex
+      · dsimp only [ready, other, collisionStart] at better
+        let nextState : State_FibonacciHeap_consolidate :=
+          {state with v0 := queue, v1 := layout.table, v3 := other, v4 := degree + 1, v5 := vertex, v6 := vertex, t15 := decide (heap.read layout.table degree ≥ 0), t16 := (), t17 := queue, t18 := vertex, t19 := other, t20 := decide (ready.read layout.keys other < ready.read layout.keys vertex)}
+        obtain ⟨finalState, self, table, maximum, output, degreeOut, tail⟩ := ih nextValid nextState
+        refine ⟨finalState, self, table, maximum, output, degreeOut, ?_⟩
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc23 _ _ _ valid.tableAllocated)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc22_true _ _ _ (by simp [occupied]))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc37 _ _ _ valid.tableAllocated)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc36 _ _ _ valid.tableAllocated)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc35 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc34 _ _ _
+          (by simp [valid.readKeys, valid.keysAllocated]))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc33_true _ _ _
+          (by simpa only [keys_tick, keys_write, valid.readKeys, Option.getD_some, decide_eq_true_eq, decide_eq_false_iff_not] using better))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc32 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc31 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc30 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc29 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc28 _ _ _ readyValid.object)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc27 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc26 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc25 _ _ _)
+        apply Reaches.trans ((link_summary ready queue layout readyValid vertex other).2 _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc24 _ _ _)
+        simpa only [collisionHeap, collisionParent, collisionChild, collisionStart, better, ↓reduceIte,
+          nextState, ready, other, keys_tick, keys_write, valid.readKeys, Option.getD_some] using tail
+      · dsimp only [ready, other, collisionStart] at better
+        let nextState : State_FibonacciHeap_consolidate :=
+          {state with v0 := queue, v1 := layout.table, v3 := vertex, v4 := degree + 1, v5 := other, t15 := decide (heap.read layout.table degree ≥ 0), t16 := (), t17 := queue, t18 := other, t19 := vertex, t20 := decide (ready.read layout.keys other < ready.read layout.keys vertex)}
+        obtain ⟨finalState, self, table, maximum, output, degreeOut, tail⟩ := ih nextValid nextState
+        refine ⟨finalState, self, table, maximum, output, degreeOut, ?_⟩
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc23 _ _ _ valid.tableAllocated)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc22_true _ _ _ (by simp [occupied]))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc37 _ _ _ valid.tableAllocated)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc36 _ _ _ valid.tableAllocated)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc35 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc34 _ _ _
+          (by simp [valid.readKeys, valid.keysAllocated]))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc33_false _ _ _
+          (by simpa only [keys_tick, keys_write, valid.readKeys, Option.getD_some, decide_eq_true_eq, decide_eq_false_iff_not] using better))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc29 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc28 _ _ _ readyValid.object)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc27 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc26 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc25 _ _ _)
+        apply Reaches.trans ((link_summary ready queue layout readyValid other vertex).2 _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc24 _ _ _)
+        simpa only [collisionHeap, collisionParent, collisionChild, collisionStart, better, ↓reduceIte,
+          nextState, ready, other, keys_tick, keys_write, valid.readKeys, Option.getD_some] using tail
+  have empty : after.read layout.table finalDegree < 0 := by
+    clear config location readHeap readSelf readTable readVertex readDegree execute valid
+    induction effect with
+    | done _ _ _ empty => exact empty
+    | step _ _ ih => exact ih
+  unfold FibonacciHeap.consolidate.At.equal_degree at location
+  split at location <;> try contradiction
+  rename_i before locals stack
+  simp only [Config.heap] at readHeap
+  subst before
+  simp only [FibonacciHeap.consolidate.Local.self, FibonacciHeap.consolidate.Local.table,
+    FibonacciHeap.consolidate.Local.vertex, FibonacciHeap.consolidate.Local.degree] at readSelf readTable readVertex readDegree
+  obtain ⟨last, self, table, maximumSame, vertexSame, degreeSame, execution⟩ := execute locals stack
+  have actual : {locals with v0 := queue, v1 := layout.table, v3 := vertex, v4 := degree} = locals := by
+    cases locals
+    simp_all
+  rw [actual] at execution
+  refine ⟨.active after (.fn_FibonacciHeap_consolidate 23 last) stack,
+    execution, rfl, rfl, trivial, ?_, ?_, ?_, ?_, ?_, empty⟩
+  · exact congrArg some self
+  · exact congrArg some table
+  · exact congrArg some maximumSame
+  · exact congrArg some vertexSame
+  · exact congrArg some degreeSame
 
 /-- Detach the next pending root before looking it up in the degree table. -/
 def pendingMinimum (heap : Heap) (layout : Layout) : Int :=
@@ -3125,93 +3188,136 @@ inductive ConsumeEffect (queue : Ref_FibonacciHeap) :
         (detachLayout heap layout) (max maximum degree) after finalLayout tailRoots tailLinks) :
       ConsumeEffect queue heap layout maximum after finalLayout (tailRoots + 1) (links + tailLinks)
 
+/-- Consume the pending roots and finish consolidation from its named loop location. -/
 private theorem consume_effect_reaches (queue : Ref_FibonacciHeap)
     (heap after : Heap) (layout finalLayout : Layout) (maximum : Int) (roots links : Nat)
     (valid : layout.Valid heap queue)
     (effect : ConsumeEffect queue heap layout maximum after finalLayout roots links)
-    (state : State_FibonacciHeap_consolidate) (stack : Stack) :
-    Reaches Step (.active heap (.fn_FibonacciHeap_consolidate 17
-      {state with v0 := queue, v1 := layout.table, v2 := maximum}) stack)
-      (resumeConfig after (.fn_FibonacciHeap_consolidate ()) stack) := by
-  induction effect generalizing state with
-  | @done heap after layout finalLayout maximum empty rebuild =>
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc17 _ _ _ (by simp [valid.readMinimum]))
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc16_false _ _ _ (by simp [valid.readMinimum]; omega))
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc15 _ _ _)
-    simpa only [valid.readMinimum, Option.getD_some] using
-      rebuild_effect_reaches queue maximum heap after layout finalLayout 0 valid rebuild
-        {state with t13 := decide (layout.minimum ≥ 0)} stack
-  | @next heap merged after layout finalLayout maximum vertex degree links tailRoots tailLinks pending collisions rest ih =>
-    let detached := detachHeap heap queue layout
-    let detachedLayout := detachLayout heap layout
-    have detachedReady := detach_layout heap queue layout valid
-    have mergedReady := collisions.layout_valid detachedReady
-    have storedReady := Layout.Valid.write merged queue detachedLayout mergedReady layout.table degree vertex
-    have finish (atCollision : State_FibonacciHeap_consolidate)
-        (readSelf : atCollision.v0 = queue) (readTable : atCollision.v1 = layout.table)
-        (readMaximum : atCollision.v2 = maximum) (readVertex : atCollision.v3 = layout.minimum)
-        (readDegree : atCollision.v4 = detached.read layout.degrees layout.minimum) :
-        Reaches Step (.active detached (.fn_FibonacciHeap_consolidate 23 atCollision) stack)
-          (resumeConfig after (.fn_FibonacciHeap_consolidate ()) stack) := by
-      obtain ⟨last, self, table, maximumSame, vertexSame, degreeSame, collisionRun⟩ :=
-        collision_effect_reaches detached merged queue detachedLayout layout.minimum
-          (detached.read layout.degrees layout.minimum) vertex degree links detachedReady collisions atCollision stack
-      have actual : {atCollision with v0 := queue, v1 := detachedLayout.table, v3 := layout.minimum, v4 := detached.read layout.degrees layout.minimum} = atCollision := by
-        cases atCollision
-        simp_all [detachedLayout, detachLayout]
-      rw [actual] at collisionRun
-      apply Reaches.trans collisionRun
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc21 _ _ _ (by simpa [table] using mergedReady.tableAllocated))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc20 _ _ _)
-      have maximumValue : last.v2 = maximum := maximumSame.trans readMaximum
-      by_cases larger : maximum < degree
-      · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc19_true _ _ _ (by simp [degreeSame, maximumValue, larger]))
-        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc18 _ _ _)
-        have next := ih storedReady {last with t14 := decide (degree > maximum)}
-        simpa only [self, table, degreeSame, vertexSame, maximumValue, Int.max_eq_right (Int.le_of_lt larger), detachedLayout, detachLayout] using next
-      · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc19_false _ _ _ (by simp [degreeSame, maximumValue, larger]))
-        have next := ih storedReady {last with t14 := decide (degree > maximum)}
-        simpa only [self, table, degreeSame, vertexSame, maximumValue, Int.max_eq_left (by omega : degree ≤ maximum), detachedLayout, detachLayout] using next
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc17 _ _ _ (by simp [valid.readMinimum]))
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc16_true _ _ _ (by simp [valid.readMinimum, pending]))
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc48 _ _ _ (by simp [valid.readMinimum]))
-    apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc47 _ _ _ (by simp [valid.readRight, valid.rightAllocated]))
-    have tail (prepared : Heap) (current : Layout) (ready : current.Valid prepared queue)
-        (sameRefs : current.keys = layout.keys ∧ current.parents = layout.parents ∧ current.children = layout.children ∧
-          current.left = layout.left ∧ current.right = layout.right ∧ current.degrees = layout.degrees ∧
-          current.marks = layout.marks ∧ current.present = layout.present ∧ current.table = layout.table)
-        (state : State_FibonacciHeap_consolidate) (self : state.v0 = queue) (table : state.v1 = layout.table)
-        (maximumValue : state.v2 = maximum) (vertexValue : state.v3 = layout.minimum)
-        (sameHeap : (removeHeap prepared current layout.minimum).tick "heap_root_scans" = detached) :
-        Reaches Step (.active prepared (.fn_FibonacciHeap_consolidate 43 state) stack)
-          (resumeConfig after (.fn_FibonacciHeap_consolidate ()) stack) := by
-      have detachedReady' := Layout.Valid.tick (removeHeap prepared current layout.minimum) queue current (remove_preserves_layout prepared queue current ready layout.minimum) "heap_root_scans" 1
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc43 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc42 _ _ _ (by simpa [self] using ready.object))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc41 _ _ _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc40 _ _ _)
-      simp only [self, vertexValue]
-      apply Reaches.trans ((remove_from_ring_summary prepared queue current ready layout.minimum).2 _)
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc39 _ _ _)
-      rw [sameHeap]
-      have readyDetached : current.Valid detached queue := sameHeap ▸ detachedReady'
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc38 _ _ _
-        (by rw [readyDetached.readDegrees]; exact ⟨rfl, readyDetached.degreesAllocated⟩))
-      simp only [readyDetached.readDegrees, Option.getD_some, sameRefs.2.2.2.2.2.1]
-      exact finish _ rfl table maximumValue rfl rfl
-    by_cases singleton : heap.read layout.right layout.minimum = layout.minimum
-    · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc46_true _ _ _ (by simp [valid.readMinimum, valid.readRight, singleton]))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc44 _ _ _ valid.object)
-      apply tail _ {layout with minimum := -1} (Layout.Valid.set_minimum heap queue layout valid (-1))
-        ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ _ rfl rfl rfl
-        (by simp [valid.readMinimum])
-      simp [detached, detachHeap, pendingMinimum, singleton, removeHeap]
-    · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc46_false _ _ _ (by simp [valid.readMinimum, valid.readRight, singleton]))
-      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc45 _ _ _ (by simp [valid.readRight, valid.rightAllocated, valid.object]))
-      simp only [valid.readMinimum, valid.readRight, Option.getD_some]
-      apply tail _ {layout with minimum := heap.read layout.right layout.minimum}
-        (Layout.Valid.set_minimum heap queue layout valid _) ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ _ rfl rfl rfl rfl
-      simp [detached, detachHeap, pendingMinimum, singleton, removeHeap]
+    (config : Configuration) (location : FibonacciHeap.consolidate.At.consume_roots config)
+    (readHeap : config.heap = heap)
+    (readSelf : FibonacciHeap.consolidate.Local.self config = some queue)
+    (readTable : FibonacciHeap.consolidate.Local.table config = some layout.table)
+    (readMaximum : FibonacciHeap.consolidate.Local.maximum_degree config = some maximum) :
+    FibonacciHeap.consolidate.CallFrom config after () := by
+  have execute (state : State_FibonacciHeap_consolidate) (stack : Stack) :
+      Reaches Step (.active heap (.fn_FibonacciHeap_consolidate 17
+        {state with v0 := queue, v1 := layout.table, v2 := maximum}) stack)
+        (resumeConfig after (.fn_FibonacciHeap_consolidate ()) stack) := by
+    clear config location readHeap readSelf readTable readMaximum
+    induction effect generalizing state with
+    | @done heap after layout finalLayout maximum empty rebuild =>
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc17 _ _ _ (by simp [valid.readMinimum]))
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc16_false _ _ _ (by simp [valid.readMinimum]; omega))
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc15 _ _ _)
+      simpa only [valid.readMinimum, Option.getD_some] using
+        (rebuild_effect_reaches queue maximum heap after layout finalLayout 0 valid rebuild
+          (.active heap (.fn_FibonacciHeap_consolidate 4
+            {state with v0 := queue, v1 := layout.table, v2 := maximum, v4 := 0, t13 := decide (layout.minimum ≥ 0)}) stack) trivial rfl rfl rfl rfl rfl) stack
+    | @next heap merged after layout finalLayout maximum vertex degree links tailRoots tailLinks pending collisions rest ih =>
+      let detached := detachHeap heap queue layout
+      let detachedLayout := detachLayout heap layout
+      have detachedReady := detach_layout heap queue layout valid
+      have mergedReady := collisions.layout_valid detachedReady
+      have storedReady := Layout.Valid.write merged queue detachedLayout mergedReady layout.table degree vertex
+      have finish (atCollision : State_FibonacciHeap_consolidate)
+          (readSelf : atCollision.v0 = queue) (readTable : atCollision.v1 = layout.table)
+          (readMaximum : atCollision.v2 = maximum) (readVertex : atCollision.v3 = layout.minimum)
+          (readDegree : atCollision.v4 = detached.read layout.degrees layout.minimum) :
+          Reaches Step (.active detached (.fn_FibonacciHeap_consolidate 23 atCollision) stack)
+            (resumeConfig after (.fn_FibonacciHeap_consolidate ()) stack) := by
+        obtain ⟨finalConfig, collisionRun, heapSame, stackSame, finalLocation,
+            selfValue, tableValue, maximumValue, vertexValue, degreeValue, empty⟩ :=
+          collision_effect_reaches detached merged queue detachedLayout layout.minimum
+            (detached.read layout.degrees layout.minimum) vertex degree links detachedReady collisions
+            (.active detached (.fn_FibonacciHeap_consolidate 23 atCollision) stack) trivial rfl
+            (congrArg some readSelf) (congrArg some readTable) (congrArg some readVertex)
+            (congrArg some readDegree)
+        unfold FibonacciHeap.consolidate.At.equal_degree at finalLocation
+        split at finalLocation <;> try contradiction
+        rename_i finalHeap waiting finalStack
+        simp only [Config.heap] at heapSame
+        subst finalHeap
+        simp only [Config.stack] at stackSame
+        subst finalStack
+        have self : waiting.v0 = queue := Option.some.inj selfValue
+        have table : waiting.v1 = layout.table := Option.some.inj tableValue
+        have maximumSame : waiting.v2 = atCollision.v2 := Option.some.inj maximumValue
+        have vertexSame : waiting.v3 = vertex := Option.some.inj vertexValue
+        have degreeSame : waiting.v4 = degree := Option.some.inj degreeValue
+        let last := {waiting with t15 := decide (merged.read layout.table degree ≥ 0)}
+        have exitRun : Reaches Step (.active merged (.fn_FibonacciHeap_consolidate 23 waiting) stack)
+            (.active merged (.fn_FibonacciHeap_consolidate 21 last) stack) := by
+          apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc23 _ _ _
+            (by simpa [last, table, detachedLayout, detachLayout] using mergedReady.tableAllocated))
+          simpa only [last, table, degreeSame] using
+            Reaches.single (Step.FibonacciHeap_consolidate_pc22_false merged
+              {waiting with t15 := decide (merged.read layout.table degree ≥ 0)} stack
+              (by simp; exact empty))
+        apply Reaches.trans (Reaches.trans collisionRun exitRun)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc21 _ _ _ (by simpa [last, table, detachedLayout, detachLayout] using mergedReady.tableAllocated))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc20 _ _ _)
+        have maximumValue : last.v2 = maximum := maximumSame.trans readMaximum
+        by_cases larger : maximum < degree
+        · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc19_true _ _ _ (by simp [last, degreeSame, maximumSame, readMaximum, larger]))
+          apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc18 _ _ _)
+          have next := ih storedReady {last with t14 := decide (degree > maximum)}
+          simpa only [last, self, table, degreeSame, vertexSame, maximumSame, readMaximum, Int.max_eq_right (Int.le_of_lt larger), detachedLayout, detachLayout] using next
+        · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc19_false _ _ _ (by simp [last, degreeSame, maximumSame, readMaximum, larger]))
+          have next := ih storedReady {last with t14 := decide (degree > maximum)}
+          simpa only [last, self, table, degreeSame, vertexSame, maximumSame, readMaximum, Int.max_eq_left (by omega : degree ≤ maximum), detachedLayout, detachLayout] using next
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc17 _ _ _ (by simp [valid.readMinimum]))
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc16_true _ _ _ (by simp [valid.readMinimum, pending]))
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc48 _ _ _ (by simp [valid.readMinimum]))
+      apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc47 _ _ _ (by simp [valid.readRight, valid.rightAllocated]))
+      have tail (prepared : Heap) (current : Layout) (ready : current.Valid prepared queue)
+          (sameRefs : current.keys = layout.keys ∧ current.parents = layout.parents ∧ current.children = layout.children ∧
+            current.left = layout.left ∧ current.right = layout.right ∧ current.degrees = layout.degrees ∧
+            current.marks = layout.marks ∧ current.present = layout.present ∧ current.table = layout.table)
+          (state : State_FibonacciHeap_consolidate) (self : state.v0 = queue) (table : state.v1 = layout.table)
+          (maximumValue : state.v2 = maximum) (vertexValue : state.v3 = layout.minimum)
+          (sameHeap : (removeHeap prepared current layout.minimum).tick "heap_root_scans" = detached) :
+          Reaches Step (.active prepared (.fn_FibonacciHeap_consolidate 43 state) stack)
+            (resumeConfig after (.fn_FibonacciHeap_consolidate ()) stack) := by
+        have detachedReady' := Layout.Valid.tick (removeHeap prepared current layout.minimum) queue current (remove_preserves_layout prepared queue current ready layout.minimum) "heap_root_scans" 1
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc43 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc42 _ _ _ (by simpa [self] using ready.object))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc41 _ _ _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc40 _ _ _)
+        simp only [self, vertexValue]
+        apply Reaches.trans ((remove_from_ring_summary prepared queue current ready layout.minimum).2 _)
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc39 _ _ _)
+        rw [sameHeap]
+        have readyDetached : current.Valid detached queue := sameHeap ▸ detachedReady'
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc38 _ _ _
+          (by rw [readyDetached.readDegrees]; exact ⟨rfl, readyDetached.degreesAllocated⟩))
+        simp only [readyDetached.readDegrees, Option.getD_some, sameRefs.2.2.2.2.2.1]
+        exact finish _ rfl table maximumValue rfl rfl
+      by_cases singleton : heap.read layout.right layout.minimum = layout.minimum
+      · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc46_true _ _ _ (by simp [valid.readMinimum, valid.readRight, singleton]))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc44 _ _ _ valid.object)
+        apply tail _ {layout with minimum := -1} (Layout.Valid.set_minimum heap queue layout valid (-1))
+          ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ _ rfl rfl rfl
+          (by simp [valid.readMinimum])
+        simp [detached, detachHeap, pendingMinimum, singleton, removeHeap]
+      · apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc46_false _ _ _ (by simp [valid.readMinimum, valid.readRight, singleton]))
+        apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc45 _ _ _ (by simp [valid.readRight, valid.rightAllocated, valid.object]))
+        simp only [valid.readMinimum, valid.readRight, Option.getD_some]
+        apply tail _ {layout with minimum := heap.read layout.right layout.minimum}
+          (Layout.Valid.set_minimum heap queue layout valid _) ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ _ rfl rfl rfl rfl
+        simp [detached, detachHeap, pendingMinimum, singleton, removeHeap]
+  unfold FibonacciHeap.consolidate.At.consume_roots at location
+  split at location <;> try contradiction
+  rename_i before locals stack
+  simp only [Config.heap] at readHeap
+  subst before
+  simp only [FibonacciHeap.consolidate.Local.self, FibonacciHeap.consolidate.Local.table,
+    FibonacciHeap.consolidate.Local.maximum_degree] at readSelf readTable readMaximum
+  change ∀ caller, _
+  intro caller
+  have actual : {locals with v0 := queue, v1 := layout.table, v2 := maximum} = locals := by
+    cases locals
+    simp_all
+  simpa only [actual] using execute locals caller
 
 /-- All three consolidation phases compose through checked local call summaries. -/
 theorem consolidate_effect_summary (heap after : Heap) (queue : Ref_FibonacciHeap)
@@ -3223,7 +3329,9 @@ theorem consolidate_effect_summary (heap after : Heap) (queue : Ref_FibonacciHea
   apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc50 _ _ _ (by simp [valid.readTable]))
   apply Reaches.prepend (Step.FibonacciHeap_consolidate_pc49 _ _ _)
   simpa only [valid.readTable, Option.getD_some] using
-    consume_effect_reaches queue heap after layout finalLayout (-1) roots links valid effect {} stack
+    (consume_effect_reaches queue heap after layout finalLayout (-1) roots links valid effect
+      (.active heap (.fn_FibonacciHeap_consolidate 17
+        {v0 := queue, v1 := layout.table, v2 := -1}) stack) trivial rfl rfl rfl rfl) stack
 
 
 private theorem snapshot_ext (before after : Algo2Lean.Fibonacci.Snapshot)

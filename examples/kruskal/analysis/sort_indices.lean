@@ -161,71 +161,132 @@ private def Contents (keys : Seq) (remaining : List Int) (heap : Heap) (layout :
   (∀ value, 0 ≤ heap.read layout.positions value ↔ value ∈ remaining) ∧
   (∀ value ∈ remaining, heap.read layout.keys value = keys value)
 
-private def afterExtract (state : State_sort_indices) (vertex : Int) : State_sort_indices :=
-  { state with v4 := state.v4 + 1, t6 := true, t7 := vertex, t8 := state.v4, t9 := state.v3, t10 := state.v2 }
+/-- Completion from any extraction-loop configuration with these source values.
+    The temporary registers and the suspended caller are deliberately irrelevant. -/
+private def ExtractFrom (heap : Heap) (count : Int) (queue : ObjectRef)
+    (result : SeqRef) (index : Int) (final : Heap) : Prop :=
+  ∀ state : Configuration, sort_indices.At.extract state → state.heap = heap →
+    sort_indices.Local.count state = some count → sort_indices.Local.queue state = some queue →
+    sort_indices.Local.result state = some result → sort_indices.Local.index state = some index →
+    sort_indices.CallFrom state final result
+
+/-- Completion from the insertion loop, observing only the source variables. -/
+private def InsertFrom (heap : Heap) (keys : SeqRef) (count : Int) (queue : ObjectRef)
+    (result : SeqRef) (index : Int) (final : Heap) : Prop :=
+  ∀ state : Configuration, sort_indices.At.insert state → state.heap = heap →
+    sort_indices.Local.keys state = some keys → sort_indices.Local.count state = some count →
+    sort_indices.Local.queue state = some queue → sort_indices.Local.result state = some result →
+    sort_indices.Local.index state = some index → sort_indices.CallFrom state final result
 
 /-- One source loop iteration uses the existing minimum-extraction theorem. -/
-private theorem extract_continue (heap after final : Heap) (state : State_sort_indices)
-    (vertex : Int) (running : state.v4 < state.v1)
-    (allocated : state.v3 < after.nextRef)
-    (call : Algo.indexed_heap.MinHeap.pop_min.Call (heap.tick "sort_steps") state.v2 after vertex)
-    (rest : Summary Step (after.write state.v3 state.v4 vertex)
-      (.fn_sort_indices 4 (afterExtract state vertex)) final (.fn_sort_indices state.v3)) :
-    Summary Step heap (.fn_sort_indices 4 state) final (.fn_sort_indices state.v3) := by
-  intro caller
-  apply Reaches.prepend (Step.sort_indices_pc4 _ _ _)
-  apply Reaches.prepend (Step.sort_indices_pc3_true _ _ _ (by simpa using running))
-  apply Reaches.prepend (Step.sort_indices_pc12 _ _ _)
-  apply Reaches.prepend (Step.sort_indices_pc11 _ _ _)
-  apply Reaches.prepend (Step.sort_indices_pc10 _ _ _ (by exact call.1))
-  apply Reaches.prepend (Step.sort_indices_pc9 _ _ _)
-  apply (ModuleCall.summary import_0_simulates _ caller call.2).trans
-  apply Reaches.prepend (Step.sort_indices_pc8 _ _ _)
-  apply Reaches.prepend (Step.sort_indices_pc7 _ _ _)
-  apply Reaches.prepend (Step.sort_indices_pc6 _ _ _ allocated)
-  apply Reaches.prepend (Step.sort_indices_pc5 _ _ _)
-  simpa [afterExtract, running] using rest caller
+private theorem extract_continue (heap after final : Heap) (count : Int)
+    (queue : ObjectRef) (result : SeqRef) (index vertex : Int) (running : index < count)
+    (allocated : result < after.nextRef)
+    (call : Algo.indexed_heap.MinHeap.pop_min.Call (heap.tick "sort_steps") queue after vertex)
+    (rest : ExtractFrom (after.write result index vertex) count queue result (index + 1) final) :
+    ExtractFrom heap count queue result index final := by
+  intro config location heapEq readCount readQueue readResult readIndex
+  cases config with
+  | done => cases location
+  | active current frame stack =>
+    cases frame with
+    | invalid => cases location
+    | import_0 => cases location
+    | fn_sort_indices pc state =>
+      have atLoop : pc = 4 := by
+        unfold sort_indices.At.extract at location
+        split at location <;> simp_all
+      subst pc
+      change current = heap at heapEq
+      subst current
+      simp only [sort_indices.Local.count, sort_indices.Local.queue,
+        sort_indices.Local.result, sort_indices.Local.index, true_or, ↓reduceIte, Option.some.injEq] at readCount readQueue readResult readIndex
+      cases readCount
+      cases readQueue
+      cases readResult
+      cases readIndex
+      let next : State_sort_indices :=
+        { state with v4 := state.v4 + 1, t6 := true, t7 := vertex,
+                     t8 := state.v4, t9 := state.v3, t10 := state.v2 }
+      have tail := rest
+        (.active (after.write state.v3 state.v4 vertex) (.fn_sort_indices 4 next) [])
+        True.intro rfl rfl rfl rfl rfl
+      intro caller
+      apply Reaches.prepend (Step.sort_indices_pc4 _ _ _)
+      apply Reaches.prepend (Step.sort_indices_pc3_true _ _ _ (by simpa using running))
+      apply Reaches.prepend (Step.sort_indices_pc12 _ _ _)
+      apply Reaches.prepend (Step.sort_indices_pc11 _ _ _)
+      apply Reaches.prepend (Step.sort_indices_pc10 _ _ _ (by exact call.1))
+      apply Reaches.prepend (Step.sort_indices_pc9 _ _ _)
+      apply (ModuleCall.summary import_0_simulates _ caller call.2).trans
+      apply Reaches.prepend (Step.sort_indices_pc8 _ _ _)
+      apply Reaches.prepend (Step.sort_indices_pc7 _ _ _)
+      apply Reaches.prepend (Step.sort_indices_pc6 _ _ _ allocated)
+      apply Reaches.prepend (Step.sort_indices_pc5 _ _ _)
+      simpa [next, running] using tail caller
 
 /-- Repeated minimum extraction produces a sorted permutation of precisely the
     remaining identifiers and never rewrites the completed output prefix. -/
 private theorem extract_loop (count : Int) (fuel : Nat) (keys : Seq) :
-    ∀ (heap : Heap) (state : State_sort_indices) (layout : Layout) (remaining : List Int),
-    remaining.length = fuel → remaining.Nodup → state.v1 = count →
-    0 ≤ state.v4 → state.v4 + (fuel : Int) = count →
-    layout.size = (fuel : Int) → QueueRep heap state.v2 layout →
-    Contents keys remaining heap layout → state.v3 < heap.nextRef →
-    state.v3 ≠ layout.vertices ∧ state.v3 ≠ layout.positions ∧ state.v3 ≠ layout.keys →
+    ∀ (heap : Heap) (queue : ObjectRef) (result : SeqRef) (index : Int)
+      (layout : Layout) (remaining : List Int),
+    remaining.length = fuel → remaining.Nodup →
+    0 ≤ index → index + (fuel : Int) = count →
+    layout.size = (fuel : Int) → QueueRep heap queue layout →
+    Contents keys remaining heap layout → result < heap.nextRef →
+    result ≠ layout.vertices ∧ result ≠ layout.positions ∧ result ≠ layout.keys →
     ∃ (final : Heap) (values : List Int),
-      Summary Step heap (.fn_sort_indices 4 state) final (.fn_sort_indices state.v3) ∧
+      ExtractFrom heap count queue result index final ∧
       values.Perm remaining ∧ values.Pairwise (fun a b => keys a ≤ keys b) ∧
-      (∀ index : Nat, index < values.length →
-        final.read state.v3 (state.v4 + index) = values[index]!) ∧
-      (∀ index : Int, index < state.v4 → final.read state.v3 index = heap.read state.v3 index) ∧
-      Storage state.v2 [layout.vertices, layout.positions, layout.keys, state.v3] heap final ∧
+      (∀ position : Nat, position < values.length →
+        final.read result (index + position) = values[position]!) ∧
+      (∀ position : Int, position < index → final.read result position = heap.read result position) ∧
+      Storage queue [layout.vertices, layout.positions, layout.keys, result] heap final ∧
       Budget count fuel heap final := by
   induction fuel with
   | zero =>
-    intro heap state layout remaining length unique total index finish size represented contents allocated separate
+    intro heap queue result index layout remaining length unique nonnegative finish size
+      represented contents allocated separate
     have empty : remaining = [] := List.eq_nil_of_length_eq_zero length
     subst remaining
     refine ⟨heap, [], ?_, List.Perm.refl _, by simp, by simp, by intros; rfl,
       Storage.refl _ _ _, Budget.refl _ _⟩
-    intro caller
-    apply Reaches.prepend (Step.sort_indices_pc4 _ _ _)
-    apply Reaches.prepend (Step.sort_indices_pc3_false _ _ _ (by simp; omega))
-    apply Reaches.prepend (Step.sort_indices_pc2 _ _ _)
-    exact Reaches.single (Step.sort_indices_pc1 _ _ _ allocated)
+    intro config location heapEq readCount readQueue readResult readIndex
+    cases config with
+    | done => cases location
+    | active current frame stack =>
+      cases frame with
+      | invalid => cases location
+      | import_0 => cases location
+      | fn_sort_indices pc state =>
+        have atLoop : pc = 4 := by
+          unfold sort_indices.At.extract at location
+          split at location <;> simp_all
+        subst pc
+        change current = heap at heapEq
+        subst current
+        simp only [sort_indices.Local.count, sort_indices.Local.queue,
+          sort_indices.Local.result, sort_indices.Local.index, true_or, ↓reduceIte, Option.some.injEq] at readCount readQueue readResult readIndex
+        cases readCount
+        cases readQueue
+        cases readResult
+        cases readIndex
+        intro caller
+        apply Reaches.prepend (Step.sort_indices_pc4 _ _ _)
+        apply Reaches.prepend (Step.sort_indices_pc3_false _ _ _ (by simp; omega))
+        apply Reaches.prepend (Step.sort_indices_pc2 _ _ _)
+        exact Reaches.single (Step.sort_indices_pc1 _ _ _ allocated)
   | succ fuel ih =>
-    intro heap state layout remaining length unique total index finish size represented contents allocated separate
-    obtain ⟨after, call, effect⟩ := pop_correct (heap.tick "sort_steps") state.v2 layout
+    intro heap queue result index layout remaining length unique nonnegative finish size
+      represented contents allocated separate
+    obtain ⟨after, call, effect⟩ := pop_correct (heap.tick "sort_steps") queue layout
       (queue_tick represented) (by omega)
     let vertex := heap.read layout.vertices 0
     have member : vertex ∈ remaining := (contents.1 vertex).mp effect.wasPresent
     have erasedLength : (remaining.erase vertex).length = fuel := by
       have := Algo2Lean.FiniteIndex.erase_length remaining vertex member
       omega
-    let written := after.write state.v3 state.v4 vertex
-    let next := afterExtract state vertex
+    let written := after.write result index vertex
     let shorter := { layout with size := layout.size - 1 }
     have nextContents : Contents keys (remaining.erase vertex) written shorter := by
       constructor
@@ -244,21 +305,21 @@ private theorem extract_loop (count : Int) (fuel : Nat) (keys : Seq) :
         have all := keyEq.trans (contents.2 value oldMember)
         simpa [written, Heap.read, Heap.write, Ne.symm separate.2.2] using all
     obtain ⟨final, values, rest, permutation, sorted, output, kept, storage, budget⟩ :=
-      ih written next shorter (remaining.erase vertex) erasedLength (unique.erase vertex) total
-        (by dsimp [next, afterExtract]; omega) (by dsimp [next, afterExtract]; omega)
+      ih written queue result (index + 1) shorter (remaining.erase vertex) erasedLength (unique.erase vertex)
+        (by omega) (by omega)
         (by dsimp [shorter]; omega) (queue_write effect.representation _ _ _ separate)
         nextContents (by dsimp [written]; rw [effect.otherStorage.nextRef]; exact allocated) separate
     have valuesLength : values.length = fuel := permutation.length_eq.trans erasedLength
-    have popStorage := Storage.of_heap (result := state.v3)
+    have popStorage := Storage.of_heap (result := result)
       (fun ref vertices positions _ position => effect.otherArrays ref vertices positions position)
       effect.otherStorage effect.otherClocks
-    have iterationStorage : Storage state.v2
-        [layout.vertices, layout.positions, layout.keys, state.v3] heap written :=
+    have iterationStorage : Storage queue
+        [layout.vertices, layout.positions, layout.keys, result] heap written :=
       ((Storage.tick _ _ _).trans popStorage).trans (Storage.write _ _ _ _ (by simp) _ _)
     have iterationBudget : Budget count 1 heap written :=
       operation_budget (by omega : layout.size - 2 ≤ count) effect.comparisons effect.swaps effect.otherClocks
     refine ⟨final, vertex :: values,
-      extract_continue heap after final state vertex (by omega)
+      extract_continue heap after final count queue result index vertex (by omega)
         (by rw [effect.otherStorage.nextRef]; exact allocated) call rest,
       (permutation.cons vertex).trans (List.perm_cons_erase member).symm, ?_, ?_, ?_,
       iterationStorage.trans storage, ?_⟩
@@ -272,133 +333,180 @@ private theorem extract_loop (count : Int) (fuel : Nat) (keys : Seq) :
     · intro position within
       cases position with
       | zero =>
-        have keep := kept state.v4 (by dsimp [next, afterExtract]; omega)
-        simpa [next, afterExtract, written, Heap.read, Heap.write] using keep
+        have keep := kept index (by omega)
+        simpa [written, Heap.read, Heap.write] using keep
       | succ position =>
         have keep := output position (by simp only [List.length_cons] at within; omega)
-        simpa [next, afterExtract, Int.natCast_add, Int.add_assoc, Int.add_left_comm,
+        simpa [Int.natCast_add, Int.add_assoc, Int.add_left_comm,
           Int.add_comm] using keep
     · intro position before
-      have keep := kept position (by dsimp [next, afterExtract]; omega)
-      have unchanged := effect.otherArrays state.v3 separate.1 separate.2.1 position
-      have writtenRead : written.read state.v3 position = heap.read state.v3 position := by
-        simpa [written, Heap.read, Heap.write, show position ≠ state.v4 by omega] using unchanged
+      have keep := kept position (by omega)
+      have unchanged := effect.otherArrays result separate.1 separate.2.1 position
+      have writtenRead : written.read result position = heap.read result position := by
+        simpa [written, Heap.read, Heap.write, show position ≠ index by omega] using unchanged
       exact keep.trans writtenRead
     · have all := iterationBudget.trans budget
       simpa [Nat.add_comm] using all
 
-private def afterInsert (state : State_sort_indices) (key : Int) : State_sort_indices :=
-  { state with v4 := state.v4 + 1, t11 := true, t12 := (), t13 := state.v2, t14 := state.v4, t15 := key }
-
 /-- One insertion iteration reads an unchanged input key and applies the
     independently proved heap insertion contract. -/
-private theorem insert_continue (heap after final : Heap) (state : State_sort_indices)
-    (running : state.v4 < state.v1) (allocated : state.v0 < heap.nextRef)
+private theorem insert_continue (heap after final : Heap) (keys : SeqRef) (count : Int)
+    (queue : ObjectRef) (result : SeqRef) (index : Int)
+    (running : index < count) (allocated : keys < heap.nextRef)
     (call : Algo.indexed_heap.MinHeap.push_or_decrease.Call (heap.tick "sort_steps")
-      (state.v2, state.v4, heap.read state.v0 state.v4) after ())
-    (rest : Summary Step after
-      (.fn_sort_indices 15 (afterInsert state (heap.read state.v0 state.v4))) final (.fn_sort_indices state.v3)) :
-    Summary Step heap (.fn_sort_indices 15 state) final (.fn_sort_indices state.v3) := by
-  intro caller
-  apply Reaches.prepend (Step.sort_indices_pc15 _ _ _)
-  apply Reaches.prepend (Step.sort_indices_pc14_true _ _ _ (by simpa using running))
-  apply Reaches.prepend (Step.sort_indices_pc22 _ _ _)
-  apply Reaches.prepend (Step.sort_indices_pc21 _ _ _)
-  apply Reaches.prepend (Step.sort_indices_pc20 _ _ _ (by exact call.1))
-  apply Reaches.prepend (Step.sort_indices_pc19 _ _ _)
-  apply Reaches.prepend (Step.sort_indices_pc18 _ _ _ (by exact allocated))
-  apply Reaches.prepend (Step.sort_indices_pc17 _ _ _)
-  apply (ModuleCall.summary import_0_simulates _ caller call.2).trans
-  apply Reaches.prepend (Step.sort_indices_pc16 _ _ _)
-  simpa [afterInsert, running] using rest caller
+      (queue, index, heap.read keys index) after ())
+    (rest : InsertFrom after keys count queue result (index + 1) final) :
+    InsertFrom heap keys count queue result index final := by
+  intro config location heapEq readKeys readCount readQueue readResult readIndex
+  cases config with
+  | done => cases location
+  | active current frame stack =>
+    cases frame with
+    | invalid => cases location
+    | import_0 => cases location
+    | fn_sort_indices pc state =>
+      have atLoop : pc = 15 := by
+        unfold sort_indices.At.insert at location
+        split at location <;> simp_all
+      subst pc
+      change current = heap at heapEq
+      subst current
+      simp only [sort_indices.Local.keys, sort_indices.Local.count, sort_indices.Local.queue,
+        sort_indices.Local.result, sort_indices.Local.index, or_true, ↓reduceIte, Option.some.injEq] at readKeys readCount readQueue readResult readIndex
+      cases readKeys
+      cases readCount
+      cases readQueue
+      cases readResult
+      cases readIndex
+      let next : State_sort_indices :=
+        { state with v4 := state.v4 + 1, t11 := true, t12 := (), t13 := state.v2,
+                     t14 := state.v4, t15 := heap.read state.v0 state.v4 }
+      have tail := rest (.active after (.fn_sort_indices 15 next) [])
+        True.intro rfl rfl rfl rfl rfl rfl
+      intro caller
+      apply Reaches.prepend (Step.sort_indices_pc15 _ _ _)
+      apply Reaches.prepend (Step.sort_indices_pc14_true _ _ _ (by simpa using running))
+      apply Reaches.prepend (Step.sort_indices_pc22 _ _ _)
+      apply Reaches.prepend (Step.sort_indices_pc21 _ _ _)
+      apply Reaches.prepend (Step.sort_indices_pc20 _ _ _ (by exact call.1))
+      apply Reaches.prepend (Step.sort_indices_pc19 _ _ _)
+      apply Reaches.prepend (Step.sort_indices_pc18 _ _ _ (by exact allocated))
+      apply Reaches.prepend (Step.sort_indices_pc17 _ _ _)
+      apply (ModuleCall.summary import_0_simulates _ caller call.2).trans
+      apply Reaches.prepend (Step.sort_indices_pc16 _ _ _)
+      simpa [next, running] using tail caller
 
 /-- The insertion invariant records exactly the identifiers already inserted;
     all input weights retain their original values. -/
 private theorem insert_loop (count : Int) (fuel : Nat) (keys : Seq) :
-    ∀ (heap : Heap) (state : State_sort_indices) (layout : Layout),
-    state.v1 = count → 0 ≤ state.v4 → state.v4 + (fuel : Int) = count →
-    layout.size = state.v4 → QueueRep heap state.v2 layout →
-    Contents keys (Algo2Lean.FiniteIndex.range state.v4) heap layout →
-    heap.read state.v0 = keys → state.v0 < heap.nextRef → state.v3 < heap.nextRef →
-    state.v0 ≠ layout.vertices ∧ state.v0 ≠ layout.positions ∧ state.v0 ≠ layout.keys →
-    state.v3 ≠ layout.vertices ∧ state.v3 ≠ layout.positions ∧ state.v3 ≠ layout.keys →
+    ∀ (heap : Heap) (inputRef : SeqRef) (queue : ObjectRef) (result : SeqRef)
+      (index : Int) (layout : Layout),
+    0 ≤ index → index + (fuel : Int) = count →
+    layout.size = index → QueueRep heap queue layout →
+    Contents keys (Algo2Lean.FiniteIndex.range index) heap layout →
+    heap.read inputRef = keys → inputRef < heap.nextRef → result < heap.nextRef →
+    inputRef ≠ layout.vertices ∧ inputRef ≠ layout.positions ∧ inputRef ≠ layout.keys →
+    result ≠ layout.vertices ∧ result ≠ layout.positions ∧ result ≠ layout.keys →
     ∃ (final : Heap),
-      Summary Step heap (.fn_sort_indices 15 state) final (.fn_sort_indices state.v3) ∧
-      SortedPermutation keys count (final.read state.v3) ∧
-      Storage state.v2 [layout.vertices, layout.positions, layout.keys, state.v3] heap final ∧
+      InsertFrom heap inputRef count queue result index final ∧
+      SortedPermutation keys count (final.read result) ∧
+      Storage queue [layout.vertices, layout.positions, layout.keys, result] heap final ∧
       Budget count (fuel + count.toNat) heap final := by
   induction fuel with
   | zero =>
-    intro heap state layout total index finish size represented contents input keysValid outputValid keysSeparate outputSeparate
-    have atEnd : state.v4 = count := by omega
+    intro heap inputRef queue result index layout nonnegative finish size represented contents
+      input keysValid outputValid keysSeparate outputSeparate
+    have atEnd : index = count := by omega
     have countNonnegative : 0 ≤ count := by omega
-    let next : State_sort_indices := { state with v4 := 0, t11 := false }
     have allContents : Contents keys (Algo2Lean.FiniteIndex.range count) heap layout := by
       simpa [atEnd] using contents
     obtain ⟨final, values, rest, permutation, sorted, output, kept, storage, budget⟩ :=
-      extract_loop count count.toNat keys heap next layout (Algo2Lean.FiniteIndex.range count)
-        (Algo2Lean.FiniteIndex.range_length _) (Algo2Lean.FiniteIndex.range_nodup _) total
-        (by simp [next]) (by dsimp [next]; omega) (by omega) represented allContents outputValid outputSeparate
+      extract_loop count count.toNat keys heap queue result 0 layout (Algo2Lean.FiniteIndex.range count)
+        (Algo2Lean.FiniteIndex.range_length _) (Algo2Lean.FiniteIndex.range_nodup _)
+        (by omega) (by omega) (by omega) represented allContents outputValid outputSeparate
     refine ⟨final, ?_, ⟨values, permutation, sorted, ?_⟩, storage, ?_⟩
-    · intro caller
-      apply Reaches.prepend (Step.sort_indices_pc15 _ _ _)
-      apply Reaches.prepend (Step.sort_indices_pc14_false _ _ _ (by simp; omega))
-      apply Reaches.prepend (Step.sort_indices_pc13 _ _ _)
-      simpa [next, show ¬state.v4 < state.v1 by omega] using rest caller
-    · simpa [next] using output
+    · intro config location heapEq readKeys readCount readQueue readResult readIndex
+      cases config with
+      | done => cases location
+      | active current frame stack =>
+        cases frame with
+        | invalid => cases location
+        | import_0 => cases location
+        | fn_sort_indices pc state =>
+          have atLoop : pc = 15 := by
+            unfold sort_indices.At.insert at location
+            split at location <;> simp_all
+          subst pc
+          change current = heap at heapEq
+          subst current
+          simp only [sort_indices.Local.keys, sort_indices.Local.count, sort_indices.Local.queue,
+            sort_indices.Local.result, sort_indices.Local.index, or_true, ↓reduceIte, Option.some.injEq] at readKeys readCount readQueue readResult readIndex
+          cases readKeys
+          cases readCount
+          cases readQueue
+          cases readResult
+          cases readIndex
+          have tail := rest
+            (.active heap (.fn_sort_indices 4 { state with v4 := 0, t11 := false }) [])
+            True.intro rfl rfl rfl rfl rfl
+          intro caller
+          apply Reaches.prepend (Step.sort_indices_pc15 _ _ _)
+          apply Reaches.prepend (Step.sort_indices_pc14_false _ _ _ (by simp; omega))
+          apply Reaches.prepend (Step.sort_indices_pc13 _ _ _)
+          simpa [show ¬state.v4 < state.v1 by omega] using tail caller
+    · simpa using output
     · simpa using budget
   | succ fuel ih =>
-    intro heap state layout total index finish size represented contents input keysValid outputValid keysSeparate outputSeparate
-    have absent : heap.read layout.positions state.v4 = -1 :=
-      represented.indexed.absent state.v4 (by
-        have notPresent : ¬0 ≤ heap.read layout.positions state.v4 := by
+    intro heap inputRef queue result index layout nonnegative finish size represented contents
+      input keysValid outputValid keysSeparate outputSeparate
+    have absent : heap.read layout.positions index = -1 :=
+      represented.indexed.absent index (by
+        have notPresent : ¬0 ≤ heap.read layout.positions index := by
           intro present
-          have := (Algo2Lean.FiniteIndex.range_member _ _).mp ((contents.1 state.v4).mp present)
+          have := (Algo2Lean.FiniteIndex.range_member _ _).mp ((contents.1 index).mp present)
           omega
         omega)
     obtain ⟨after, call, representedAfter, membership, keyValues, comparisons, swaps, arrays, clocks, storage⟩ :=
-      insert_correct (heap.tick "sort_steps") state.v2 layout (queue_tick represented)
-        state.v4 (heap.read state.v0 state.v4) absent
-    let next := afterInsert state (heap.read state.v0 state.v4)
+      insert_correct (heap.tick "sort_steps") queue layout (queue_tick represented)
+        index (heap.read inputRef index) absent
     let enlarged := { layout with size := layout.size + 1 }
-    have nextContents : Contents keys (Algo2Lean.FiniteIndex.range next.v4) after enlarged := by
+    have nextContents : Contents keys (Algo2Lean.FiniteIndex.range (index + 1)) after enlarged := by
       constructor
       · intro value
         rw [Algo2Lean.FiniteIndex.range_member]
         change 0 ≤ after.read layout.positions value ↔ _
         rw [membership value]
-        change (value = state.v4 ∨ 0 ≤ heap.read layout.positions value) ↔ _
+        change (value = index ∨ 0 ≤ heap.read layout.positions value) ↔ _
         rw [contents.1 value, Algo2Lean.FiniteIndex.range_member]
-        dsimp [next, afterInsert]
         omega
       · intro value present
         change after.read layout.keys value = keys value
         rw [keyValues value]
-        by_cases same : value = state.v4
+        by_cases same : value = index
         · subst value
           simp [input]
-        · have oldMember : value ∈ Algo2Lean.FiniteIndex.range state.v4 := by
+        · have oldMember : value ∈ Algo2Lean.FiniteIndex.range index := by
             have := (Algo2Lean.FiniteIndex.range_member _ _).mp present
             apply (Algo2Lean.FiniteIndex.range_member _ _).mpr
-            dsimp [next, afterInsert] at this
             omega
           simp [same, contents.2 value oldMember]
-    have inputAfter : after.read state.v0 = keys := by
+    have inputAfter : after.read inputRef = keys := by
       funext position
-      rw [arrays state.v0 keysSeparate.1 keysSeparate.2.1 keysSeparate.2.2 position]
+      rw [arrays inputRef keysSeparate.1 keysSeparate.2.1 keysSeparate.2.2 position]
       exact congrFun input position
-    obtain ⟨final, rest, correct, frame, budget⟩ := ih after next enlarged total
-      (by dsimp [next, afterInsert]; omega) (by dsimp [next, afterInsert]; omega)
-      (by dsimp [enlarged, next, afterInsert]; omega) representedAfter nextContents
+    obtain ⟨final, rest, correct, frame, budget⟩ := ih after inputRef queue result (index + 1) enlarged
+      (by omega) (by omega)
+      (by dsimp [enlarged]; omega) representedAfter nextContents
       inputAfter (by rw [storage.nextRef]; exact keysValid)
       (by rw [storage.nextRef]; exact outputValid) keysSeparate outputSeparate
-    have iterationStorage : Storage state.v2
-        [layout.vertices, layout.positions, layout.keys, state.v3] heap after :=
+    have iterationStorage : Storage queue
+        [layout.vertices, layout.positions, layout.keys, result] heap after :=
       (Storage.tick _ _ _).trans (Storage.of_heap arrays storage clocks)
     have iterationBudget : Budget count 1 heap after :=
       operation_budget (by omega : layout.size ≤ count)
         (Nat.le_trans comparisons (by omega)) (Nat.le_trans swaps (by omega)) clocks
-    refine ⟨final, insert_continue heap after final state (by omega) keysValid call rest,
+    refine ⟨final, insert_continue heap after final inputRef count queue result index
+      (by omega) keysValid call rest,
       correct, iterationStorage.trans frame, ?_⟩
     have all := iterationBudget.trans budget
     simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using all
@@ -483,8 +591,8 @@ theorem call (heap : Heap) (keys : SeqRef) (count : Int)
       heap.nextRef + 3 ≠ heap.nextRef + 2
     omega
   obtain ⟨after, execution, correct, storage, budget⟩ :=
-    insert_loop count count.toNat (heap.read keys) prepared state (emptyLayout heap)
-      rfl (by simp [state]) (by dsimp [state]; omega) rfl
+    insert_loop count count.toNat (heap.read keys) prepared keys heap.nextObject result 0 (emptyLayout heap)
+      (by omega) (by omega) rfl
       (queue_allocate (new_heap_rep heap) (fun _ => 0)) contents
       (initial.sequences keys allocated) (Nat.lt_of_lt_of_le allocated initial.refs)
       (by change result < result + 1; omega) keysSeparate outputSeparate
@@ -497,7 +605,8 @@ theorem call (heap : Heap) (keys : SeqRef) (count : Int)
     apply Reaches.prepend (Step.sort_indices_pc25 _ _ _)
     apply Reaches.prepend (Step.sort_indices_pc24 _ _ _)
     apply Reaches.prepend (Step.sort_indices_pc23 _ _ _)
-    exact execution caller
+    exact execution (.active prepared (.fn_sort_indices 15 state) [])
+      True.intro rfl rfl rfl rfl rfl rfl caller
   · constructor
     · intro ref old
       have separate : ref ∉ [(emptyLayout heap).vertices, (emptyLayout heap).positions,
