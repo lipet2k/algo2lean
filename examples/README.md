@@ -11,6 +11,7 @@ and companion proofs together; use **Project file** to switch between them.
 | [mutual_recursion/](mutual_recursion/README.md) | Recursive imports, shared execution, and a caller that reuses the parity proof. |
 | [kruskal/](kruskal/README.md) | Minimum spanning forests, reusable union-find with rank and path compression, and heap-based edge sorting. |
 | [dijkstra/](dijkstra/README.md) | One Dijkstra algorithm with binary-heap and Fibonacci-heap implementations and analyses. |
+| [prim/](prim/README.md) | Prim minimum spanning trees with the existing Fibonacci heap, a reusable queue contract, and O(E + V log V) measured-work bounds. |
 
 **New file** creates a standalone file or adds one to the open project. Use
 **Open project** for a folder from your computer and **Download project** to

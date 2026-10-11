@@ -1,8 +1,8 @@
 """Curated editor projects, with their real imported sources and analyses.
 
 The catalog stays cheap to load. Folder projects include all source modules and
-companion proofs. Dijkstra also gathers its shared graph and heap dependencies,
-so every selection opens a self-contained editable project.
+companion proofs. Graph algorithms also gather their shared graph and heap
+dependencies, so every selection opens a self-contained editable project.
 """
 
 from pathlib import Path
@@ -43,6 +43,11 @@ _PROJECTS = {
         "Kruskal",
         "kruskal.algo",
         "Build a minimum spanning forest with reusable union-find, path compression, union by rank, and heap-based edge sorting.",
+    ),
+    "prim": (
+        "Prim with a Fibonacci Heap",
+        "prim/prim_fibonacci.algo",
+        "Grow a minimum spanning tree using the shared Fibonacci heap and its reusable correctness and amortized running-time analysis.",
     ),
     "dijkstra": (
         "Dijkstra",
@@ -90,7 +95,7 @@ def project_examples():
     """Return previews without compiling or loading the example's proof files."""
     return [
         {"project_id": identifier, "name": name, "filename": entry,
-         "folder": _PROJECT_ROOTS.get(identifier, "dijkstra"),
+         "folder": _PROJECT_ROOTS.get(identifier, identifier),
          "description": description, "source": (_project_root(identifier) / entry).read_text(encoding="utf-8")}
         for identifier, (name, entry, description) in _PROJECTS.items()
     ]

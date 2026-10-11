@@ -171,3 +171,37 @@ python3 -m algo2lean analyze examples/factorial.algo examples/analysis/factorial
 For projects with imports, follow the [project guide](MODULES.md). The local
 Python editor also provides **Check both files** and **Check analysis** when
 Lean is installed.
+
+## Update examples without changing the compiler version
+
+The main website can show new algorithm sources and proofs while continuing to
+use an existing compiler release. The current editor lives at `current/`; its
+compiler worker, Python bundle, browser runtime, and Lean libraries load directly
+from the fixed `versions/v<VERSION>/` directory. The example catalog is separate
+static data. Compilation and generation manifests retain the original compiler
+version, commit, and hashes.
+
+The [current-examples workflow](../.github/workflows/examples.yml) runs after
+example, catalog, or editor changes on `main`, or can be started manually. It runs
+the normal checks, restores the existing release's `algo2lean-site.zip`, and adds
+the current editor and catalog. It never changes release tags, release assets, or
+any file under `versions/`. The site root opens the current editor; archived
+compiler links continue to show their original examples and editor.
+
+To prepare the same site locally from a downloaded release archive:
+
+```sh
+python3 scripts/update_examples_site.py --output dist/current-site \
+  --release-archive /path/to/algo2lean-site.zip --commit FULL_PUBLIC_COMMIT_SHA
+```
+
+Use an empty output directory. Omitting `--release-archive` downloads the archive
+for the version in `publication.json` using the GitHub API. This requires
+`GH_TOKEN`, as supplied by the workflow. The builder rejects compiler, shared
+library, toolchain, or publication changes: those still require a new compiler
+release. The editor's example catalog may change independently.
+
+`current/example-manifest.json` records the public catalog commit, hashes of its
+example files, and the unchanged compiler identity. It identifies the example
+snapshot separately from the compiler release used to generate its Lean files.
+Keep the compiler version and citation unchanged for an example-only update.

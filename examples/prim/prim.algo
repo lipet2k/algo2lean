@@ -1,0 +1,42 @@
+from prim.graph import Graph, Edge
+from dijkstra.priority_queue import PriorityQueue
+
+# Prim's key is the cheapest edge from the growing tree to each vertex.
+# parent stores the predecessor; -1 means no predecessor has been assigned.
+# Vertices enter the queue when first reached, so infinity need not be encoded.
+# The caller supplies an empty queue, zero keys and selected flags, and parents
+# filled with -1. The root retains parent -1. Queue and client storage are disjoint.
+
+def scan_edges(queue: PriorityQueue, key: Seq, parent: Seq, selected: Seq,
+               vertex: Int, edge: Edge | None) -> None:
+    # @scan
+    while edge is not None:
+        tick("edges")
+        target = edge.target
+        if selected[target] == 0:
+            weight = edge.weight
+            if parent[target] < 0 or weight < key[target]:
+                # @improve
+                key[target] = weight
+                parent[target] = vertex
+                tick("queue_updates")
+                queue.push_or_decrease(target, weight)
+                tick("improvements")
+        edge = edge.next
+
+
+def prim(graph: Graph, root: Int, queue: PriorityQueue,
+         key: Seq, parent: Seq, selected: Seq) -> Seq:
+    key[root] = 0
+    tick("queue_updates")
+    queue.push_or_decrease(root, 0)
+    tick("queue_empty_checks")
+    # @extract
+    while not queue.is_empty():
+        tick("queue_pops")
+        vertex = queue.pop_min()
+        selected[vertex] = 1
+        tick("settlements")
+        scan_edges(queue, key, parent, selected, vertex, graph.heads[vertex])
+        tick("queue_empty_checks")
+    return parent

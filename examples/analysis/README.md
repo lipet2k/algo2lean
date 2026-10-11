@@ -6,6 +6,12 @@ use mathematical values, heaps, configurations, named locations, and execution
 predicates. Proof bodies may inspect the generated transition rules and internal
 fields. Generated definitions remain in a separate, unedited file.
 
+The [Prim analysis](prim/prim_fibonacci.lean) exposes
+`FibonacciPrimAnalysis.correctness_and_running_time`: a reusable `Call` contract
+for minimum spanning trees and O(E + V log V) measured work. Its
+[guide](../prim/README.md) explains the signed-weight graph representation,
+input assumptions, cost model, and reuse of the existing Fibonacci heap.
+
 Start with the small examples:
 
 | Analysis | Proved properties |

@@ -41,6 +41,31 @@ mutable sequences. Its `push_or_decrease` operation combines insertion and
 decrease-key behind the common queue interface. Meld and arbitrary deletion
 are outside this example's interface.
 
+## Prim: Chapter 21, §21.2
+
+The [shared Prim routine](../examples/prim/prim.algo) repeatedly extracts the
+minimum-key vertex and scans its outgoing adjacency list. For an unselected
+neighbor, a lighter incident edge replaces its key and parent. The
+[Fibonacci heap entry](../examples/prim/prim_fibonacci.algo) allocates the
+parent, key and selected sequences and supplies the same verified queue used
+by Dijkstra.
+
+`parent[vertex]` records the chosen tree predecessor; the root retains `-1`.
+`key[vertex]` stores an incident edge weight rather than a distance from the
+root. Only discovered vertices enter the queue, so no integer infinity sentinel
+is needed and negative weights are supported. The textbook initializes every
+vertex in the queue, including vertices with infinite keys. On the connected
+inputs of the main theorem, both formulations select every vertex.
+
+The [graph builder](../examples/prim/graph.algo) inserts both orientations of
+each undirected edge. Parallel edges and self-loops are allowed. The runtime
+parameter E counts adjacency entries, so an undirected edge inserted by the
+builder contributes two. The proof returns a minimum spanning parent tree and
+bounds the sum of the source's named operation counters by O(E + V log V).
+It reuses the existing heap's amortized contracts without changing its source
+or redoing its analysis. See the [Prim guide](../examples/prim/README.md) for
+the exact statement and explicit bound.
+
 ## Kruskal: Chapter 21, §21.2
 
 The [entry routine](../examples/kruskal/kruskal.algo) creates empty output and

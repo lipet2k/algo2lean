@@ -140,8 +140,8 @@ to scroll it; press **Esc** or click outside to scroll the page. Use **Find** or
 **⌘/Ctrl F** in the analysis pane to search a proof.
 
 The **Examples** menu separates single files from **Project folders**. Projects
-include reusable algorithms, abstract interfaces, mutual recursion, and Dijkstra
-with both binary and Fibonacci heaps. Opening a project loads its sources and
+include reusable algorithms, abstract interfaces, mutual recursion, Dijkstra with both binary and Fibonacci heaps, Kruskal, and Prim with a
+Fibonacci heap. Opening a project loads its sources and
 proofs together; **Project file** groups its files by folder.
 
 Use **Open project** to open your own folder. Use **New file** to create a
@@ -167,6 +167,7 @@ for durable copies; browser storage is not a substitute for saving them.
 - [Examples](examples/README.md) and [their proved guarantees](examples/analysis/README.md).
 - [Merge sort followed by binary search](examples/modules/GENERAL_SORT_THEN_SEARCH.md).
 - [Generic Dijkstra with two queue implementations](examples/dijkstra/README.md).
+- [Prim with a Fibonacci heap: minimum spanning trees and running time](examples/prim/README.md).
 - [How the graph examples correspond to CLRS pseudocode](docs/TEXTBOOK_ALGORITHMS.md).
 - [CLRS Chapter 4 matrix algorithms](docs/CLRS_CHAPTER_4.md) and [recurrence proofs](docs/RECURRENCES.md).
 

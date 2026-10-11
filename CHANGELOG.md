@@ -1,5 +1,13 @@
 # Change log
 
+## Example update — 2026-10-10
+
+- Add Prim minimum spanning trees using the existing Fibonacci heap, with signed integer weights and a reusable correctness and running-time contract.
+- Reuse the separately verified queue operations and amortized costs. The main theorem quantifies a uniform constant for O(E + V log V) measured work, preserves caller storage, and returns a fresh parent sequence.
+- Include the Prim sources, proofs and guide in the website's project browser. Keep compiler version 0.1.4 and all archived releases unchanged; identify current example snapshots separately.
+
+Validation: all eight Prim execution and Lean tests pass, including comparison with exhaustive minimum-spanning-tree search on small graphs and standard-axiom audits. Fifteen catalog/site tests and four browser-routing tests pass, including project proof imports, immutable archive preservation, and unchanged compiler/export routing.
+
 ## 0.1.4 — 2026-10-10
 
 - Present Dijkstra's minimum-extraction and adjacency scans as explicit loops, and put Kruskal's initialization, sorted-edge loop, representative comparison and union directly in its main routine.

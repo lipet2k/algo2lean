@@ -16,9 +16,9 @@ class EditorProjectExamplesTests(unittest.TestCase):
         with patch("algo2lean.editor_examples.compile_project", side_effect=AssertionError("unexpected compile")):
             entries = project_examples()
         self.assertEqual({entry["project_id"] for entry in entries},
-                         {"modules", "interfaces", "kruskal", "dijkstra", "mutual-recursion-imports"})
+                         {"modules", "interfaces", "kruskal", "prim", "dijkstra", "mutual-recursion-imports"})
         self.assertEqual({entry["folder"] for entry in entries},
-                         {"modules", "interfaces", "kruskal", "dijkstra", "mutual_recursion"})
+                         {"modules", "interfaces", "kruskal", "prim", "dijkstra", "mutual_recursion"})
         self.assertLess([entry["project_id"] for entry in entries].index("kruskal"),
                         [entry["project_id"] for entry in entries].index("dijkstra"))
         kruskal, = [entry for entry in entries if entry["project_id"] == "kruskal"]
@@ -29,7 +29,7 @@ class EditorProjectExamplesTests(unittest.TestCase):
         self.assertEqual(dijkstra["name"], "Dijkstra")
         self.assertEqual(dijkstra["filename"], "dijkstra/dijkstra_binary.algo")
         for entry in entries:
-            root = EXAMPLES if entry["project_id"] == "dijkstra" else EXAMPLES / entry["folder"]
+            root = EXAMPLES if entry["project_id"] in {"dijkstra", "prim"} else EXAMPLES / entry["folder"]
             self.assertIn("from ", entry["source"])
             self.assertNotIn("analyses", entry)
             self.assertEqual(entry["source"], (root / entry["filename"]).read_text(encoding="utf-8"))
@@ -137,6 +137,26 @@ class EditorProjectExamplesTests(unittest.TestCase):
         self.assertIn("Algo.dijkstra.priority_queue.Analysis", bundle["analyses"])
         self.assertNotIn("Algo.dijkstra.Analysis", bundle["analyses"])
         self.assertNotIn("Algo.dijkstra_fibonacci.Analysis", bundle["analyses"])
+
+    def test_prim_bundle_reuses_existing_heap_sources_and_analyses(self):
+        bundle = load_example_project("prim")
+        self.assertEqual(bundle["name"], "Prim with a Fibonacci Heap")
+        self.assertEqual(bundle["entry"], "prim/prim_fibonacci.algo")
+        self.assertTrue({"prim/prim.algo", "prim/graph.algo", "prim/prim_fibonacci.algo",
+                         "dijkstra/priority_queue.algo", "fibonacci_heap.algo"}.issubset(bundle["sources"]))
+        self.assertTrue({"Algo.prim.prim_fibonacci.Analysis", "Algo.prim.prim.Analysis",
+                         "Algo.prim.graph.Analysis", "Algo.dijkstra.support.fibonacci_heap.Analysis",
+                         "Algo.dijkstra.priority_queue.Analysis"}.issubset(bundle["analyses"]))
+        for path, source in bundle["sources"].items():
+            self.assertEqual(source, (EXAMPLES / path).read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            for entry in bundle["sources"]:
+                compile_project(entry, root=directory, sources=bundle["sources"])
+            compiled = compile_project(bundle["entry"], root=directory, sources=bundle["sources"])
+            resolved = project_lean_sources(compiled, proof_sources=bundle["analyses"],
+                analysis_modules=("Algo.prim.prim_fibonacci.Analysis",))
+            self.assertEqual({name: text for name, text in resolved.items() if name.endswith(".Analysis")},
+                             bundle["analyses"])
 
     @unittest.skipUnless(shutil.which("lean"), "Lean 4 is not installed")
     def test_bundled_imports_and_existing_correctness_and_runtime_analyses_check(self):
