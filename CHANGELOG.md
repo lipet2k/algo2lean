@@ -1,5 +1,12 @@
 # Change log
 
+## 2026-10-10 — Include Prim in the import-catalog regression
+
+- Update the existing HTTP catalog regression to expect Prim in both the project identifiers and folder list.
+- Preserve the algorithm sources, Lean proofs, and compiler release identity.
+
+Validation: the focused HTTP project-catalog regression passes. GitHub's initial 531-test run identified this single outdated expectation.
+
 ## Example update — 2026-10-10
 
 - Add Prim minimum spanning trees using the existing Fibonacci heap, with signed integer weights and a reusable correctness and running-time contract.

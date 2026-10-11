@@ -116,9 +116,9 @@ class EditorImportRegressionTests(unittest.TestCase):
         examples = data["examples"]
         projects = [item for item in examples if "project_id" in item]
         self.assertEqual([item["project_id"] for item in projects], [
-            "modules", "interfaces", "mutual-recursion-imports", "kruskal", "dijkstra"])
+            "modules", "interfaces", "mutual-recursion-imports", "kruskal", "prim", "dijkstra"])
         self.assertEqual([item["folder"] for item in projects], [
-            "modules", "interfaces", "mutual_recursion", "kruskal", "dijkstra"])
+            "modules", "interfaces", "mutual_recursion", "kruskal", "prim", "dijkstra"])
         self.assertEqual(examples[-len(projects):], projects)
         files = [item for item in examples if "project_id" not in item]
         self.assertEqual([item["filename"] for item in files[:5]], [
