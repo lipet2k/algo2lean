@@ -756,14 +756,17 @@ test("two editor tabs save their own changes after their shared starting point",
   assert.deepEqual(a.records().map((record) => record.source).sort(), ["shared original", "tab A changes", "tab B changes"]);
 });
 
-test("multiple drafts open the recovery picker with previews and recover without writing", async () => {
+test("multiple drafts remain folded by default and recover only when explicitly selected", async () => {
   const local = new MemoryStorage();
   const first = seed(local, "first preview");
   seed(local, "second preview");
   const app = editor(local);
   await app.ready();
-  assert.equal(app.elements.get("draft-picker").open, true);
+  assert.equal(app.elements.get("draft-picker").open, false);
+  assert.equal(app.elements.get("filename").value, "merge_sort.algo");
   assert.equal(app.elements.get("draft-count").textContent, "2");
+  await app.elements.get("drafts-button").click();
+  assert.equal(app.elements.get("draft-picker").open, true);
   const before = [...local.data];
   await draftAction(app, "first preview", "Recover").click();
   assert.equal(app.elements.get("source").value, first.source);
@@ -792,7 +795,7 @@ test("recovering the current draft flushes pending edits before reading its late
   assert.equal(app.elements.get("source").value, "pending newer content");
 });
 
-test("editor reload uses the preferred draft but a duplicated tab gets its own later edits", async () => {
+test("reload ignores the preferred draft until recovery and duplicated tabs keep independent edits", async () => {
   const local = new MemoryStorage();
   const session = new MemoryStorage();
   const original = seed(local, "my current draft", session);
@@ -801,8 +804,12 @@ test("editor reload uses the preferred draft but a duplicated tab gets its own l
   const reloaded = editor(local, session);
   const duplicate = editor(local, session.copy());
   await Promise.all([reloaded.ready(), duplicate.ready()]);
-  assert.equal(reloaded.elements.get("source").value, original.source);
-  assert.equal(duplicate.elements.get("source").value, original.source);
+  for (const app of [reloaded, duplicate]) {
+    assert.equal(app.elements.get("filename").value, "merge_sort.algo");
+    assert.notEqual(app.elements.get("source").value, original.source);
+    await draftAction(app, original.source, "Recover").click();
+    assert.equal(app.elements.get("source").value, original.source);
+  }
   await reloaded.edit("reloaded edit");
   await duplicate.edit("duplicate edit");
   await reloaded.flush();
@@ -888,11 +895,13 @@ test("editing then undoing before debounce leaves no draft and no saving status"
   assert.notEqual(close.defaultPrevented, true);
 });
 
-test("editor restores a legacy draft and keeps its recovery record unchanged on close", async () => {
+test("editor retains a legacy draft for explicit recovery and leaves it unchanged on close", async () => {
   const legacy = { ...snapshot("legacy unsaved source", "legacy.algo"), updatedAt: 42 };
   const local = new MemoryStorage([[LEGACY_KEY, JSON.stringify(legacy)]]);
   const app = editor(local);
   await app.ready();
+  assert.equal(app.elements.get("filename").value, "merge_sort.algo");
+  await draftAction(app, legacy.source, "Recover").click();
   assert.equal(app.elements.get("source").value, legacy.source);
   assert.equal(app.elements.get("filename").value, legacy.filename);
   assert.equal(local.getItem(LEGACY_KEY), null);
@@ -909,10 +918,12 @@ test("editor quota failure during legacy migration still exposes the original so
   local.fail.add("write");
   const app = editor(local);
   await app.ready();
+  assert.equal(app.elements.get("filename").value, "merge_sort.algo");
+  assert.match(app.elements.get("draft-status").textContent, /could not be migrated/i);
+  await draftAction(app, legacy.source, "Recover").click();
   assert.equal(app.elements.get("source").value, legacy.source);
   assert.equal(app.elements.get("filename").value, legacy.filename);
   assert.equal(local.getItem(LEGACY_KEY), raw);
-  assert.match(app.elements.get("draft-status").textContent, /could not be migrated/i);
   await app.edit("edited while quota exceeded");
   const close = await app.window.dispatch("beforeunload");
   assert.equal(close.defaultPrevented, true);
@@ -930,6 +941,7 @@ test("an unchanged legacy fallback remains backed up after migration quota failu
   local.fail.add("write");
   const app = editor(local);
   await app.ready();
+  await draftAction(app, legacy.source, "Recover").click();
   const close = await app.window.dispatch("beforeunload");
   assert.notEqual(close.defaultPrevented, true);
   assert.equal(local.getItem(LEGACY_KEY), raw);
@@ -950,6 +962,8 @@ test("legacy quota fallback stays accessible even when the session prefers a new
   local.fail.add("write");
   const app = editor(local, session);
   await app.ready();
+  assert.equal(app.elements.get("filename").value, "merge_sort.algo");
+  await draftAction(app, legacy.source, "Recover").click();
   assert.equal(app.elements.get("source").value, legacy.source);
   assert.ok(draftAction(app, preferred.source, "Recover"));
   assert.equal(local.getItem(LEGACY_KEY), raw);
@@ -1049,6 +1063,7 @@ test("analysis-only edits in concurrent tabs preserve each complete document pai
   const a = editor(local);
   const b = editor(local);
   await Promise.all([a.ready(), b.ready()]);
+  for (const app of [a, b]) await draftAction(app, original.source, "Recover").click();
   assert.equal(a.elements.get("analysis").value, original.analysis);
   await a.editAnalysis("-- proof from A");
   await b.editAnalysis("-- proof from B");
@@ -1113,6 +1128,8 @@ test("reload and duplicated tabs fork analysis edits while preserving the origin
   const duplicate = editor(local, session.copy());
   await Promise.all([reloaded.ready(), duplicate.ready()]);
   for (const app of [reloaded, duplicate]) {
+    assert.equal(app.elements.get("filename").value, "merge_sort.algo");
+    await draftAction(app, original.source, "Recover").click();
     assert.equal(app.elements.get("source").value, original.source);
     assert.equal(app.elements.get("analysis").value, original.analysis);
   }
@@ -1232,6 +1249,8 @@ test("paired legacy quota fallback restores proof filenames and protects later a
   local.fail.add("write");
   const app = editor(local);
   await app.ready();
+  assert.equal(app.elements.get("filename").value, "merge_sort.algo");
+  await draftAction(app, legacy.source, "Recover").click();
   assert.equal(app.elements.get("source").value, legacy.source);
   assert.equal(app.elements.get("analysis").value, legacy.analysis);
   assert.equal(app.elements.get("analysis-filename").value, legacy.analysisFilename);
@@ -1284,6 +1303,7 @@ test("old source-only recovery reconstructs a starter without changing the saved
   const before = [...local.data];
   const app = editor(local);
   await app.ready();
+  await draftAction(app, original.source, "Recover").click();
   assert.equal(app.elements.get("source").value, original.source);
   assert.match(app.elements.get("analysis").value, /import ExampleGeneratedPoints/);
   assert.equal(app.elements.get("analysis-filename").value, "Analysis.lean");
@@ -1300,6 +1320,7 @@ test("an intentionally empty analysis is recovered as empty rather than replaced
   const before = [...local.data];
   const app = editor(local);
   await app.ready();
+  await draftAction(app, original.source, "Recover").click();
   assert.equal(app.elements.get("source").value, original.source);
   assert.equal(app.elements.get("analysis").value, "");
   assert.equal(app.elements.get("analysis-filename").value, "Empty.lean");
@@ -1330,6 +1351,7 @@ test("saving each file updates only its own baseline in the paired draft", async
   assert.doesNotMatch(app.elements.get("save-state").textContent, /Unsaved/);
   const reloaded = editor(app.local, app.session);
   await reloaded.ready();
+  await draftAction(reloaded, "unsaved algorithm", "Recover").click();
   assert.equal(reloaded.elements.get("source").value, "unsaved algorithm");
   assert.equal(reloaded.elements.get("analysis").value, "-- unsaved proof");
   assert.equal(reloaded.elements.get("analysis-filename").value, "MyProof.lean");
@@ -1529,6 +1551,8 @@ test("New file preserves the previous source and proof and creates an independen
   assert.notEqual(original.id, fresh.id);
   const reloaded = editor(app.local, app.session);
   await reloaded.ready();
+  assert.equal(reloaded.elements.get("filename").value, "merge_sort.algo");
+  await draftAction(reloaded, "(Empty source)", "Recover").click();
   assert.equal(reloaded.elements.get("filename").value, "fresh.algo");
   assert.equal(reloaded.elements.get("source").value, "");
 });
@@ -1727,7 +1751,7 @@ test("same-named project folders have separate recovery identities", async () =>
   assert.deepEqual(records.map((record) => record.data.files["main.algo"].source).sort(), ["first edited", "second edited"]);
 });
 
-test("project reload and duplicated tabs fork edits without changing the saved project", async () => {
+test("project reload starts merge sort and explicit project recovery forks later edits", async () => {
   const local = new MemoryStorage(), session = new MemoryStorage();
   const original = editor(local, session);
   await original.ready();
@@ -1737,8 +1761,19 @@ test("project reload and duplicated tabs fork edits without changing the saved p
   await original.flush();
   const saved = projectRecords(original)[0];
   assert.equal(session.getItem(PROJECT_SESSION), saved.id);
-  const a = editor(local, session), b = editor(local, session.copy());
+  const example = currentMergeSortExample();
+  const options = exampleCatalog(example);
+  const a = editor(local, session, options), b = editor(local, session.copy(), options);
   await Promise.all([a.ready(), b.ready()]);
+  for (const app of [a, b]) {
+    assert.equal(app.elements.get("filename").value, "merge_sort.algo");
+    assert.equal(app.elements.get("source").value, example.source);
+    assert.equal(app.elements.get("analysis").value, example.analysis);
+    assert.equal(app.elements.get("project-toolbar").hidden, true);
+    assert.equal(app.elements.get("draft-picker").open, false);
+    await descendants(app.elements.get("draft-list"))
+      .find((node) => node.tagName === "BUTTON" && node.textContent === "Recover project").click();
+  }
   assert.equal(a.elements.get("source").value, "saved project source");
   assert.equal(b.elements.get("analysis").value, "saved project proof");
   const before = [...local.data];
@@ -2220,6 +2255,8 @@ for (const historical of [false, true]) test(`a recovered ${historical ? "pre-ru
     if (url === "/api/examples") return pendingExamples;
   } });
   await app.ready();
+  await descendants(app.elements.get("draft-list"))
+    .find((node) => node.tagName === "BUTTON" && node.textContent === "Recover").click();
   const outline = app.elements.get("analysis-outline");
   const nodes = () => descendants(outline);
   const mainLabels = () => nodes().find((node) => node.className === "proof-main-results")
@@ -2383,32 +2420,54 @@ test("declining example refresh after a failed backup preserves both pending doc
   assert.equal(session.getItem(EXAMPLE_SESSION_KEY), example.filename);
 });
 
-test("choosing an example survives reload without creating an untouched example draft", async () => {
+test("every refresh starts the current merge-sort source and proof regardless of the prior example", async () => {
   const local = new MemoryStorage();
   const session = new MemoryStorage();
   const original = seed(local, "previous document", session);
-  const app = editor(local, session);
+  const example = currentMergeSortExample();
+  const options = { fetch: (url) => url === "/api/examples" ? { ok: true, json: async () => ({ examples: [
+    { name: "Other", source: "def other() -> Int:\n    return 5\n", filename: "other.algo", analysis: "-- other proof" },
+    example,
+  ] }) } : undefined };
+  const app = editor(local, session, options);
   await app.ready();
   app.elements.get("examples").value = "0";
   await app.elements.get("examples").dispatch("change");
   await app.ready();
-  const source = app.elements.get("source").value;
-  const proof = app.elements.get("analysis").value;
   assert.equal(session.getItem(EXAMPLE_SESSION_KEY), "other.algo");
   const before = [...local.data];
   for (let reload = 0; reload < 2; reload += 1) {
-    const reopened = editor(local, session);
+    const reopened = editor(local, session, options);
     await reopened.ready();
-    assert.equal(reopened.elements.get("filename").value, "other.algo");
-    assert.equal(reopened.elements.get("source").value, source);
-    assert.equal(reopened.elements.get("analysis").value, proof);
+    assert.equal(reopened.elements.get("filename").value, example.filename);
+    assert.equal(reopened.elements.get("source").value, example.source);
+    assert.equal(reopened.elements.get("analysis").value, example.analysis);
+    assert.equal(reopened.elements.get("draft-picker").open, false);
     await reopened.window.dispatch("beforeunload");
     assert.deepEqual([...local.data], before);
   }
   assert.deepEqual(store(local).read(original.id), original);
 });
 
-test("example refresh opens the current catalog and keeps edited copies available for explicit recovery", async () => {
+for (const changedPart of ["source", "analysis", "filename", "analysis-filename"]) test(`late startup examples preserve a user's ${changedPart} edit`, async () => {
+  const example = currentMergeSortExample();
+  let deliverExamples;
+  const pending = new Promise((resolve) => { deliverExamples = resolve; });
+  const app = editor(undefined, undefined, { fetch: (url) => url === "/api/examples" ? pending : undefined });
+  await app.ready();
+  if (changedPart === "source") await app.edit("def mine() -> Int:\n    return 7\n");
+  else if (changedPart === "analysis") await app.editAnalysis("-- My analysis started before the catalog loaded.\n");
+  else await app.rename(changedPart, changedPart === "filename" ? "Mine.algo" : "Mine.lean");
+  const before = Object.fromEntries(["source", "analysis", "filename", "analysis-filename"]
+    .map((id) => [id, app.elements.get(id).value]));
+  deliverExamples({ ok: true, json: async () => ({ examples: [example] }) });
+  await app.ready();
+  for (const [id, value] of Object.entries(before)) assert.equal(app.elements.get(id).value, value, id);
+  await app.flush();
+  assert.ok(app.records().some((record) => record.source === before.source && record.analysis === before.analysis));
+});
+
+test("example refresh starts merge sort and keeps edited copies available for explicit recovery", async () => {
   const app = editor();
   await app.ready();
   app.elements.get("examples").value = "0";
@@ -2418,8 +2477,8 @@ test("example refresh opens the current catalog and keeps edited copies availabl
   await app.window.dispatch("beforeunload");
   const reloaded = editor(app.local, app.session);
   await reloaded.ready();
-  assert.equal(reloaded.elements.get("filename").value, "other.algo");
-  assert.equal(reloaded.elements.get("source").value, "def other() -> Int:\n    return 5\n");
+  assert.equal(reloaded.elements.get("filename").value, "merge_sort.algo");
+  assert.match(reloaded.elements.get("source").value, /def merge_sort/);
   await draftAction(reloaded, "def changed() -> Int:\n    return 8\n", "Recover").click();
   assert.equal(reloaded.elements.get("source").value, "def changed() -> Int:\n    return 8\n");
   assert.equal(reloaded.elements.get("analysis").value, "-- My proof for the edited example.\n");

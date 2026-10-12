@@ -703,10 +703,24 @@
     draftTimer = setTimeout(writeDraft, 350);
   }
 
+  function legacyDraft() {
+    try {
+      const draft = JSON.parse(localStorage.getItem(Algo2LeanDrafts.LEGACY_KEY));
+      if (!draft || typeof draft.source !== "string" || typeof draft.filename !== "string") return null;
+      return { ...draft, id: null,
+        savedSource: typeof draft.savedSource === "string" ? draft.savedSource : "",
+        savedFilename: typeof draft.savedFilename === "string" ? draft.savedFilename : "" };
+    } catch (_) { return null; }
+  }
+
   function refreshDrafts() {
     if (!draftStore) return [];
     try {
       const drafts = draftStore.list();
+      // Quota failures can prevent migration; keep the original recoverable
+      // without replacing the default example or requiring another write.
+      const legacy = legacyDraft();
+      if (legacy) drafts.push(legacy);
       const projects = projectDrafts();
       $("draft-list").replaceChildren();
       $("draft-count").textContent = String(drafts.length + projects.length);
@@ -718,7 +732,7 @@
         heading.textContent = draft.filename || "untitled.algo";
         const detail = document.createElement("p");
         detail.className = "draft-meta";
-        detail.textContent = new Date(draft.updatedAt).toLocaleString() + (draft.id === draftStore.activeId ? " · Loaded in this tab" : "");
+        detail.textContent = new Date(draft.updatedAt).toLocaleString() + (draft.id && draft.id === draftStore.activeId ? " · Loaded in this tab" : "");
         if (typeof draft.analysis === "string") detail.textContent += ` · ${draft.analysisFilename || "Analysis.lean"}`;
         const preview = document.createElement("pre");
         preview.textContent = draft.source.split("\n").slice(0, 4).join("\n").slice(0, 500) || "(Empty source)";
@@ -734,7 +748,7 @@
         recover.addEventListener("click", () => {
           try {
             if (!canReplace()) return;
-            const latest = draftStore.read(draft.id);
+            const latest = draft.id ? draftStore.read(draft.id) : legacyDraft();
             if (!latest) { refreshDrafts(); fileMessage("This draft was discarded in another tab."); return; }
             loadDocument(latest.source, latest.filename, "Recovered draft", { draft: latest });
             $("draft-picker").open = false;
@@ -750,8 +764,9 @@
         discard.addEventListener("click", () => {
           if (!window.confirm(`Discard the browser draft for ${draft.filename}? This cannot be undone. Any open editor text will remain.`)) return;
           try {
-            const active = draft.id === draftStore.activeId;
-            draftStore.remove(draft.id);
+            const active = draft.id && draft.id === draftStore.activeId;
+            if (draft.id) draftStore.remove(draft.id);
+            else localStorage.removeItem(Algo2LeanDrafts.LEGACY_KEY);
             if (active) {
               clearTimeout(draftTimer);
               draftStore.start(draftSnapshot());
@@ -1763,74 +1778,42 @@
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") writeDraft(); });
 
   async function initialize() {
-    let preferredProject = null;
-    let preferredExample = null;
-    try { preferredExample = window.sessionStorage.getItem(EXAMPLE_SESSION); }
-    catch (_) { /* Without session storage, the draft picker remains available. */ }
-    try {
-      const record = JSON.parse(localStorage.getItem(PROJECT_PREFIX + window.sessionStorage.getItem(PROJECT_SESSION)));
-      if (validProjectRecord(record)) preferredProject = record;
-    } catch (_) { /* A folder can still be opened without browser storage. */ }
+    // Every page load starts with merge sort. Saved work is opened explicitly
+    // from Browser drafts, including drafts remembered by this tab's session.
+    $("draft-picker").open = false;
     source.value = initialSource;
+    filename.value = "merge_sort.algo";
+    analysisFilename.value = "Analysis.lean";
     generatedModule = moduleForFilename(filename.value);
     generatedPointsModule = `${generatedModule}Points`;
     showModuleNames();
     analysis.value = starterAnalysis(generatedModule);
     savedAnalysis = analysis.value;
     draftBaseline = JSON.stringify(draftSnapshot());
-    let restoredAnalysis = false;
-    let restoredDocument = false;
     let migrationFailed = false;
-    let legacyFallback = null;
     try {
       let session = null;
       try { session = window.sessionStorage; } catch (_) { /* Recovery still works through the picker. */ }
       draftStore = new Algo2LeanDrafts.Store(localStorage, session);
       try { draftStore.migrateLegacy(); }
-      catch (_) {
-        migrationFailed = true;
-        // A full storage quota must not hide either half of the original draft.
-        try {
-          const legacy = JSON.parse(localStorage.getItem(Algo2LeanDrafts.LEGACY_KEY));
-          if (legacy && typeof legacy.source === "string" && typeof legacy.filename === "string") {
-            legacyFallback = { ...legacy, id: null,
-              savedSource: typeof legacy.savedSource === "string" ? legacy.savedSource : "",
-              savedFilename: typeof legacy.savedFilename === "string" ? legacy.savedFilename : "" };
-          }
-        } catch (_) { /* Leave the original record untouched. */ }
-      }
-      const drafts = draftStore.list();
-      const preferred = draftStore.read(draftStore.preferredId());
-      const draft = legacyFallback || preferred || (!preferredExample && drafts.length === 1 ? drafts[0] : null);
-      if (draft) {
-        restoredDocument = true;
-        restoredAnalysis = typeof draft.analysis === "string";
-        loadDocument(draft.source, draft.filename, "Recovered draft", { draft });
-        analysisTouched = restoredAnalysis;
-      }
-      else {
-        draftStore.start(draftSnapshot());
-        renderSource();
-        updateSaveState("Example");
-        draftStatus(drafts.length ? "Choose a browser draft to recover" : "Draft stays in this browser");
-        refreshDrafts();
-        if (drafts.length > 1) $("draft-picker").open = true;
-      }
-      if (migrationFailed) draftStatus("Existing draft could not be migrated. Save source and analysis to keep your work.", true);
+      catch (_) { migrationFailed = true; }
+      draftStore.start(draftSnapshot());
+      renderSource();
+      updateSaveState("Example");
+      draftStatus("Draft stays in this browser");
+      refreshDrafts();
+      if (migrationFailed) draftStatus("Existing draft could not be migrated. Open Browser drafts to recover it.", true);
     } catch (_) {
       draftStore = null;
       renderSource();
       updateSaveState();
       draftStatus("Browser draft unavailable. Save source and analysis to keep your work.", true);
     }
-    if (preferredProject) {
-      loadProject(preferredProject.data, preferredProject);
-      restoredAnalysis = true;
-      analysisTouched = true;
-    }
-    const initialDocument = { source: source.value, filename: filename.value, analysis: analysis.value };
+    const initialRevision = revision;
+    const initialProjectOpening = projectOpening;
+    const initialDocument = JSON.stringify(draftSnapshot());
     renderAnalysis();
-    updateAnalysisSaveState(restoredAnalysis ? "Restored file" : "Starter");
+    updateAnalysisSaveState("Starter");
     compile(false);
     try {
       const response = await request("/api/examples");
@@ -1851,23 +1834,15 @@
         });
         if (group.childElementCount) $("examples").append(group);
       }
-      const restoredExample = restoredDocument && examples.find((example) => !example.project_id && example.filename === initialDocument.filename);
-      if (!currentProject && restoredExample && source.value === initialDocument.source &&
-          filename.value === initialDocument.filename && analysis.value === initialDocument.analysis) {
-        // The public catalog opens current examples. Older copies remain in the
-        // draft picker and are loaded only when the user explicitly recovers them.
-        loadDocument(restoredExample.source, restoredExample.filename, "Example", { example: restoredExample });
+      const defaultExample = examples.find((example) => !example.project_id && example.filename === "merge_sort.algo");
+      if (defaultExample && !currentProject && !analysisTouched && revision === initialRevision &&
+          projectOpening === initialProjectOpening && JSON.stringify(draftSnapshot()) === initialDocument) {
+        // Fetch the current source and proof together without replacing work
+        // opened or edited while the example catalog was loading.
+        loadDocument(defaultExample.source, defaultExample.filename, "Example", { example: defaultExample });
+        $("examples").value = String(examples.indexOf(defaultExample));
+        if (migrationFailed) draftStatus("Existing draft could not be migrated. Open Browser drafts to recover it.", true);
         compile(false);
-      } else if (!currentProject && !restoredAnalysis && !analysisTouched && source.value === initialDocument.source && filename.value === initialDocument.filename) {
-        const selected = preferredExample && examples.find((example) => !example.project_id && example.filename === preferredExample);
-        const matching = examples.find((example) => !example.project_id && example.source === source.value);
-        if (selected) {
-          loadDocument(selected.source, selected.filename, "Example", { example: selected });
-          compile(false);
-        } else if (matching) {
-          loadAnalysis(analysisForExample(matching, generatedModule), "Analysis.lean", matching.analysis ? "Example" : "Starter");
-          writeDraft();
-        }
       }
       updateExampleNotice();
     } catch (_) { $("examples").options[0].textContent = "Examples unavailable"; $("examples").disabled = true; }

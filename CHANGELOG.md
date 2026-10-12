@@ -1,5 +1,13 @@
 # Change log
 
+## 2026-10-11 — Start each refresh with merge sort and collapsed drafts
+
+- Open the current merge-sort source and proof on each refresh, regardless of the previously selected example, file, or project. Keep Browser drafts collapsed until explicitly opened.
+- Preserve saved files, paired analyses, and complete projects for explicit recovery. Keep legacy drafts recoverable even when storage quota prevents migration.
+- Prevent a late example-catalog response from replacing source, proof, filename, or project work started while the page loads. Leave the compiler version and generated semantics unchanged.
+
+Validation: all 223 tracked JavaScript tests pass, including repeated refreshes, explicit project/legacy recovery, and delayed catalog responses. A browser check confirms refresh returns from Factorial to merge sort with Correctness and Running time visible, collapses the draft panel, and retains all four existing drafts.
+
 ## 2026-10-11 — Separate UI, download-package, and full proof checks
 
 - Skip Lean for presentation and documentation updates when their proof and package inputs already passed. Check editor export and website packaging changes with three isolated downloaded-project builds instead of rerunning every algorithm proof.
