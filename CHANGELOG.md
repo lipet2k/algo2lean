@@ -1,5 +1,12 @@
 # Change log
 
+## Unreleased
+
+- Rebuild the browser editor with React and Tailwind, modular workspace logic, a navy palette, and larger, reflowed phone controls. The committed frontend build keeps the Python-only compiler installation unchanged.
+- Preserve v0.2.0 randomized starter proofs, probability and imported parallel interface views, separate probability checking status, and collection/real syntax highlighting.
+- Keep visible keyboard guidance for leaving source and analysis editors with Escape.
+- Run the migrated editor regressions with Vitest and verify that committed frontend assets reproduce from source. Numbered release websites remain immutable.
+
 ## 0.2.0
 
 - Add heterogeneous tuples, typed/nested sequences, finite mutable sets and dictionaries, and exact real arithmetic.

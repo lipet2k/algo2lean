@@ -25,7 +25,7 @@ class CurrentExamplesSiteTests(unittest.TestCase):
             "publication.json": '{"version":"0.1.4"}', "CITATION.cff": "citation\n",
             "THIRD_PARTY_NOTICES.md": "notices\n", "licenses/runtime.txt": "runtime license\n",
             "examples/main.algo": "def f() -> Int:\n    return 1\n",
-            "editor/index.html": '<script src="/app.js" defer></script>\n<p><a href="../../versions.html">Earlier compiler versions</a></p>',
+            "editor/index.html": '<script type="module" src="app.js"></script>',
             "editor/app.js": "// editor\n", "editor/browser-host.js": "// frozen bridge\n",
             "editor/compiler-worker.js": "// frozen worker\n",
             "editor/current-examples.js": "// static example catalog\n",
@@ -86,7 +86,7 @@ class CurrentExamplesSiteTests(unittest.TestCase):
         page = (current / "index.html").read_text()
         self.assertLess(page.index('src="browser-host.js"'), page.index('src="current-examples.js"'))
         self.assertLess(page.index('src="current-examples.js"'), page.index('src="app.js"'))
-        self.assertIn('href="../versions.html"', page)
+        self.assertNotIn('src="/', page)
         self.assertIn('url=current/', (self.output / "index.html").read_text())
 
     def test_changed_compiler_or_shared_library_requires_new_release(self):

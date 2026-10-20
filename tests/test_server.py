@@ -40,7 +40,7 @@ class ServerTests(unittest.TestCase):
         return status, json.loads(data)
 
     def test_editor_assets_and_examples(self):
-        for path in ["/", "/app.js", "/drafts.js", "/interface.js", "/proof-outline.js", "/code-search.js", "/code-search.css", "/styles.css"]:
+        for path in ["/", "/index.html", "/app.js", "/styles.css"]:
             with self.subTest(path=path):
                 status, data = self.request("GET", path)
                 self.assertEqual(status, 200)
@@ -247,7 +247,7 @@ class ServerTests(unittest.TestCase):
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Dest": "document",
         }
-        for path in ["/api/examples", "/api/compile", "/api/check", "/app.js", "/drafts.js", "/interface.js", "/proof-outline.js", "/code-search.js", "/code-search.css", "/styles.css"]:
+        for path in ["/api/examples", "/api/compile", "/api/check", "/app.js", "/styles.css"]:
             with self.subTest(path=path):
                 status, _ = self.request("GET", path, headers=headers)
                 self.assertEqual(status, 403)

@@ -1,0 +1,30 @@
+{
+  "name": "algo2lean-editor",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Build and test toolchain for the Algo2Lean browser editor. The built editor is committed under editor/.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "check": "node scripts/check_editor_build.mjs && npm test"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@vitejs/plugin-react": "6.1.2",
+    "jsdom": "29.1.1",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  }
+}
