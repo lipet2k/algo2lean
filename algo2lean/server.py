@@ -129,7 +129,7 @@ class EditorHandler(BaseHTTPRequestHandler):
             except (OSError, ValueError, KeyError, TypeError):
                 self._error(500, "The project citation could not be read.")
         elif path == "/api/examples":
-            from .editor_examples import example_files, project_examples
+            from .editor_examples import example_files, parallel_examples, project_examples
             examples = []
             for filename in example_files(ROOT / "examples"):
                 source = filename.read_text(encoding="utf-8")
@@ -142,7 +142,7 @@ class EditorHandler(BaseHTTPRequestHandler):
                                  "description": description, "source": source, "analysis": analysis,
                                  "module": generated_module_name(filename.name),
                                  "points_module": generated_module_name(filename.name) + "Points"})
-            self._send(200, {"examples": examples + project_examples()})
+            self._send(200, {"examples": examples + parallel_examples(ROOT / "examples") + project_examples()})
         elif path.startswith("/api/example-project/"):
             from .editor_examples import load_example_project
             try:

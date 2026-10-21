@@ -17,9 +17,9 @@ sys.path.insert(0, str(ROOT))
 
 from algo2lean import compile_source
 from algo2lean.analysis import check_analysis
+from algo2lean.editor_examples import parallel_example_analysis
 from editor.analysis_export import request
 
-PROOF_MODULES = ("binary_search", "merge", "merge_sort", "contracts")
 AUDIT_THEOREMS = (
     "ParallelMergeSearch.call_contract",
     "ParallelMergeAnalysis.merge_contract",
@@ -42,21 +42,9 @@ STANDARD_AXIOMS = {"propext", "Quot.sound", "Classical.choice"}
 
 def compose_analysis():
     """Join the exact proof bodies, replacing local imports with those bodies."""
-    imports, bodies = [], []
-    for name in PROOF_MODULES:
-        path = ROOT / "examples/parallel_merge/analysis" / (name + ".lean")
-        source = path.read_text(encoding="utf-8")
-        body = []
-        for line in source.splitlines():
-            if line.startswith("import "):
-                module = line.removeprefix("import ").strip()
-                if module not in PROOF_MODULES and line not in imports:
-                    imports.append(line)
-            else:
-                body.append(line)
-        bodies.append("-- Source: examples/parallel_merge/analysis/" + path.name + "\n" + "\n".join(body))
+    analysis = parallel_example_analysis("parallel_merge")
     audit = "\n".join("#print axioms " + name for name in AUDIT_THEOREMS)
-    return "\n".join(imports) + "\n\n" + "\n\n".join(bodies) + "\n\n" + audit + "\n"
+    return analysis + "\n" + audit + "\n"
 
 
 def unexpected_axioms(output):

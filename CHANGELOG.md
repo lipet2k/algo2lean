@@ -8,6 +8,7 @@
 - Reuse deterministic Call proofs in randomized callers, including deterministic functions inside mixed modules; retain Call as the common functional contract.
 - Use natural nested matrix code and reusable contracts carrying preservation, freshness, and actual counter increments. Keep the master theorem outside this release.
 - Add checked randomized CLRS and parallel examples; keep helper statements on public interfaces.
+- Open CLRS randomized and values/collections projects correctly in the browser; offer parallel sum/prefix sum, merge/merge sort, and matrix multiplication with complete downloadable analyses.
 - Include Mathlib proofs in full CI checks and extend native/browser parity coverage to the new features and their composition.
 
 See [release and upgrade notes](docs/RELEASE_0_2_0.md) for compatibility, setup, and supported combinations. Lean remains pinned to 4.33.1; integer-only core definitions and parallel proofs remain Std-only.

@@ -36,6 +36,20 @@ test("browser API sends source to its worker and preserves project mode", async 
   assert.deepEqual(await (await promise).json(), { ok: true, lean: "def test := 1" });
 });
 
+test("project examples with underscores and hyphens reach the browser compiler", async () => {
+  for (const identifier of ["randomized_clrs", "additional_types", "mutual-recursion-imports"]) {
+    const { backend, workers } = harness();
+    const path = `/api/example-project/${encodeURIComponent(identifier)}`;
+    const pending = backend.request(path);
+    // Handle a rejected request before asserting that it reached the worker.
+    const response = pending.then(value => value, error => error);
+    assert.equal(workers.length, 1, identifier);
+    assert.equal(workers[0].sent[0].path, path);
+    workers[0].reply(json({ entry: "shuffle.algo", sources: {}, analyses: {} }));
+    assert.equal((await (await response).json()).entry, "shuffle.algo");
+  }
+});
+
 test("concurrent browser requests execute serially", async () => {
   const { backend, workers } = harness();
   const first = backend.request("/api/examples");
@@ -96,7 +110,11 @@ test("ZIP responses preserve every binary byte", async () => {
 
 test("invalid paths and malformed JSON never create a worker", async () => {
   const { backend, workers } = harness();
-  await assert.rejects(backend.request("https://example.com/api/compile"), /only accepts/);
+  for (const path of ["https://example.com/api/compile", "/api/example-project/../private",
+    "/api/example-project/%2e%2e", "/api/example-project/randomized_clrs?other=1",
+    "/api/example-project/randomized_clrs#fragment", "/api/example-project/randomized clrs"]) {
+    await assert.rejects(backend.request(path), /only accepts/);
+  }
   await assert.rejects(backend.request("/api/compile", { body: "not JSON" }), /must contain JSON/);
   assert.equal(workers.length, 0);
 });

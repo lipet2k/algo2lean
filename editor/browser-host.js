@@ -94,7 +94,7 @@
       } catch (error) { reset(); finish(error); }
     }
     function request(path, init = {}) {
-      if (!/^\/api\/[a-z0-9/-]+$/.test(path) && path !== "/CITATION.cff") {
+      if (!/^\/api\/[a-z0-9_/-]+$/.test(path) && path !== "/CITATION.cff") {
         return Promise.reject(new Error("The browser backend only accepts compiler API requests."));
       }
       if (init.signal?.aborted) return Promise.reject(abortError());

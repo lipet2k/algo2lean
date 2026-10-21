@@ -10,6 +10,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import browserHost from "../editor/browser-host.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = process.argv[2] && resolve(process.argv[2]);
@@ -27,7 +28,7 @@ import base64, hashlib, io, json, sys, zipfile
 from pathlib import Path
 from algo2lean.browser import request
 from editor.analysis_export import request as export_request
-from algo2lean.editor_examples import load_example_project
+from algo2lean.editor_examples import load_example_project, project_examples
 from algo2lean.project import load_project
 from scripts.build_site import compiler_files, zip_bytes
 
@@ -64,9 +65,8 @@ recursive = load_example_project("mutual-recursion-imports")
 add("mutually recursive imports", {"filename": recursive["entry"],
     "source": recursive["sources"][recursive["entry"]], "project_sources": recursive["sources"]}, True)
 
-catalogs = {identifier: load_example_project(identifier)
-            for identifier in ("modules", "interfaces", "mutual-recursion-imports", "dijkstra", "kruskal", "additional_types", "randomized",
-                               "randomized_clrs")}
+catalogs = {example["project_id"]: load_example_project(example["project_id"])
+            for example in project_examples()}
 for identifier in ("modules", "interfaces", "additional_types", "randomized",
                    "randomized_clrs"):
     project = catalogs[identifier]
@@ -115,10 +115,12 @@ for identifier in ("deterministic_probability", "parallel_imports"):
     fixture = next(f for f in fixtures if f["name"] == identifier + " composition")
     add_export(identifier, {**fixture["body"], "project_analyses": analyses,
         "analysis": analyses["Algo.driver.Analysis"]}, True)
-from scripts.check_parallel_examples import compose_analysis, export_payload
-add_export("parallel proof", export_payload(compose_analysis()))
+examples = request("/api/examples")["body"]["examples"]
+for identifier in ("parallel", "parallel_merge", "parallel_matrix"):
+    example, = [item for item in examples if item["filename"] == identifier + ".algo"]
+    add_export(identifier + " proof", example)
 (target / "fixtures.json").write_text(json.dumps({"runtime": runtime["version"],
-    "fixtures": fixtures, "catalogs": catalogs, "exports": exports}), encoding="utf-8")
+    "fixtures": fixtures, "catalogs": catalogs, "exports": exports, "examples": examples}), encoding="utf-8")
 `;
 
 function sameFiles(actual, expected, context) {
@@ -162,6 +164,16 @@ def _archive_summary(encoded):
   const requestJson = pyodide.globals.get("_request_json");
   const archiveSummary = pyodide.globals.get("_archive_summary");
   const call = (path, body, project = false) => JSON.parse(requestJson(JSON.stringify({ path, body, project })));
+  // Exercise the host's route validation as well as Python's request handler.
+  // Calling only the latter misses projects that the website refuses to open.
+  const backend = browserHost.createBackend({ makeWorker() {
+    return {
+      postMessage({ id, path, body, project }) {
+        queueMicrotask(() => this.onmessage({ data: { id, result: call(path, body, project) } }));
+      },
+      terminate() {},
+    };
+  } });
   const ok = (response, context) => {
     assert.equal(response.status, 200, `${context}: ${JSON.stringify(response.body).slice(0, 400)}`);
     return response.body;
@@ -170,11 +182,14 @@ def _archive_summary(encoded):
     const capabilities = ok(call("/api/capabilities"), "Capabilities");
     assert.equal(capabilities.browser_compiler, true);
     assert.equal(capabilities.lean_check, false);
-    assert.ok(ok(call("/api/examples"), "Examples").examples.length >= 20);
+    const catalog = await (await backend.request("/api/examples")).json();
+    assert.deepEqual(catalog.examples, configuration.examples, "Native/browser example sources and analyses");
     assert.ok(ok(call("/api/publication"), "Publication").title);
     assert.ok(ok(call("/CITATION.cff"), "Citation").includes("cff-version:"));
     for (const [identifier, project] of Object.entries(configuration.catalogs)) {
-      const imported = ok(call(`/api/example-project/${identifier}`), "Project example");
+      const response = await backend.request(`/api/example-project/${encodeURIComponent(identifier)}`);
+      assert.equal(response.status, 200, `${identifier}: browser project loading`);
+      const imported = await response.json();
       assert.equal(imported.entry, project.entry);
       sameFiles(imported.sources, project.sources, `${identifier}: project catalog sources`);
       sameFiles(imported.analyses, project.analyses, `${identifier}: project catalog proofs`);

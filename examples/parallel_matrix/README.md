@@ -5,6 +5,10 @@
 across output rows, output columns, and the terms of each dot product. There is
 no flattened row-major indexing or power-of-two dimension requirement.
 
+In the website's Examples menu, choose **Parallel matrix multiplication** to load
+the source and complete Lean analysis. **Save analysis** downloads a checkable
+Lean project with the shared libraries.
+
 ## Algorithms and storage contracts
 
 - `parallel_matrix_dot` computes a row/column dot product over an arbitrary

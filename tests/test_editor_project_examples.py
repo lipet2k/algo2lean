@@ -9,9 +9,36 @@ from unittest.mock import patch
 from algo2lean.editor_examples import EXAMPLES, load_example_project, project_examples
 from algo2lean.modular import compile_project
 from algo2lean.project_checker import check_project, project_lean_sources
+from algo2lean.browser import request
+from editor.analysis_export import request as export_request
+from tests.test_analysis_export import unpack
 
 
 class EditorProjectExamplesTests(unittest.TestCase):
+    def test_parallel_catalog_examples_compile_with_complete_analysis_downloads(self):
+        from scripts import check_parallel_examples, check_parallel_merge_examples, check_parallel_matrix_examples
+
+        examples = request("/api/examples")["body"]["examples"]
+        for checker in (check_parallel_examples, check_parallel_merge_examples, check_parallel_matrix_examples):
+            expected = checker.export_payload(checker.compose_analysis())
+            with self.subTest(filename=expected["filename"]):
+                example, = [item for item in examples if item["filename"] == expected["filename"]]
+                self.assertTrue(example["name"].startswith("Parallel"))
+                self.assertNotIn("project_id", example)
+                self.assertEqual(example["source"], expected["source"])
+                self.assertEqual(expected["analysis"], example["analysis"] + "\n" +
+                                 "\n".join("#print axioms " + name for name in checker.AUDIT_THEOREMS) + "\n")
+                self.assertIn("-- Main result: Correctness", example["analysis"])
+                self.assertIn("-- Main result: Running time", example["analysis"])
+                compiled = request("/api/compile", example)
+                self.assertEqual(compiled["status"], 200, compiled)
+                self.assertIn("ParallelCall", compiled["body"]["lean"])
+                files = unpack(export_request("/api/analysis-export", example))
+                self.assertEqual(files["Analysis.lean"], example["analysis"].encode())
+                self.assertEqual(files[example["module"] + ".lean"], compiled["body"]["lean"].encode())
+                self.assertIn("Algo2LeanLib/Parallel.lean", files)
+                self.assertNotIn(b'name = "mathlib"', files["lakefile.toml"])
+
     def test_catalog_is_small_and_does_not_compile_or_load_proofs(self):
         with patch("algo2lean.editor_examples.compile_project", side_effect=AssertionError("unexpected compile")):
             entries = project_examples()

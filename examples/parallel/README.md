@@ -8,6 +8,10 @@ Its general Lean correctness/runtime contract requires `n ≥ 0`; the reduction
 contract also covers negative lengths. Both prove linear work and logarithmic
 span in the abstract instruction-cost model.
 
+In the website's Examples menu, choose **Parallel sum and prefix sum** to load
+the source and complete Lean analysis. **Save analysis** downloads a checkable
+Lean project with the shared libraries.
+
 The source-connected proofs live in `analysis/`. They use the generated
 `ParallelCall` API to prove values, heap effects, sibling independence, work, and
 span together. The reusable mathematical lemmas are in

@@ -4,6 +4,10 @@
 CLRS, fourth edition, **Section 26.3**, within the development compiler's
 structured fork–join model. [CLRS table of contents](https://mitp-content-server.mit.edu/books/content/sectbyfn/books_pres_0/11599/4e_toc.pdf)
 
+In the website's Examples menu, choose **Parallel merge and merge sort** to load
+the source and complete Lean analysis. **Save analysis** downloads a checkable
+Lean project with the shared libraries.
+
 ## Algorithms and contracts
 
 - `binary_search` returns a relative lower-bound position: entries before it are

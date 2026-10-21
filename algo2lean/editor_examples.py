@@ -8,6 +8,7 @@ dependencies, so every selection opens a self-contained editable project.
 from pathlib import Path
 
 from .modular import compile_project
+from .modules import generated_module_name
 from .project import load_project
 from .project_checker import project_lean_sources
 
@@ -82,6 +83,59 @@ _PROJECT_ROOTS = {
 _PROJECT_EXTRA_ENTRIES = {
     "dijkstra": ("dijkstra/dijkstra_fibonacci.algo",),
 }
+
+# These programs are single source files with proofs split across several files.
+# Keep those proof bodies shared with the command-line checkers and exports.
+_PARALLEL_EXAMPLES = {
+    "parallel": (
+        "Parallel sum and prefix sum",
+        "Sum an interval and compute exclusive prefix sums with fork_join; prove linear work and logarithmic span.",
+        ("parallel_sum", "upsweep", "prefix_sum", "prefix_contract"),
+    ),
+    "parallel_merge": (
+        "Parallel merge and merge sort",
+        "CLRS parallel merge and merge sort, with correctness, storage preservation, and work/span bounds.",
+        ("binary_search", "merge", "merge_sort", "contracts"),
+    ),
+    "parallel_matrix": (
+        "Parallel matrix multiplication",
+        "Multiply nested matrices with parallel rows, columns, and dot products; include allocation in the work/span analysis.",
+        ("dot", "columns", "rows", "allocation", "contracts"),
+    ),
+}
+
+
+def parallel_example_analysis(identifier, root=None):
+    """Combine the maintained proof bodies without changing their statements."""
+    directory = Path(root) if root is not None else EXAMPLES
+    modules = _PARALLEL_EXAMPLES[identifier][2]
+    imports, bodies = [], []
+    for name in modules:
+        path = directory / identifier / "analysis" / (name + ".lean")
+        body = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("import "):
+                module = line.removeprefix("import ").strip()
+                if module not in modules and line not in imports:
+                    imports.append(line)
+            else:
+                body.append(line)
+        bodies.append(f"-- Source: examples/{identifier}/analysis/{path.name}\n" + "\n".join(body))
+    return "\n".join(imports) + "\n\n" + "\n\n".join(bodies) + "\n"
+
+
+def parallel_examples(root=None):
+    """Offer the parallel programs and complete analyses as single-file examples."""
+    directory = Path(root) if root is not None else EXAMPLES
+    examples = []
+    for identifier, (name, description, _) in _PARALLEL_EXAMPLES.items():
+        filename = identifier + ".algo"
+        module = generated_module_name(filename)
+        examples.append({"name": name, "filename": filename, "description": description,
+                         "source": (directory / identifier / filename).read_text(encoding="utf-8"),
+                         "analysis": parallel_example_analysis(identifier, directory),
+                         "module": module, "points_module": module + "Points"})
+    return examples
 
 
 def _project_root(identifier):

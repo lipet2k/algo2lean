@@ -125,13 +125,15 @@ class EditorImportRegressionTests(unittest.TestCase):
         files = [item for item in examples if "project_id" not in item]
         self.assertEqual([item["filename"] for item in files[:5]], [
             "sum_loop.algo", "range_sum.algo", "factorial.algo", "gcd.algo", "mutual_recursion.algo"])
-        self.assertEqual([item["filename"] for item in files[-3:]], [
+        self.assertEqual([item["filename"] for item in files[-6:]], [
             "matrix_multiply.algo",
-            "matrix_recursive.algo", "matrix_strassen.algo"])
+            "matrix_recursive.algo", "matrix_strassen.algo",
+            "parallel.algo", "parallel_merge.algo", "parallel_matrix.algo"])
         self.assertEqual({item["filename"] for item in files},
                          {path.name for path in EXAMPLES.glob("*.algo")
                           if path.stem.isascii() and path.stem.isidentifier()} -
-                         {"dijkstra.algo", "dijkstra_fibonacci.algo"})
+                         {"dijkstra.algo", "dijkstra_fibonacci.algo"} |
+                         {"parallel.algo", "parallel_merge.algo", "parallel_matrix.algo"})
         self.assertEqual(len(files), len({item["filename"] for item in files}))
         self.assertTrue(all("sources" not in item for item in projects))
         self.assertNotIn("dijkstra.algo", {item["filename"] for item in files})
