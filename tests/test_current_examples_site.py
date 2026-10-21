@@ -89,6 +89,16 @@ class CurrentExamplesSiteTests(unittest.TestCase):
         self.assertNotIn('src="/', page)
         self.assertIn('url=current/', (self.output / "index.html").read_text())
 
+    def test_current_frontend_licenses_ship_without_changing_archived_notices(self):
+        before = snapshot(self.previous / "versions")
+        (self.root / "THIRD_PARTY_NOTICES.md").write_text("Updated frontend notices\n")
+        (self.root / "licenses/react.txt").write_text("React license\n")
+        self.build()
+        current = self.output / "current"
+        for name in ("LICENSE", "THIRD_PARTY_NOTICES.md", "licenses/runtime.txt", "licenses/react.txt"):
+            self.assertEqual((current / name).read_bytes(), (self.root / name).read_bytes())
+        self.assertEqual(snapshot(self.output / "versions"), before)
+
     def test_changed_compiler_or_shared_library_requires_new_release(self):
         for name in ("algo2lean/browser.py", "Algo2LeanLib/Modules.lean", "Algo2Lean.lean", "lean-toolchain"):
             path = self.root / name

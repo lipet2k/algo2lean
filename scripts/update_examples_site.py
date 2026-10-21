@@ -130,6 +130,13 @@ def build_current_site(root, previous, output, commit):
                         '  <script type="module" src="app.js">')
     files["index.html"] = page.encode("utf-8")
     files["CITATION.cff"] = (release / "CITATION.cff").read_bytes()
+    # The current frontend can add dependencies while the compiler stays frozen.
+    # Ship its notices here, without changing any archived release's licenses.
+    for name in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
+        files[name] = (root / name).read_bytes()
+    for path in sorted((root / "licenses").rglob("*")):
+        if path.is_file():
+            files[path.relative_to(root).as_posix()] = path.read_bytes()
     restore_versions(previous, output)
     for name in ("versions.json", "versions.html"):
         shutil.copyfile(previous / name, output / name)
