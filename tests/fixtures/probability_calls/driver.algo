@@ -1,0 +1,8 @@
+from client import pair
+
+
+def sum_pair() -> Int:
+    values = pair()
+    # @after_pair
+    tick("outer_calls")
+    return values[0] + values[1]

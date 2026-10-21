@@ -27,73 +27,73 @@ def linearRun : Nat → Heap → SeqRef → SeqRef → SeqRef → Int → Int �
 
 def AtLinear (state : Configuration) (heap : Heap) (a b c : SeqRef)
     (bound sign index : Int) : Prop :=
-  matrix_linear.At.loop state ∧ state.heap = heap ∧
-  matrix_linear.Local.a state = some a ∧ matrix_linear.Local.b state = some b ∧
-  matrix_linear.Local.c state = some c ∧ matrix_linear.Local.count state = some bound ∧
-  matrix_linear.Local.sign state = some sign ∧ matrix_linear.Local.i state = some index
+  matrix_linear_row.At.loop state ∧ state.heap = heap ∧
+  matrix_linear_row.Local.a state = some a ∧ matrix_linear_row.Local.b state = some b ∧
+  matrix_linear_row.Local.c state = some c ∧ matrix_linear_row.Local.count state = some bound ∧
+  matrix_linear_row.Local.sign state = some sign ∧ matrix_linear_row.Local.i state = some index
 
 theorem linear_exit (state : Configuration) (heap : Heap) (a b c : SeqRef)
     (bound sign index : Int) (located : AtLinear state heap a b c bound sign index)
     (allocated : c < heap.nextRef) (finished : bound ≤ index) :
-    matrix_linear.CallFrom state heap c := by
+    matrix_linear_row.CallFrom state heap c := by
   obtain ⟨named, sameHeap, sameA, sameB, sameC, sameBound, sameSign, sameIndex⟩ := located
-  unfold matrix_linear.At.loop at named
+  unfold matrix_linear_row.At.loop at named
   split at named <;> try contradiction
   rename_i currentHeap locals originalStack
   simp only [Config.heap] at sameHeap
   subst currentHeap
-  simp [matrix_linear.Local.a, matrix_linear.Local.b, matrix_linear.Local.c,
-    matrix_linear.Local.count, matrix_linear.Local.sign, matrix_linear.Local.i]
+  simp [matrix_linear_row.Local.a, matrix_linear_row.Local.b, matrix_linear_row.Local.c,
+    matrix_linear_row.Local.count, matrix_linear_row.Local.sign, matrix_linear_row.Local.i]
     at sameA sameB sameC sameBound sameSign sameIndex
   intro caller
-  apply Reaches.prepend (Step.matrix_linear_pc4 _ _ _)
-  apply Reaches.prepend (Step.matrix_linear_pc3_false _ _ _
+  apply Reaches.prepend (Step.matrix_linear_row_pc4 _ _ _)
+  apply Reaches.prepend (Step.matrix_linear_row_pc3_false _ _ _
     (by simp [sameIndex, sameBound]; omega))
-  apply Reaches.prepend (Step.matrix_linear_pc2 _ _ _)
+  apply Reaches.prepend (Step.matrix_linear_row_pc2 _ _ _)
   simpa [sameC] using Reaches.single
-    (Step.matrix_linear_pc1 heap _ caller (by simpa [sameC] using allocated))
+    (Step.matrix_linear_row_pc1 heap _ caller (by simpa [sameC] using allocated))
 
 theorem linear_step (state : Configuration) (heap finalHeap : Heap) (a b c : SeqRef)
     (bound sign index : Int) (located : AtLinear state heap a b c bound sign index)
     (validA : a < heap.nextRef) (validB : b < heap.nextRef) (validC : c < heap.nextRef)
     (unfinished : index < bound)
     (continuation : ∀ next, AtLinear next (linearStep heap a b c sign index)
-      a b c bound sign (index + 1) → matrix_linear.CallFrom next finalHeap c) :
-    matrix_linear.CallFrom state finalHeap c := by
+      a b c bound sign (index + 1) → matrix_linear_row.CallFrom next finalHeap c) :
+    matrix_linear_row.CallFrom state finalHeap c := by
   obtain ⟨named, sameHeap, sameA, sameB, sameC, sameBound, sameSign, sameIndex⟩ := located
-  unfold matrix_linear.At.loop at named
+  unfold matrix_linear_row.At.loop at named
   split at named <;> try contradiction
   rename_i currentHeap locals originalStack
   simp only [Config.heap] at sameHeap
   subst currentHeap
-  simp [matrix_linear.Local.a, matrix_linear.Local.b, matrix_linear.Local.c,
-    matrix_linear.Local.count, matrix_linear.Local.sign, matrix_linear.Local.i]
+  simp [matrix_linear_row.Local.a, matrix_linear_row.Local.b, matrix_linear_row.Local.c,
+    matrix_linear_row.Local.count, matrix_linear_row.Local.sign, matrix_linear_row.Local.i]
     at sameA sameB sameC sameBound sameSign sameIndex
-  have resume : ∀ next : State_matrix_linear,
+  have resume : ∀ next : State_matrix_linear_row,
       next.v0 = a → next.v1 = b → next.v4 = c → next.v2 = bound →
       next.v3 = sign → next.v5 = index + 1 →
-      Summary Step (linearStep heap a b c sign index) (.fn_matrix_linear 4 next)
-        finalHeap (.fn_matrix_linear c) := by
+      Summary Step (linearStep heap a b c sign index) (.fn_matrix_linear_row 4 next)
+        finalHeap (.fn_matrix_linear_row c) := by
     intro next aEq bEq cEq boundEq signEq indexEq
-    exact continuation (.active (linearStep heap a b c sign index) (.fn_matrix_linear 4 next) [])
-      (by simp [AtLinear, matrix_linear.At.loop, Config.heap, matrix_linear.Local.a,
-        matrix_linear.Local.b, matrix_linear.Local.c, matrix_linear.Local.count,
-        matrix_linear.Local.sign, matrix_linear.Local.i, aEq, bEq, cEq, boundEq, signEq, indexEq])
+    exact continuation (.active (linearStep heap a b c sign index) (.fn_matrix_linear_row 4 next) [])
+      (by simp [AtLinear, matrix_linear_row.At.loop, Config.heap, matrix_linear_row.Local.a,
+        matrix_linear_row.Local.b, matrix_linear_row.Local.c, matrix_linear_row.Local.count,
+        matrix_linear_row.Local.sign, matrix_linear_row.Local.i, aEq, bEq, cEq, boundEq, signEq, indexEq])
   intro caller
-  apply Reaches.prepend (Step.matrix_linear_pc4 _ _ _)
-  apply Reaches.prepend (Step.matrix_linear_pc3_true _ _ _
+  apply Reaches.prepend (Step.matrix_linear_row_pc4 _ _ _)
+  apply Reaches.prepend (Step.matrix_linear_row_pc3_true _ _ _
     (by simp [sameIndex, sameBound, unfinished]))
-  apply Reaches.prepend (Step.matrix_linear_pc7 _ _ _
+  apply Reaches.prepend (Step.matrix_linear_row_pc7 _ _ _
     (by simp [sameA, sameB, sameC, validA, validB, validC]))
-  apply Reaches.prepend (Step.matrix_linear_pc6 _ _ _)
-  apply Reaches.prepend (Step.matrix_linear_pc5 _ _ _)
+  apply Reaches.prepend (Step.matrix_linear_row_pc6 _ _ _)
+  apply Reaches.prepend (Step.matrix_linear_row_pc5 _ _ _)
   simp only [sameA, sameB, sameC, sameSign, sameIndex]
   apply resume _ _ _ _ _ _ _ caller <;> simp [sameBound]
 
 theorem linear_remaining (count : Nat) (heap : Heap) (a b c : SeqRef) (sign index : Int)
     (validA : a < heap.nextRef) (validB : b < heap.nextRef) (validC : c < heap.nextRef) :
     ∀ state, AtLinear state heap a b c (index + (count : Int)) sign index →
-      matrix_linear.CallFrom state (linearRun count heap a b c sign index) c := by
+      matrix_linear_row.CallFrom state (linearRun count heap a b c sign index) c := by
   induction count generalizing heap index with
   | zero =>
     intro state located
@@ -108,21 +108,21 @@ theorem linear_remaining (count : Nat) (heap : Heap) (a b c : SeqRef) (sign inde
 
 theorem linear_summary (heap : Heap) (a b : SeqRef) (count : Nat) (sign : Int)
     (validA : a < heap.nextRef) (validB : b < heap.nextRef) :
-    matrix_linear.Call heap (a, b, (count : Int), sign)
+    matrix_linear_row.Call heap (a, b, (count : Int), sign)
       (linearRun count (heap.allocate (fun _ => 0)) a b heap.nextRef sign 0) heap.nextRef := by
   refine ⟨⟨validA, validB⟩, ?_⟩
   intro caller
-  apply Reaches.prepend (Step.matrix_linear_pc11 _ _ _)
-  apply Reaches.prepend (Step.matrix_linear_pc10 _ _ _)
-  apply Reaches.prepend (Step.matrix_linear_pc9 _ _ _)
-  apply Reaches.prepend (Step.matrix_linear_pc8 _ _ _)
+  apply Reaches.prepend (Step.matrix_linear_row_pc11 _ _ _)
+  apply Reaches.prepend (Step.matrix_linear_row_pc10 _ _ _)
+  apply Reaches.prepend (Step.matrix_linear_row_pc9 _ _ _)
+  apply Reaches.prepend (Step.matrix_linear_row_pc8 _ _ _)
   have remaining := linear_remaining count (heap.allocate (fun _ => 0)) a b heap.nextRef sign 0
     (Nat.lt_trans validA (Nat.lt_succ_self _)) (Nat.lt_trans validB (Nat.lt_succ_self _)) (Nat.lt_succ_self _)
-  exact remaining (.active (heap.allocate (fun _ => 0)) (.fn_matrix_linear 4
+  exact remaining (.active (heap.allocate (fun _ => 0)) (.fn_matrix_linear_row 4
       { v0 := a, v1 := b, v2 := count, v3 := sign, v4 := heap.nextRef, t8 := heap.nextRef }) [])
-    (by simp [AtLinear, matrix_linear.At.loop, Config.heap, matrix_linear.Local.a,
-      matrix_linear.Local.b, matrix_linear.Local.c, matrix_linear.Local.count,
-      matrix_linear.Local.sign, matrix_linear.Local.i]) caller
+    (by simp [AtLinear, matrix_linear_row.At.loop, Config.heap, matrix_linear_row.Local.a,
+      matrix_linear_row.Local.b, matrix_linear_row.Local.c, matrix_linear_row.Local.count,
+      matrix_linear_row.Local.sign, matrix_linear_row.Local.i]) caller
 
 @[simp] theorem linearRun_old (count : Nat) (heap : Heap) (a b c other : SeqRef)
     (sign first index : Int) (different : other ≠ c) :
@@ -164,7 +164,7 @@ theorem linearRun_clocks (count : Nat) (heap : Heap) (a b c : SeqRef)
     the original arrays, and charges exactly one linear-cell unit per entry. -/
 theorem linear_correct (heap : Heap) (a b : SeqRef) (count : Nat) (sign : Int)
     (validA : a < heap.nextRef) (validB : b < heap.nextRef) :
-    ∃ after result, matrix_linear.Call heap (a, b, (count : Int), sign) after result ∧
+    ∃ after result, matrix_linear_row.Call heap (a, b, (count : Int), sign) after result ∧
       result < after.nextRef ∧ heap.nextRef ≤ after.nextRef ∧
       (∀ old index, old < heap.nextRef → after.read old index = heap.read old index) ∧
       (∀ index, after.read result index = if 0 ≤ index ∧ index < (count : Int)
@@ -183,81 +183,6 @@ theorem linear_correct (heap : Heap) (a b : SeqRef) (count : Nat) (sign : Int)
     simp only [Heap.cost, linearRun_clocks, Heap.allocate_clocks, Nat.add_sub_cancel_left,
       Clocks.single]
 
-/-- The scalar leaf allocates one fresh entry and records both its call and
-    scalar product. This formula also retains any pre-existing clocks. -/
-def leafHeap (heap : Heap) (a b : SeqRef) : Heap :=
-  (((heap.tick "calls").allocate (fun _ => 0)).write heap.nextRef 0
-    (heap.read a 0 * heap.read b 0)).tick "products"
-
-theorem leaf_summary (heap : Heap) (a b : SeqRef)
-    (validA : a < heap.nextRef) (validB : b < heap.nextRef) :
-    strassen.Call heap (a, b, 1) (leafHeap heap a b) heap.nextRef := by
-  refine ⟨⟨validA, validB⟩, ?_⟩
-  intro caller
-  apply Reaches.prepend (Step.strassen_pc189 ..)
-  apply Reaches.prepend (Step.strassen_pc188 ..)
-  apply Reaches.prepend (Step.strassen_pc187_true _ _ _ (by simp))
-  apply Reaches.prepend (Step.strassen_pc7 ..)
-  apply Reaches.prepend (Step.strassen_pc6 ..)
-  apply Reaches.prepend (Step.strassen_pc5 ..)
-  apply Reaches.prepend (Step.strassen_pc4 _ _ _
-    ⟨⟨Nat.lt_trans validA (Nat.lt_succ_self _), Nat.lt_trans validB (Nat.lt_succ_self _)⟩,
-      Nat.lt_succ_self _⟩)
-  apply Reaches.prepend (Step.strassen_pc3 ..)
-  apply Reaches.prepend (Step.strassen_pc2 ..)
-  simpa [leafHeap, validA, validB] using Reaches.single
-    (Step.strassen_pc1 _ _ caller (Nat.lt_succ_self _))
-
-theorem leaf_contents (heap : Heap) (a b : SeqRef) (index : Int) :
-    (leafHeap heap a b).read heap.nextRef index =
-      if index = 0 then heap.read a 0 * heap.read b 0 else 0 := by
-  simp [leafHeap, Heap.read, Heap.write, Heap.allocate]
-
-theorem leaf_old (heap : Heap) (a b other : SeqRef) (index : Int)
-    (valid : other < heap.nextRef) :
-    (leafHeap heap a b).read other index = heap.read other index := by
-  simp [leafHeap, Heap.read, Heap.write, Heap.allocate, Nat.ne_of_lt valid]
-
-theorem leaf_cost (heap : Heap) (a b : SeqRef) :
-    Heap.cost heap (leafHeap heap a b) =
-      Clocks.add (Clocks.single "calls" 1) (Clocks.single "products" 1) := by
-  funext name
-  by_cases calls : name = "calls" <;> by_cases products : name = "products" <;>
-    simp_all [leafHeap, Heap.cost, Heap.tick, Clocks.add, Clocks.single, Heap.write, Heap.allocate]
-
-/-- The source can allocate fresh arrays but never change any existing array. -/
-structure Preserves (before after : Heap) : Prop where
-  allocated : before.nextRef ≤ after.nextRef
-  read : ∀ old index, old < before.nextRef → after.read old index = before.read old index
-
-namespace Preserves
-
-theorem refl (heap : Heap) : Preserves heap heap := ⟨Nat.le_refl _, by intros; rfl⟩
-
-theorem trans {first middle last : Heap} (one : Preserves first middle)
-    (two : Preserves middle last) : Preserves first last := by
-  refine ⟨Nat.le_trans one.allocated two.allocated, ?_⟩
-  intro old index valid
-  rw [two.read old index (Nat.lt_of_lt_of_le valid one.allocated), one.read old index valid]
-
-end Preserves
-
-/-- A concrete source reference represents this mathematical sequence. -/
-structure Stored (heap : Heap) (ref : SeqRef) (values : Seq) : Prop where
-  allocated : ref < heap.nextRef
-  read : ∀ index, heap.read ref index = values index
-
-namespace Stored
-
-theorem transport {before after : Heap} {ref : SeqRef} {values : Seq}
-    (stored : Stored before ref values) (frame : Preserves before after) :
-    Stored after ref values := by
-  refine ⟨Nat.lt_of_lt_of_le stored.allocated frame.allocated, ?_⟩
-  intro index
-  rw [frame.read ref index stored.allocated, stored.read]
-
-end Stored
-
 @[simp] theorem resumed_heap (heap : Heap) (result : Result) (stack : Stack) :
     (resumeConfig heap result stack).heap = heap := by cases stack <;> rfl
 
@@ -265,7 +190,7 @@ theorem step_clock_monotone {before after : Configuration} (step : Step before a
     (name : String) : before.heap.clocks name ≤ after.heap.clocks name := by
   cases step
   all_goals try simp only [resumed_heap]
-  all_goals simp only [Config.heap, Heap.write_clocks, Heap.allocate_clocks]
+  all_goals simp only [Config.heap, Heap.write_clocks, Heap.allocate_clocks, SequenceType.set, SequenceType.const, SequenceType.create, Heap.createSequence, Heap.writeElement, Heap.allocateSequence]
   all_goals try exact Nat.le_refl _
   all_goals exact Heap.clocks_le_tick _ _ _ _
 
@@ -286,5 +211,6 @@ theorem reaches_clocks {before after : Configuration}
   have charged := congrFun cost name
   simp only [Heap.cost] at charged
   omega
+
 
 end MatrixStrassenAnalysis

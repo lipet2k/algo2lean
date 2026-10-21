@@ -1,0 +1,9 @@
+# Both branches retain this charge; only one branch returns.
+def sometimes() -> Int:
+    tick("work")
+    bit = randint(0, 2)
+    if bit == 0:
+        return 7
+    while True:
+        pass
+    return 0

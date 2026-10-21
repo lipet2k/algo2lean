@@ -94,6 +94,7 @@ def passed_job(response, name, required_steps):
 
 def full_lean_passed(response):
     return passed_job(response, "Lean semantics and proofs", (
+        "Prepare pinned Mathlib for probability and real proofs",
         "Require Lean before running semantic checks",
         "Check compiler, generated definitions, and analysis proofs",
     ))

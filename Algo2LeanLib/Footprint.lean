@@ -15,7 +15,7 @@ structure Heap.Footprint (before after : Heap) (sequences : List SeqRef)
   nextObject : before.nextObject ≤ after.nextObject
   nextCollection : before.nextCollection ≤ after.nextCollection
   classes : ∀ ref, ref < before.nextObject → after.objectClass ref = before.objectClass ref
-  types : ∀ ref, ref < before.nextCollection → after.sequenceType ref = before.sequenceType ref
+  types : ∀ ref, ref < before.nextCollection → after.collectionType ref = before.collectionType ref
   otherSequences : ∀ ref, ref < before.nextRef → ref ∉ sequences → after.store ref = before.store ref
   otherObjects : ∀ ref, ref < before.nextObject → ref ∉ objects → after.objects ref = before.objects ref
   otherCollections : ∀ ref, ref < before.nextCollection → ref ∉ collections →
@@ -155,7 +155,7 @@ theorem writeElement (frame : before.Footprint after sequences objects collectio
   refine ⟨frame.nextRef, frame.nextObject, frame.nextCollection, frame.classes, ?_,
     frame.otherSequences, frame.otherObjects, ?_⟩
   · intro other old
-    rw [Heap.sequenceType_writeElement]
+    rw [Heap.collectionType_writeElement]
     exact frame.types other old
   · intro other old outside
     have different : other ≠ ref := by
@@ -196,11 +196,45 @@ theorem allocateSequence (frame : before.Footprint after sequences objects colle
   · intro ref old
     have preserved := Heap.collections_allocateSequence_old after elementType values ref
       (Nat.lt_of_lt_of_le old frame.nextCollection)
-    simpa only [Heap.sequenceType, preserved] using frame.types ref old
+    simpa only [Heap.collectionType, preserved] using frame.types ref old
   · intro ref old outside
     rw [Heap.collections_allocateSequence_old after elementType values ref
       (Nat.lt_of_lt_of_le old frame.nextCollection)]
     exact frame.otherCollections ref old outside
+
+theorem allocateCollection (frame : before.Footprint after sequences objects collections)
+    (value : Collection) :
+    before.Footprint (after.allocateCollection value) sequences objects collections := by
+  refine ⟨frame.nextRef, frame.nextObject, Nat.le_trans frame.nextCollection (Nat.le_succ _),
+    frame.classes, ?_, frame.otherSequences, frame.otherObjects, ?_⟩
+  · intro ref old
+    have preserved := Heap.collections_allocateCollection_old after value ref
+      (Nat.lt_of_lt_of_le old frame.nextCollection)
+    simpa only [Heap.collectionType, preserved] using frame.types ref old
+  · intro ref old outside
+    rw [Heap.collections_allocateCollection_old after value ref
+      (Nat.lt_of_lt_of_le old frame.nextCollection)]
+    exact frame.otherCollections ref old outside
+
+/-- A same-header replacement changes only its owned or newly allocated cell. -/
+theorem replaceCollection (frame : before.Footprint after sequences objects collections)
+    (ref : CollectionRef) (value : Collection)
+    (allowed : ref ∈ collections ∨ before.nextCollection ≤ ref) :
+    before.Footprint (after.replaceCollection ref value) sequences objects collections := by
+  refine ⟨frame.nextRef, frame.nextObject, frame.nextCollection, frame.classes, ?_,
+    frame.otherSequences, frame.otherObjects, ?_⟩
+  · intro other old
+    rw [Heap.collectionType_replaceCollection]
+    exact frame.types other old
+  · intro other old outside
+    have different : other ≠ ref := by
+      intro same
+      subst other
+      rcases allowed with owned | fresh
+      · exact outside owned
+      · omega
+    rw [Heap.collections_replaceCollection_other _ _ _ _ different]
+    exact frame.otherCollections other old outside
 
 theorem read (frame : before.Footprint after sequences objects collections)
     (ref : SeqRef) (old : ref < before.nextRef) (outside : ref ∉ sequences) :
@@ -216,10 +250,16 @@ theorem readElement (frame : before.Footprint after sequences objects collection
     (index : Int) : after.readElement ref index = before.readElement ref index := by
   simp only [Heap.readElement, frame.otherCollections ref old outside]
 
+/-- The sequence-facing type view is preserved by the stronger collection header contract. -/
+theorem sequenceType (frame : before.Footprint after sequences objects collections)
+    (ref : CollectionRef) (old : ref < before.nextCollection) :
+    after.sequenceType ref = before.sequenceType ref := by
+  rw [Heap.sequenceType_eq_collectionType, Heap.sequenceType_eq_collectionType, frame.types ref old]
+
 theorem validSequence (frame : before.Footprint after sequences objects collections)
     (ref : CollectionRef) (elementType : String) (valid : before.validSequence ref elementType) :
     after.validSequence ref elementType :=
-  ⟨Nat.lt_of_lt_of_le valid.1 frame.nextCollection, (frame.types ref valid.1).trans valid.2⟩
+  ⟨Nat.lt_of_lt_of_le valid.1 frame.nextCollection, (frame.sequenceType ref valid.1).trans valid.2⟩
 
 end Heap.Footprint
 
@@ -235,7 +275,7 @@ theorem Heap.Modifies.footprint {before after : Heap} {sequences : List SeqRef}
   · intro ref _
     exact congrFun frame.classes ref
   · intro ref _
-    simp only [Heap.sequenceType, frame.collections]
+    simp only [Heap.collectionType, frame.collections]
   · intro ref _ outside
     exact frame.otherSequences ref outside
   · intro ref _ outside

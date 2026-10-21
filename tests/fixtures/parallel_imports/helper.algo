@@ -1,0 +1,7 @@
+def write(a: Seq, index: Int, value: Int) -> Int:
+    a[index] = value
+    tick("updates")
+    return value
+
+def unrelated() -> Int:
+    return randint(0, 2)

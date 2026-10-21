@@ -1,0 +1,9 @@
+# A set records which values have appeared in the selected sequence prefix.
+def count_distinct(values: Seq, n: Int) -> Int:
+    visited: Set[Int] = set()
+    for i in range(n):
+        value = values[i]
+        if value not in visited:
+            # @visit
+            visited.add(value)
+    return len(visited)

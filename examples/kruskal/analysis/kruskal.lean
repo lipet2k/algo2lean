@@ -70,7 +70,7 @@ private theorem sorting_footprint {before after : Heap}
   · intro ref old
     simp only [Heap.objectClass, preserved.objects ref old]
   · intro ref old
-    simp only [Heap.sequenceType, preserved.collections]
+    simp only [Heap.collectionType, preserved.collections]
   · intro ref old _
     exact preserved.sequences ref old
   · intro ref old _

@@ -8,6 +8,7 @@
 
   const GROUPS = [
     { id: "outputs", title: "Outputs", categories: ["output"] },
+    { id: "probability", title: "Probability", categories: ["probability"] },
     { id: "calls", title: "Calls", categories: ["execution", "helper"] },
     { id: "transcripts", title: "Transcripts", categories: ["transcript"] },
     { id: "locations", title: "Named locations and values", categories: ["location", "observation"] },
@@ -19,10 +20,10 @@
 
   const KINDS = { proposition: "Proposition", theorem: "Theorem", definition: "Value", type: "Type" };
   const WORDS = new Set("def abbrev theorem lemma example inductive structure class where namespace section end import open scoped if then else let in match with by fun set_option deriving private protected noncomputable mutual variable variables instance opaque axiom".split(" "));
-  const TYPES = new Set("Int Seq Bool Prop Type Sort Nat Unit String Char List Option Array Fin Prod Sum Except Heap Clocks SeqRef Configuration Transcript Stack".split(" "));
+  const TYPES = new Set("Int Real ℝ Seq Tuple1 Set Bool Prop Type Sort Nat Unit String Char List Option Array Fin Prod Sum Except Heap Clocks SeqRef Configuration Transcript Stack ENNReal".split(" "));
   // These imported mathematical aliases are used by bundled analyses, whose
   // editor response does not include the library source. Keep them qualified.
-  const LIBRARY_TYPES = ["Algo2Lean.Dijkstra.Adjacency", "Algo2Lean.Dijkstra.Edges"];
+  const LIBRARY_TYPES = ["Algo2Lean.Dijkstra.Adjacency", "Algo2Lean.Dijkstra.Edges", "MeasureTheory.Measure", "Algo2LeanProbability.Run"];
   const COMPONENT = "(?:«[^»\\r\\n]*»|[\\p{L}_][\\p{L}\\p{N}\\p{M}_'!?]*)";
   const IDENTIFIER = new RegExp(COMPONENT + "(?:\\." + COMPONENT + ")*", "uy");
   const NUMBER = /\d+/y;
@@ -55,7 +56,7 @@
     Seq: "Mathematical integer sequence contents: an integer value at every integer index.",
     SeqRef: "The identity of a mutable integer sequence in a heap.",
     ObjectRef: "The identity of a class instance in a heap.",
-    CollectionRef: "The identity of a typed non-integer sequence in a heap.",
+    CollectionRef: "The identity of a typed sequence, finite set, or dictionary in a heap.",
     Clocks: "Named natural-valued cost counters. Functions report increments from their caller's actual counters.",
     "Clocks.single": "A counter vector with a contribution to one named clock.",
     "Clocks.add": "Add two counter vectors pointwise.",
@@ -77,14 +78,42 @@
     "SequenceType.create": "Allocate a typed sequence with the supplied mathematical contents.",
     "SequenceType.const": "Allocate a typed sequence with a constant initial value.",
     "SequenceType.copy": "Allocate a separate typed sequence with the same contents.",
+    SetType: "A finite mutable set descriptor with a fixed element type and exact key equality.",
+    "SetType.valid": "The reference denotes an allocated set with well-typed, distinct elements.",
+    "SetType.contains": "Test membership using the descriptor's key equality.",
+    "SetType.size": "Read the number of distinct elements as a natural number.",
+    "SetType.keys": "Read the finite insertion-order snapshot used by iteration.",
+    "SetType.create": "Allocate a set from an ordered list; repeated elements occur once.",
+    "SetType.insert": "Insert an element, preserving its existing position when already present.",
+    "SetType.erase": "Remove an element; an absent element leaves the set unchanged.",
+    "SetType.copy": "Allocate a separate set sharing any references stored in its elements.",
+    DictType: "A finite mutable dictionary descriptor with fixed key and value types.",
+    "DictType.valid": "The reference denotes an allocated dictionary with well-typed entries and distinct keys.",
+    "DictType.contains": "Test whether the dictionary has the supplied key.",
+    "DictType.get": "Read an optional value; None represents an absent key or invalid storage.",
+    "DictType.size": "Read the number of distinct keys as a natural number.",
+    "DictType.keys": "Read the finite insertion-order key snapshot used by iteration.",
+    "DictType.create": "Allocate a dictionary from ordered entries; later duplicate keys replace earlier values.",
+    "DictType.set": "Insert or replace a value; replacement retains the key's position.",
+    "DictType.erase": "Remove the supplied key without changing other entries.",
+    "DictType.copy": "Allocate a separate dictionary sharing references inside its keys and values.",
   };
-  const STORAGE_PROPS = new Set(["SequenceType.valid", "Heap.ClocksMonotone", "Heap.Increments"]);
-  const STORAGE_TYPES = new Set(["Heap", "Seq", "SeqRef", "ObjectRef", "CollectionRef", "Clocks", "SequenceType"]);
+  const STORAGE_PROPS = new Set(["SequenceType.valid", "SetType.valid", "DictType.valid", "Heap.ClocksMonotone", "Heap.Increments"]);
+  const STORAGE_TYPES = new Set(["Heap", "Seq", "SeqRef", "ObjectRef", "CollectionRef", "Clocks", "SequenceType", "SetType", "DictType"]);
   const COST_TOOLS = new Set(["Heap.ClocksMonotone", "Heap.Increments", "Heap.weightedCost", "Clocks.weighted"]);
+  const FINITE_STORAGE = /^(?:SetType|DictType)(?:\.|$)/;
+
+  function storageFile(name) {
+    if (FINITE_STORAGE.test(name)) return "Algo2LeanLib/FiniteCollections.lean";
+    return COST_TOOLS.has(name) ? "Algo2LeanLib/CallCost.lean" : "Algo2Lean.lean";
+  }
 
   function extraInterface(namespace, name, command) {
     if (namespace.startsWith("Algo2LeanCore.")) { name = namespace.slice(14) + "." + name; namespace = "Algo2LeanCore"; }
-    if (namespace === "Algo2LeanGenerated.SequenceType") { name = "SequenceType." + name; namespace = "Algo2LeanGenerated"; }
+    if (/^Algo2LeanGenerated\.(?:SequenceType|SetType|DictType)$/.test(namespace)) {
+      name = namespace.slice("Algo2LeanGenerated.".length) + "." + name;
+      namespace = "Algo2LeanGenerated";
+    }
     if (namespace === "Algo2LeanCore" && CORE[name]) return { category: "advanced", kind: CORE[name][0], meaning: CORE[name][1] };
     if (!/(?:^|\.)Algo2LeanGenerated$/.test(namespace)) return null;
     if (ADVANCED[name]) return { category: "advanced", kind: ADVANCED[name][0], meaning: ADVANCED[name][1] };
@@ -159,8 +188,8 @@
     if (Object.hasOwn(KINDS, entry.kind)) return entry.kind;
     if (entry.category === "observation") return "definition";
     if (entry.category === "location") return "proposition";
-    if (entry.category === "helper" || /\.(?:Returns\.withCost|ReturnsWithCost\.returns|Call\.run|Run\.eq_of_call)$/.test(entry.name)) return "theorem";
-    if (["output", "execution", "transcript"].includes(entry.category) || /\.ValidInput$/.test(entry.name)) return "proposition";
+    if (entry.category === "helper" || /\.(?:Returns\.withCost|ReturnsWithCost\.returns|ParallelCall\.call|Call\.(?:run|hasLaw|expectedReturn)|Run\.eq_of_call|returnProbability_eq_expectedReturn)$/.test(entry.name)) return "theorem";
+    if (["output", "execution", "transcript"].includes(entry.category) || /\.(?:ValidInput|HasLaw)$/.test(entry.name)) return "proposition";
     return "definition";
   }
 
@@ -169,9 +198,9 @@
     const parts = name.match(new RegExp(COMPONENT, "gu")) || [];
     if (["Local", "Element"].includes(parts[parts.length - 2])) return "definition";
     if (parts[parts.length - 2] === "At") return "proposition";
-    if (/\.(?:Returns\.withCost|ReturnsWithCost\.returns|Call\.run|Run\.eq_of_call)$/.test(name)) return "theorem";
-    if (/\.(?:Returns|ReturnsWithCost|Call|Run|CallFrom|ValidTranscript|ValidHeapTranscript|ValidInput)$/.test(name)) return "proposition";
-    if (/\.(?:initial|load)$/.test(name)) return "definition";
+    if (/\.(?:Returns\.withCost|ReturnsWithCost\.returns|ParallelCall\.call|Call\.(?:run|hasLaw|expectedReturn)|Run\.eq_of_call|returnProbability_eq_expectedReturn)$/.test(name)) return "theorem";
+    if (/\.(?:Returns|ReturnsWithCost|Call|ParallelCall|Run|CallFrom|ValidTranscript|ValidHeapTranscript|ValidInput|HasLaw)$/.test(name)) return "proposition";
+    if (/\.(?:initial|load|outcome|law|returnProbability|outputProbability|terminationProbability|cost|expectedCost|costProbability|expectedReturn|expectedFrom)$/.test(name)) return "definition";
     return null;
   }
 
@@ -293,6 +322,8 @@
   function createCatalog(functions = [], sources = []) {
     const names = new Map();
     const extraEntries = new Map();
+    const finiteCollections = sources.some((source) => typeof source === "string" &&
+      /\bAlgo2LeanLib\.FiniteCollections\b|\bstructure\s+(?:SetType|DictType)\b/.test(source));
     // Project responses contain generated modules but may omit shared-library
     // text. Keep the documented shared boundary available in that case too.
     if (sources.some((source) => typeof source === "string" && source.length)) {
@@ -302,10 +333,11 @@
         extraEntries.set(fullName, { name: fullName, kind, meaning, category: "advanced", arguments: [], fileLabel: "Algo2Lean.lean" });
       }
       for (const [name, meaning] of Object.entries(STORAGE)) {
+        if (FINITE_STORAGE.test(name) && !finiteCollections) continue;
         const fullName = "Algo2LeanGenerated." + name;
         const kind = STORAGE_PROPS.has(name) ? "proposition" : STORAGE_TYPES.has(name) ? "type" : "definition";
         names.set(fullName, kind);
-        extraEntries.set(fullName, { name: fullName, kind, meaning, category: "storage", arguments: [], fileLabel: COST_TOOLS.has(name) ? "Algo2LeanLib/CallCost.lean" : "Algo2Lean.lean" });
+        extraEntries.set(fullName, { name: fullName, kind, meaning, category: "storage", arguments: [], fileLabel: storageFile(name) });
       }
     }
     for (const source of sources) {
@@ -318,7 +350,11 @@
         if (kind) names.set(canonical(name), kind);
         if (extra) extraEntries.set(name, { ...extra, name, namespace: context.namespace, arguments: [],
           signature: declarationHeader(source.slice(token.start)), file_kind: "core",
-          fileLabel: context.namespace.startsWith("Algo2LeanCore") || context.namespace === "Algo2LeanGenerated.SequenceType" || (context.namespace === "Algo2LeanGenerated" && STORAGE[context.next.text]) ? "Algo2Lean.lean" : "Algorithm definitions" });
+          fileLabel: /^Algo2LeanGenerated\.(?:SetType|DictType)$/.test(context.namespace) ||
+            (context.namespace === "Algo2LeanGenerated" && FINITE_STORAGE.test(context.next.text))
+              ? "Algo2LeanLib/FiniteCollections.lean"
+              : context.namespace.startsWith("Algo2LeanCore") || context.namespace === "Algo2LeanGenerated.SequenceType" ||
+                (context.namespace === "Algo2LeanGenerated" && STORAGE[context.next.text]) ? "Algo2Lean.lean" : "Algorithm definitions" });
       });
     }
     for (const entry of normalizeEntries(functions)) names.set(canonical(entry.name), classify(entry));
@@ -417,7 +453,7 @@
       for (const entry of raw) {
         if (!entry || typeof entry.name !== "string" || !entry.name) continue;
         if (/(?:^|\.)(?:is_(?:OutputWithCost|Output|Execution|SummaryFrom|Summary|HeapTranscript|Transcript)_|At_|local_|element_|validInputs_|initial_|load_)[^.]+(?:\.(?:output|withCost|execution|eq_of_summary))?$/.test(entry.name)) continue;
-        const fileKind = ["core", "points", "facts"].includes(entry.file_kind) ? entry.file_kind : "core";
+        const fileKind = ["core", "points", "facts", "probability", "parallel"].includes(entry.file_kind) ? entry.file_kind : "core";
         const key = `${fileKind}:${entry.name}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -455,7 +491,9 @@
     const functionEntries = normalizeEntries(functions);
     const entries = [...functionEntries, ...(catalog.extraEntries || [])];
     const files = { core: options.generatedFile || "Algorithm definitions",
-      points: options.pointsFile || "Named-line interface", facts: options.factsFile || "Generated facts" };
+      points: options.pointsFile || "Named-line interface", facts: options.factsFile || "Generated facts",
+      parallel: options.parallelFile || "Parallel contracts",
+      probability: options.probabilityFile || "Probability companion · requires Mathlib" };
     let expanded = null;
     let entrySerial = 0;
 

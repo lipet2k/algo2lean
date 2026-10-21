@@ -77,6 +77,9 @@ def emit_facts(compiled):
     and unique caller ``frame`` constructor. Dependencies are deduplicated by
     that constructor, so aliases and repeated calls share one certificate.
     """
+    if getattr(compiled, "randomized", False):
+        from .scoped_facts import emit_scoped_facts
+        return emit_scoped_facts(compiled)
     lowered, imports = compiled.lowered, compiled.imports
     slots = getattr(compiled, "dependencies", {})
     bindings = getattr(compiled, "bindings", {})
@@ -96,6 +99,8 @@ def emit_facts(compiled):
     fact_imports.extend(binding.backend.namespace + ".Facts" for binding in bindings.values())
     fact_imports.extend(environment.target.namespace + ".Facts" for environment in environments.values())
     lines.extend("import " + name for name in dict.fromkeys(_qualified(name) for name in fact_imports))
+    if getattr(compiled, "real_semantics", False):
+        lines += ["", "noncomputable section"]
     lines.extend([
         "", "-- Optional proof certificate; execution remains the generated Step relation.",
         "namespace " + outer_namespace, "", "open Algo2LeanCore _root_.Algo2LeanGenerated", "",

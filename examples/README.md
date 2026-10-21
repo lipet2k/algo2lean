@@ -6,9 +6,11 @@ and companion proofs together; use **Project file** to switch between them.
 
 | Project folder | What it demonstrates |
 | --- | --- |
+| [additional_types/](additional_types/README.md) | Tuple coordinates and exact reals, dictionary frequency counts, and visited sets. |
 | [modules/](modules/README.md) | Reusable calls, sorting and searching, and passing algorithms as arguments. |
 | [interfaces/](interfaces/README.md) | One abstract interface with interchangeable implementations and reusable proofs. |
 | [mutual_recursion/](mutual_recursion/README.md) | Recursive imports, shared execution, and a caller that reuses the parity proof. |
+| [randomized/](randomized/README.md) | Uniform integer sampling with an exclusive upper bound, probability analysis, imported draws, and repeated coin flips. Development toward 0.2.0. |
 | [kruskal/](kruskal/README.md) | Minimum spanning forests, reusable union-find with rank and path compression, and heap-based edge sorting. |
 | [dijkstra/](dijkstra/README.md) | One Dijkstra algorithm with binary-heap and Fibonacci-heap implementations and analyses. |
 | [prim/](prim/README.md) | Prim minimum spanning trees with the existing Fibonacci heap, a reusable queue contract, and O(E + V log V) measured-work bounds. |
@@ -24,8 +26,8 @@ python3 -m algo2lean compile examples/merge_sort.algo -o MergeSort.lean --check
 
 Run these commands from the repository root. Compilation produces Lean propositions; it does not execute the algorithm. `--check` asks Lean to check the generated definitions.
 
-Each example also has a separate [Lean analysis](analysis/README.md). Choosing an
-example in the editor loads that file into the **Lean analysis** pane. **Check
+Examples with accompanying proofs have a separate [Lean analysis](analysis/README.md).
+Choosing one in the editor loads that file into the **Lean analysis** pane. **Check
 analysis** checks its theorems against the current source. From the command line:
 
 ```sh
@@ -192,7 +194,7 @@ python3 -m unittest discover -v
 ## CLRS Chapter 4 (§4.1–4.4)
 
 The [Chapter 4 guide](../docs/CLRS_CHAPTER_4.md) covers the three matrix examples,
-their row-major representation, power-of-two assumptions for recursion, and
+their nested row-array representation, power-of-two assumptions for recursion, and
 proved unit-cost runtime bounds. The [recurrence guide](../docs/RECURRENCES.md)
 describes reusable substitution and recursion-tree proofs. These examples and
 frameworks use Lean/Std alone; the master theorem is outside the current scope.

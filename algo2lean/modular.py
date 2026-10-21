@@ -14,9 +14,9 @@ from .emitter import (constructor, emit_points, emit_public, emit_step, frame,
                       input_values, state_value, tuple_type)
 from .frontend import ClassInfo, CompileError, Function, parse_program
 from .objects import (collection_types, default_value, emit_classes,
-                      emit_collections, raw_type)
+                      emit_collections, raw_type, contains_tuple, uses_tuples, uses_finite_collections, uses_reals, contains_real)
 from .project import Project, ProjectError, Symbol, load_project
-from .source_types import sequence_element, sequence_type
+from .source_types import map_type
 from .publication import credit_generated
 
 
@@ -39,6 +39,9 @@ class ImportedCall:
     environment: str = ""
     interface_code: str = ""
     environment_facts: str = ""
+    deterministic: bool = True
+    mixed: bool = False
+    parallel_supported: bool = False
 
     def source(self, member):
         if self.interface_code:
@@ -96,6 +99,15 @@ class CompiledModule:
     implementation: object = None
     implementation_names: dict = field(default_factory=dict)
     group_members: tuple = ()
+    randomized: bool = False
+    deterministic_functions: set = field(default_factory=set)
+    real_semantics: bool = False
+    probability_module: str = ""
+    probability_lean: str = ""
+    probability_diagnostic: str = ""
+    parallel_module: str = ""
+    parallel_lean: str = ""
+    parallel_functions: set = field(default_factory=set)
 
     @property
     def result_count(self):
@@ -103,9 +115,14 @@ class CompiledModule:
 
     @property
     def stats(self):
-        return {"general_lines": len(self.lean.splitlines()),
-                "points_lines": len(self.points_lean.splitlines()),
-                "facts_lines": len(self.facts_lean.splitlines())}
+        stats = {"general_lines": len(self.lean.splitlines()),
+                 "points_lines": len(self.points_lean.splitlines()),
+                 "facts_lines": len(self.facts_lean.splitlines())}
+        if self.probability_lean:
+            stats["probability_lines"] = len(self.probability_lean.splitlines())
+        if self.parallel_lean:
+            stats["parallel_lines"] = len(self.parallel_lean.splitlines())
+        return stats
 
 
 @dataclass
@@ -126,6 +143,10 @@ class ProjectCompilation:
             sources[module.points_module] = module.points_lean
             if module.facts_lean:
                 sources[module.facts_module] = module.facts_lean
+            if module.probability_lean:
+                sources[module.probability_module] = module.probability_lean
+            if module.parallel_lean:
+                sources[module.parallel_module] = module.parallel_lean
         return sources
 
 
@@ -203,13 +224,8 @@ def _imports(project, owner, compiled):
             names.setdefault(origin, "_a2l_import_%d_%s" % (index, name))
 
     def translate(typ, module):
-        element = sequence_element(typ)
-        if element is not None:
-            return sequence_type(translate(element, module))
-        base = typ[:-1] if typ.endswith("?") else typ
-        if base in module.class_origins:
-            base = names[module.class_origins[base]]
-        return base + ("?" if typ.endswith("?") else "")
+        return map_type(typ, lambda name: names[module.class_origins[name]]
+                        if name in module.class_origins else name)
 
     for origin, (module, name) in symbols.items():
         original = module.classes[name]
@@ -241,7 +257,9 @@ def _imports(project, owner, compiled):
             implementation_name = module.implementation_names.get(name, name)
             calls[local] = ImportedCall(function, execution.namespace, implementation_name,
                                         "import_%d" % execution_indices[execution.name],
-                                        module.result_count, dependency)
+                                        module.result_count, dependency,
+                                        deterministic=name in module.deterministic_functions,
+                                        mixed=execution.randomized)
     return names, classes, origins, functions, calls
 
 
@@ -275,8 +293,9 @@ def _emit(owner, module, declarations):
     for name, lowerer in lowered.items():
         lines.append("structure State_%s where" % name)
         for field, typ in lowerer.field_types.items():
+            representation, initial = lowerer.field_representation(field)
             lines.append("  %s : %s := %s -- %s" %
-                         (field, raw_type(typ), default_value(typ), lowerer.field_labels[field]))
+                         (field, representation, initial, lowerer.field_labels[field]))
         if not lowerer.field_types:
             lines.append("  unused : Unit := ()")
         lines.append("")
@@ -326,24 +345,148 @@ def _emit(owner, module, declarations):
                   "  " + frame(lowerer, lowerer.entry, state_value(lowerer, args)), ""]
         if module.dependencies:
             lines += ['local notation "entry_%s" => entry_%s dependencies' % (name, name)]
-        emit_public(lines, lowerer, bool(clocks) or bool(module.dependencies),
-                    module.namespace, bool(module.dependencies))
+        if not getattr(lowerer.function.node, "parallel_adapter", False):
+            emit_public(lines, lowerer, bool(clocks) or bool(module.dependencies),
+                        module.namespace, bool(module.dependencies))
+    module.real_semantics = module.real_semantics or uses_reals(functions.values(), classes) or any(
+        contains_real(typ) for declaration in declarations for method in declaration.methods.values()
+        for typ in [method.return_type, *(typ for _, typ in method.parameters)])
     prefix = module.namespace
     header = ["import Algo2LeanLib.Modules"]
+    if module.real_semantics:
+        header.append("import Algo2LeanReal")
+    if uses_finite_collections(functions.values()):
+        header.append("import Algo2LeanLib.FiniteCollections")
+    if uses_tuples(functions.values()) or any(
+            contains_tuple(typ) for declaration in declarations for method in declaration.methods.values()
+            for typ in [method.return_type, *(typ for _, typ in method.parameters)]):
+        header.append("import Algo2LeanLib.Tuple")
     if declarations or module.dependencies or module.bindings:
         header.append("import Algo2LeanLib.Interface")
     header += ["import " + lean_module(dependency) for dependency in owner.dependencies]
     # A named import may re-export a transitive function. Its code is already
     # imported transitively; no duplicate source or namespace is emitted.
+    if module.real_semantics:
+        header += ["", "noncomputable section"]
     header += ["", "namespace " + prefix, "", "open _root_.Algo2LeanGenerated", ""]
     lean = "\n".join(header + lines + ["end " + prefix, ""])
     points = ["import " + module.lean_module, "", "namespace " + prefix, "",
               "open _root_.Algo2LeanGenerated Algo2LeanGenerated", "",
               "-- Named locations are independent of the compiled module body.", ""]
+    if module.real_semantics:
+        points.insert(1, "noncomputable section")
     points += emit_dependency_context(module)
     for lowerer in lowered.values():
         emit_points(points, lowerer, module.namespace, bool(module.dependencies))
     return credit_generated(lean), credit_generated("\n".join(points + ["end " + prefix, ""]))
+
+
+def _mark_real_semantics(module, compiled):
+    """Propagate noncomputable implementation dependencies across call boundaries."""
+    module.real_semantics = (
+        uses_reals(module.functions.values(), module.classes)
+        or any((compiled[call.module].implementation or compiled[call.module]).real_semantics
+               for call in module.imports.values() if call.module in compiled)
+        or any(binding.backend.real_semantics for binding in module.bindings.values())
+        or any(environment.target.real_semantics for environment in module.environments.values())
+    )
+
+
+def _mark_randomized(module, compiled):
+    """Track nondeterminism across the execution units actually delegated to.
+
+    The unit flag describes the whole Step relation. Individual functions use
+    a separate transitive call-graph certificate when that unit is mixed.
+    Merely importing a source name does not create an execution wrapper.
+    Abstract slots can still carry their separately supplied DependencyFacts.
+    """
+    def randomized(target):
+        return (target.implementation or target).randomized
+
+    module.randomized = (
+        any(node.kind == "random" for lowerer in module.lowered.values() for node in lowerer.nodes)
+        or any(randomized(compiled[call.module]) for call in module.imports.values()
+               if not call.interface_code)
+        or any(randomized(binding.backend) for binding in module.bindings.values())
+        or any(randomized(environment.target) for environment in module.environments.values())
+    )
+    from .scoped_facts import deterministic_functions
+    safe = deterministic_functions(module.lowered, module.imports)
+    # Abstract implementations still require their existing whole-unit facts.
+    abstract = (module.dependencies or module.bindings or module.environments
+                or any(call.interface_code for call in module.imports.values()))
+    module.deterministic_functions = safe if not module.randomized or not abstract else set()
+    for binding in module.bindings.values():
+        if randomized(binding.backend):
+            raise CompileError(
+                "Randomized implementation '%s.%s' cannot be bound to interface '%s' yet; "
+                "abstract interface bindings currently require deterministic implementations. "
+                "Call the concrete implementation directly instead." %
+                (binding.backend.name, binding.class_name, binding.interface.name))
+
+
+def _attach_probability(compilation, *, force=False):
+    """Publish optional concrete execution laws without changing core modules.
+
+    Deterministic callees also need choice certificates when a randomized caller
+    delegates to them. Recursive facades reuse their execution unit's companion.
+    Abstract code needs a separate probability contract before it can expose a
+    law; preserve its relational output and explain the missing companion.
+    """
+    if not force and not any(module.randomized for module in compilation.modules.values()):
+        return
+    from .compiler import validate_probability_names
+    from .probability import emit_probability
+    from .recursive_modules import emit_probability_facade
+
+    completed = set()
+
+    def validate_names(module):
+        facades = [candidate for candidate in compilation.modules.values()
+                   if candidate.implementation is module]
+        for source_module in facades or [module]:
+            try:
+                validate_probability_names(source_module.functions)
+            except CompileError as error:
+                owner = compilation.project.modules[source_module.name]
+                raise ProjectError(error.message, owner.path, error.line, error.column) from None
+
+    def visit(module):
+        if module.name in completed:
+            return
+        completed.add(module.name)
+        if module.implementation is not None:
+            visit(module.implementation)
+            module.probability_diagnostic = module.implementation.probability_diagnostic
+            if module.implementation.probability_lean:
+                validate_names(module)
+                module.probability_module = lean_module(module.name, "Probability")
+                module.probability_lean = credit_generated(emit_probability_facade(module))
+            return
+        if module.dependencies or module.environments or any(call.interface_code for call in module.imports.values()):
+            module.probability_diagnostic = (
+                "Probability semantics for abstract interface dependencies are not supported yet; "
+                "the selected implementations need separate probability contracts.")
+            return
+        if not module.functions and not module.imports:
+            return
+        for call in module.imports.values():
+            dependency = compilation.modules[call.module]
+            visit(dependency)
+            if not dependency.probability_lean:
+                module.probability_diagnostic = (
+                    "Probability semantics are unavailable for imported module '%s'. %s" %
+                    (dependency.name, dependency.probability_diagnostic))
+                return
+        validate_names(module)
+        module.probability_module = lean_module(module.name, "Probability")
+        module.probability_lean = credit_generated(emit_probability(
+            module.lowered, module.lean_module, namespace=module.namespace, imports=module.imports,
+            facts_module=module.facts_module,
+            deterministic_functions=module.deterministic_functions, mixed=module.randomized))
+
+    for module in compilation.modules.values():
+        visit(module)
 
 
 def compile_project(entry, *, root=None, sources=None):
@@ -368,6 +511,8 @@ def compile_project(entry, *, root=None, sources=None):
         try:
             # Pure re-export modules have no local declarations.
             if tree.body:
+                from .parallel_modules import adapt_imported_forks
+                adapt_imported_forks(tree, external)
                 all_functions, classes = parse_program(tree, imported_functions=external, imported_classes=classes)
                 functions = {name: function for name, function in all_functions.items() if name not in external}
             else:
@@ -385,13 +530,16 @@ def compile_project(entry, *, root=None, sources=None):
                 functions, classes, origins, {}, {}, clocks)
             resolve_interfaces(owner, module, all_functions, all_calls, result.modules, interfaces)
             module.lowered = {name: Lowerer(function) for name, function in functions.items()}
+            _mark_randomized(module, result.modules)
+            _mark_real_semantics(module, result.modules)
             module.lean, module.points_lean = _emit(owner, module,
                 [info for symbol, info in interfaces.items() if symbol.module == owner.name])
             result.modules[owner.name] = module
             from .module_facts import emit_facts
             module = result.modules[owner.name]
-            module.facts_module = lean_module(owner.name, "Facts")
-            module.facts_lean = credit_generated(emit_facts(module) + _public_facts(module))
+            if not module.randomized or module.deterministic_functions:
+                module.facts_module = lean_module(owner.name, "Facts")
+                module.facts_lean = credit_generated(emit_facts(module) + _public_facts(module))
         except CompileError as error:
             if isinstance(error, ProjectError):
                 raise
@@ -399,11 +547,16 @@ def compile_project(entry, *, root=None, sources=None):
         except (RecursionError, MemoryError):
             from .source_validation import RESOURCE_LIMIT
             raise ProjectError(RESOURCE_LIMIT, owner.path) from None
+    from .parallel_modules import attach_parallel
+    attach_parallel(result)
+    _attach_probability(result)
     return result
 
 
 def _public_facts(module):
     """Emit determinism-based bridges from call summaries to every completed run."""
+    if module.randomized and not module.deterministic_functions:
+        return ""
     from .public_names import function_namespace, function_reference
     lines = ["", "namespace " + module.namespace, "",
              "open Algo2LeanCore _root_.Algo2LeanGenerated Algo2LeanGenerated", ""]
@@ -412,6 +565,8 @@ def _public_facts(module):
         lines += emit_dependency_context(module)
         lines += ["variable {dependencies}", ""]
     for name in module.functions:
+        if name not in module.deterministic_functions or getattr(module.functions[name].node, "parallel_adapter", False):
+            continue
         public = function_namespace(module.functions[name])
         run = function_reference(module.functions[name], "Run", module.namespace, bool(module.dependencies))
         call = function_reference(module.functions[name], "Call", module.namespace, bool(module.dependencies))
@@ -422,7 +577,8 @@ def _public_facts(module):
                   "    (run : %s before input after output)" % run,
                   "    (call : %s before input expectedHeap expected) :" % call,
                   "    after = expectedHeap ∧ output = expected := by",
-                  "  have same := Reaches.eq_of_terminal (step := Step) %s" % deterministic,
+                  ("  have same := Reaches.eq_of_terminal_on deterministicRegion (" + function_reference(module.functions[name], "initial_safe", module.namespace, False) + " before input)"
+                   if module.randomized else "  have same := Reaches.eq_of_terminal (step := Step) %s" % deterministic),
                   "    run.2 call.2.root (%s _ _) (%s _ _)" % (terminal, terminal),
                   "  cases same", "  exact ⟨rfl, rfl⟩", ""]
     return "\n".join(lines + ["end " + module.namespace, ""])

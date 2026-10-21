@@ -658,6 +658,70 @@ test("shared execution browsing preserves public proof imports and exports the d
   assert.equal(app.elements.get("points-pane-filename").textContent, "Algo/even/Points.lean");
 });
 
+test("probability browsing exports its companion and keeps ordinary checks distinct", async () => {
+  const module = "DiceGenerated";
+  const probabilityModule = module + "Probability";
+  const probability = `import ${module}\nimport Algo2LeanProbability\n-- uniform draw law\n`;
+  const app = editor(undefined, undefined, { fetch: (url) => {
+    if (["/api/compile", "/api/check"].includes(url)) return { ok: true, json: async () => ({
+      ok: true, available: true, lean: "-- possible executions\n", points_lean: "-- points\n",
+      shared_lean: "-- shared library\n", program_lean: "-- possible executions\n", functions: [{
+        name: "roll", interface_entries: [{ name: "roll.law", category: "probability", file_kind: "probability",
+          signature: "roll.law (heap : Heap) (input : Unit) : MeasureTheory.Measure (Algo2LeanProbability.Run Configuration)",
+          meaning: "Probability law of the whole execution.", arguments: [] }],
+      }],
+      module, points_module: module + "Points", randomized: true,
+      probability_module: probabilityModule, probability_lean: probability, probability_checked: false,
+    }) };
+  } });
+  await app.ready();
+  await app.elements.get("compile-button").click();
+  const proof = app.elements.get("analysis").value;
+  assert.ok(app.elements.get("generated-view").children.some((option) => option.textContent === "Probability interface"));
+  const probabilityPanel = descendants(app.elements.get("relations")).find((element) => element.className === "interface-spec");
+  assert.ok(descendants(probabilityPanel).some((element) => element.textContent === probabilityModule + ".lean"));
+  app.elements.get("generated-view").value = "probability";
+  await app.elements.get("generated-view").dispatch("change");
+  assert.equal(app.elements.get("lean-selection").value, probability);
+  assert.equal(app.elements.get("lean-pane-filename").textContent, probabilityModule + ".lean");
+  assert.equal(app.elements.get("points-output").hidden, true);
+  assert.equal(app.elements.get("standalone-button").disabled, true);
+  assert.equal(app.elements.get("analysis").value, proof);
+  await app.elements.get("export-button").click();
+  assert.equal(app.downloads.at(-1).name, probabilityModule + ".lean");
+  assert.equal(await (await fetch(app.downloads.at(-1).href)).text(), probability);
+  await app.elements.get("check-button").click();
+  assert.equal(app.elements.get("generated-view").value, "probability");
+  assert.equal(app.elements.get("lean-state").textContent, "Requires Mathlib check");
+  app.elements.get("generated-view").value = "public";
+  await app.elements.get("generated-view").dispatch("change");
+  assert.equal(app.elements.get("lean-state").textContent, "Lean checked");
+  assert.equal(app.elements.get("standalone-button").disabled, false);
+});
+
+test("randomized project starters omit unavailable Facts and show probability limitations", async () => {
+  const module = "Algo.main.Generated";
+  const diagnostic = "Probability semantics for abstract interface dependencies are not supported yet.";
+  const app = editor(undefined, undefined, { fetch: (url) => {
+    if (url === "/api/compile") return { ok: true, json: async () => ({
+      ok: true, lean: "-- possible executions\n", points_lean: "-- points\n", functions: [],
+      module, points_module: "Algo.main.Points", randomized: true,
+      probability_lean: "", probability_diagnostic: diagnostic,
+      project_files: { [module]: "-- possible executions\n", "Algo.main.Points": "-- points\n" },
+    }) };
+  } });
+  await app.ready();
+  await openProject(app, "random", { "main.algo": "def roll() -> Int:\n    return randint(1, 7)\n" });
+  await app.elements.get("compile-button").click();
+  assert.match(app.elements.get("analysis").value, /^import Algo.main.Generated\nimport Algo.main.Points/);
+  assert.doesNotMatch(app.elements.get("analysis").value, /import Algo.main.Facts/);
+  assert.ok(app.elements.get("diagnostics").children.some((entry) => entry.textContent === diagnostic));
+  assert.equal(app.elements.get("generated-view-control").hidden, true);
+  await app.editAnalysis("import Algo.main.Generated\n-- preserve my proof\n");
+  await app.elements.get("compile-button").click();
+  assert.equal(app.elements.get("analysis").value, "import Algo.main.Generated\n-- preserve my proof\n");
+});
+
 test("named-point navigation scrolls the shared source viewport only after the explicit source action", async () => {
   const sourceText = ["def work(n: Int) -> Int:", ...Array(12).fill("    n = n + 1"),
     "    if n > 0:", "        if n > 1:", "            if n > 2:", "                if n > 3:",

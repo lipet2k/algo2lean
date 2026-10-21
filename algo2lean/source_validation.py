@@ -3,6 +3,7 @@
 import ast
 
 from .frontend import CompileError, fail
+from .real_literals import RealLiteralError, parse_real_literal
 
 
 RESOURCE_LIMIT = "Program nesting or size exceeds the compiler's resource limit."
@@ -23,9 +24,20 @@ def parse_source(source, filename="<input>"):
         tree = ast.parse(source, filename=str(filename), mode="exec", type_comments=True)
         if sum(1 for _ in ast.walk(tree)) > 12_000:
             raise CompileError("Program is too large (maximum 12,000 syntax nodes).")
+        source_lines = None
         for node in ast.walk(tree):
             if getattr(node, "type_comment", None):
                 fail(node, "Type comments are not supported; use Int, Seq, or Bool annotations.")
+            if isinstance(node, ast.Constant) and type(node.value) is float:
+                # AST columns count UTF-8 bytes. Cache the lines once so a file
+                # with many literals does not repeatedly rescan all its text.
+                if source_lines is None:
+                    source_lines = source.encode("utf-8").splitlines(keepends=True)
+                token = source_lines[node.lineno - 1][node.col_offset:node.end_col_offset].decode("utf-8")
+                try:
+                    node.exact_ratio = parse_real_literal(token)
+                except RealLiteralError as error:
+                    fail(node, str(error))
         return tree
     except SyntaxError as error:
         raise CompileError(error.msg, error.lineno or 1, error.offset or 1) from None

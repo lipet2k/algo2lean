@@ -23,9 +23,10 @@ const temporary = mkdtempSync(join(tmpdir(), "algo2lean-wasm-parity-"));
 // Prepare the same release resource closure as the static-site builder. Native
 // expectations come from the actual compiler bridge, without invoking Lean.
 const prepare = String.raw`
-import hashlib, json, sys
+import base64, hashlib, io, json, sys, zipfile
 from pathlib import Path
 from algo2lean.browser import request
+from editor.analysis_export import request as export_request
 from algo2lean.editor_examples import load_example_project
 from algo2lean.project import load_project
 from scripts.build_site import compiler_files, zip_bytes
@@ -33,6 +34,7 @@ from scripts.build_site import compiler_files, zip_bytes
 root, target = Path(sys.argv[1]), Path(sys.argv[2])
 runtime = json.loads((root / "browser-runtime.json").read_text())
 payload = compiler_files(root)
+payload["editor_analysis_export.py"] = (root / "editor/analysis_export.py").read_bytes()
 payload["release-manifest.json"] = json.dumps({
     "version": json.loads(payload["publication.json"])["version"],
     "pyodide_version": runtime["version"], "commit": None, "bundle_sha256": None,
@@ -46,7 +48,7 @@ def add(name, body, project=False):
     fixtures.append({"name": name, "body": body, "project": project,
                      "expected": response["body"]})
 
-for name in ("factorial", "merge_sort", "object_sequences", "weighted_ticks"):
+for name in ("factorial", "merge_sort", "object_sequences", "weighted_ticks", "matrix_multiply", "matrix_strassen"):
     filename = name + ".algo"
     add(name, {"filename": filename, "source": (root / "examples" / filename).read_text()})
 add("standalone", {"filename": "example.algo", "standalone": True,
@@ -63,8 +65,10 @@ add("mutually recursive imports", {"filename": recursive["entry"],
     "source": recursive["sources"][recursive["entry"]], "project_sources": recursive["sources"]}, True)
 
 catalogs = {identifier: load_example_project(identifier)
-            for identifier in ("modules", "interfaces", "mutual-recursion-imports", "dijkstra", "kruskal")}
-for identifier in ("modules", "interfaces"):
+            for identifier in ("modules", "interfaces", "mutual-recursion-imports", "dijkstra", "kruskal", "additional_types", "randomized",
+                               "randomized_clrs")}
+for identifier in ("modules", "interfaces", "additional_types", "randomized",
+                   "randomized_clrs"):
     project = catalogs[identifier]
     add(identifier + " project folder", {"filename": project["entry"],
         "source": project["sources"][project["entry"]], "project_sources": project["sources"]}, True)
@@ -78,8 +82,43 @@ catalog = load_example_project("kruskal")
 entry = catalog["entry"]
 add("Kruskal imports", {"filename": entry, "source": catalog["sources"][entry],
                         "project_sources": catalog["sources"]}, True)
+for identifier in ("parallel", "parallel_merge", "parallel_matrix"):
+    filename = identifier + ".algo"
+    add(identifier, {"filename": filename,
+        "source": (root / "examples" / identifier / filename).read_text()})
+for identifier in ("deterministic_probability", "parallel_imports"):
+    project = load_project(root / "tests/fixtures" / identifier / "driver.algo",
+                           root=root / "tests/fixtures" / identifier)
+    sources = {module.path.relative_to(project.root).as_posix(): module.source
+               for module in project.modules.values()}
+    add(identifier + " composition", {"filename": "driver.algo", "source": sources["driver.algo"],
+        "project_sources": sources}, True)
+exports = []
+def add_export(name, body, project=False):
+    response = export_request("/api/analysis-export", body, project)
+    if response["status"] != 200:
+        raise RuntimeError(name + ": " + str(response))
+    with zipfile.ZipFile(io.BytesIO(base64.b64decode(response["body"]))) as archive:
+        hashes = {name: hashlib.sha256(archive.read(name)).hexdigest()
+                  for name in archive.namelist() if name != "generation.json"}
+    exports.append({"name": name, "body": body, "project": project, "hashes": hashes})
+
+for identifier in ("randomized", "additional_types"):
+    project = catalogs[identifier]
+    module = "Algo." + project["entry"][:-5].replace("/", ".")
+    add_export(identifier, {"filename": project["entry"], "source": project["sources"][project["entry"]],
+        "project_sources": project["sources"], "project_analyses": project["analyses"],
+        "analysis": project["analyses"].get(module + ".Analysis", "import " + module + ".Generated\n")}, True)
+for identifier in ("deterministic_probability", "parallel_imports"):
+    folder = root / "tests/fixtures" / identifier
+    analyses = {"Algo." + p.stem + ".Analysis": p.read_text() for p in (folder / "analysis").glob("*.lean")}
+    fixture = next(f for f in fixtures if f["name"] == identifier + " composition")
+    add_export(identifier, {**fixture["body"], "project_analyses": analyses,
+        "analysis": analyses["Algo.driver.Analysis"]}, True)
+from scripts.check_parallel_examples import compose_analysis, export_payload
+add_export("parallel proof", export_payload(compose_analysis()))
 (target / "fixtures.json").write_text(json.dumps({"runtime": runtime["version"],
-    "fixtures": fixtures, "catalogs": catalogs}), encoding="utf-8")
+    "fixtures": fixtures, "catalogs": catalogs, "exports": exports}), encoding="utf-8")
 `;
 
 function sameFiles(actual, expected, context) {
@@ -106,7 +145,7 @@ try {
 import base64, hashlib, io, json, sys, zipfile
 zipfile.ZipFile('/compiler.zip').extractall('/release')
 sys.path.insert(0, '/release')
-from algo2lean.browser import request
+from editor_analysis_export import request
 
 def _request_json(encoded):
     value = json.loads(encoded)
@@ -118,7 +157,7 @@ def _archive_summary(encoded):
         names = archive.namelist()
         return json.dumps({'names': names,
             'hashes': {name: hashlib.sha256(archive.read(name)).hexdigest() for name in names},
-            'manifest': json.loads(archive.read('generation.json'))})
+            'manifest': json.loads(archive.read('generation.json')) if 'generation.json' in names else None})
 `);
   const requestJson = pyodide.globals.get("_request_json");
   const archiveSummary = pyodide.globals.get("_archive_summary");
@@ -163,7 +202,7 @@ def _archive_summary(encoded):
     const graphProjects = configuration.fixtures.filter(fixture =>
       fixture.name === "fibonacci Dijkstra imports" || fixture.name === "Kruskal imports");
     assert.equal(graphProjects.length, 2, "Both graph project export fixtures are present");
-    for (const fixture of [configuration.fixtures[1], ...graphProjects]) {
+    for (const fixture of configuration.fixtures) {
       const response = call("/api/generation", { ...fixture.body, archive: true }, fixture.project);
       ok(response, fixture.name + " archive");
       assert.equal(response.encoding, "base64");
@@ -183,6 +222,14 @@ def _archive_summary(encoded):
       const projectExport = call("/api/project-export", fixture.body, true);
       ok(projectExport, fixture.name + " project export");
       assert.equal(projectExport.encoding, "base64");
+    }
+    for (const fixture of configuration.exports) {
+      const exported = call("/api/analysis-export", fixture.body, fixture.project);
+      ok(exported, fixture.name + " analysis export");
+      const archive = JSON.parse(archiveSummary(exported.body));
+      delete archive.hashes["generation.json"];
+      assert.deepEqual(archive.hashes, fixture.hashes, `${fixture.name}: native/browser proof package bytes`);
+      console.log(`PASS ${fixture.name}: complete analysis export matches native bytes`);
     }
     const invalid = call("/api/compile", { source: "import os\n" });
     assert.equal(invalid.status, 400);

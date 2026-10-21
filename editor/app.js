@@ -524,8 +524,9 @@
 
   function highlight(value, lean = false) {
     if (lean) return window.Algo2LeanInterface.highlight(value, interfaceCatalog);
-    const words = new Set(["class", "def", "import", "from", "as", "if", "else", "elif", "while", "for", "in", "return", "pass", "and", "or", "not", "is", "None", "True", "False", "break", "continue"]);
-    const pattern = /#[^\n]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b\d+\b|\b[A-Za-z_][A-Za-z_0-9]*\b/g;
+    const words = new Set(["class", "def", "import", "from", "as", "if", "else", "elif", "while", "for", "in", "return", "pass", "and", "or", "not", "is", "None", "True", "False", "break", "continue", "del"]);
+    const builtins = new Set(["const", "copy", "update", "range", "tick", "randint", "fork_join", "len", "set"]);
+    const pattern = /#[^\n]*|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|(?:\b\d(?:_?\d)*(?:\.(?:\d(?:_?\d)*)?)?|\.\d(?:_?\d)*)(?:[eE][+-]?\d(?:_?\d)*)?|\b[A-Za-z_][A-Za-z_0-9]*\b/g;
     let cursor = 0;
     let html = "";
     for (const match of value.matchAll(pattern)) {
@@ -534,10 +535,10 @@
       let kind = "";
       if (token.startsWith("#")) kind = "comment";
       else if (token.startsWith('"') || token.startsWith("'")) kind = "string";
-      else if (/^\d/.test(token)) kind = "number";
+      else if (/^[\d.]/.test(token)) kind = "number";
       else if (words.has(token)) kind = "keyword";
-      else if (["Int", "Seq", "Bool", "Prop", "Nat", "Unit", "True", "False"].includes(token)) kind = "type";
-      else if (/^\s*\(/.test(value.slice(match.index + token.length))) kind = "function";
+      else if (["Int", "Real", "Seq", "Tuple", "Set", "Dict", "Bool", "Prop", "Nat", "Unit", "True", "False"].includes(token)) kind = "type";
+      else if (builtins.has(token) || /^\s*\(/.test(value.slice(match.index + token.length))) kind = "function";
       html += kind ? `<span class="token-${kind}">${escapeHtml(token)}</span>` : escapeHtml(token);
       cursor = match.index + token.length;
     }
@@ -579,11 +580,13 @@
     return module + "Generated";
   }
 
-  function starterAnalysis(module) {
+  function starterAnalysis(module, includeFacts = !(lastResult?.publicModule === module && lastResult.randomized)) {
     if (module.startsWith("Algo.") && module.endsWith(".Generated")) {
       const prefix = module.slice(0, -10);
       const namespace = prefix.split(".").map((part) => `«${part}»`).join(".");
-      return `import ${module}\nimport ${prefix}.Points\nimport ${prefix}.Facts\n\nopen Algo2LeanCore _root_.Algo2LeanGenerated\nopen ${namespace} ${namespace}.Algo2LeanGenerated\n\n-- State output theorems using the public relations shown by the compiler.\n-- Use the generated call interface for guarantees reusable by other algorithms.\n-- Import Algo.<module>.Analysis to reuse a companion proof.\n-- Points and Facts are optional when the proof does not use their helpers.\n`;
+      const factsImport = includeFacts ? `import ${prefix}.Facts\n` : "";
+      const helpers = includeFacts ? "Points and Facts are optional when the proof does not use their helpers." : "Points adds named locations and local values; omit this import if unused.";
+      return `import ${module}\nimport ${prefix}.Points\n${factsImport}\nopen Algo2LeanCore _root_.Algo2LeanGenerated\nopen ${namespace} ${namespace}.Algo2LeanGenerated\n\n-- State output theorems using the public relations shown by the compiler.\n-- Use the generated call interface for guarantees reusable by other algorithms.\n-- Import Algo.<module>.Analysis to reuse a companion proof.\n-- ${helpers}\n`;
     }
     return `import ${module}\nimport ${module}Points\n\nopen Algo2LeanCore Algo2LeanGenerated\n\n-- State output theorems using the public relations shown by the compiler.\n-- Use the generated call interface for guarantees reusable by other algorithms.\n-- Points adds named locations and local values; omit this import if unused.\n`;
   }
@@ -848,16 +851,22 @@
   }
 
   function setLeanState(text, tone = "") {
+    if (lastResult) lastResult.definitionState = { text, tone };
     for (const id of ["lean-state", "points-state"]) {
       $(id).textContent = text;
       $(id).className = `state-tag ${tone}`;
+    }
+    if (lastResult?.available && lastResult.view === "probability") {
+      $("lean-state").textContent = lastResult.probabilityChecked ? "Lean checked" : "Requires Mathlib check";
+      $("lean-state").className = `state-tag ${lastResult.probabilityChecked ? "checked" : "generated"}`;
     }
   }
 
   function setOutputActions(enabled) {
     for (const id of ["export-button", "copy-button"]) $(id).disabled = !enabled;
     for (const id of ["export-points-button", "copy-points-button"]) $(id).disabled = !enabled || !lastResult?.points;
-    for (const id of ["library-button", "standalone-button"]) $(id).disabled = !enabled || !lastResult?.shared;
+    $("library-button").disabled = !enabled || !lastResult?.shared;
+    $("standalone-button").disabled = !enabled || !lastResult?.shared || lastResult?.view === "probability";
     $("generated-view").disabled = !enabled;
     $("generated-view-control").hidden = !lastResult || Object.keys(lastResult.views || {}).length < 2;
   }
@@ -1057,13 +1066,16 @@
     window.Algo2LeanInterface.render($("relations"), functions, {
       document, goToSource: jumpTo, catalog: interfaceCatalog,
       generatedFile: `${generatedModule}.lean`, pointsFile: `${generatedPointsModule}.lean`,
-      factsFile: generatedModule.endsWith(".Generated") ? `${generatedModule.slice(0, -10)}.Facts.lean` : undefined,
+      parallelFile: lastResult?.parallelModule ? `${lastResult.parallelModule}.lean` : undefined,
+      probabilityFile: lastResult?.probabilityModule ? `${lastResult.probabilityModule}.lean` : undefined,
+      factsFile: generatedModule.endsWith(".Generated") && !lastResult?.randomized ? `${generatedModule.slice(0, -10)}.Facts.lean` : undefined,
     });
   }
 
   function showGenerated(result, snapshot) {
+    const refreshStarter = !analysisDirty() && [starterAnalysis(generatedModule, true), starterAnalysis(generatedModule, false)].includes(analysis.value);
     interfaceCatalog = window.Algo2LeanInterface.createCatalog(result.functions,
-      [result.shared_lean, result.lean, result.points_lean, ...Object.values(result.project_files || {})]);
+      [result.shared_lean, result.lean, result.points_lean, result.probability_lean, ...Object.values(result.project_files || {})]);
     const module = result.module || moduleForFilename(snapshot.filename);
     const pointsModule = result.points_module || `${module}Points`;
     const previousView = lastResult?.publicModule === module ? lastResult.view : "public";
@@ -1074,14 +1086,29 @@
       views.execution = { lean: result.project_files[implementation], points: result.project_files[implementationPoints],
         module: implementation, pointsModule: implementationPoints };
     }
+    if (result.probability_module && result.probability_lean) {
+      views.probability = { lean: result.probability_lean, points: "", module: result.probability_module, pointsModule };
+    }
+    if (result.parallel_module && result.parallel_lean) {
+      views.parallel = { lean: result.parallel_lean, points: "", module: result.parallel_module, pointsModule };
+    }
     lastResult = { lean: result.lean, shared: result.shared_lean || "", program: result.program_lean || "",
       points: result.points_lean || "", pointsModule, module, publicModule: module, views,
+      randomized: Boolean(result.randomized), probabilityChecked: result.probability_checked === true,
+      probabilityModule: result.probability_module || "",
+      parallelModule: result.parallel_module || "",
       source: snapshot.source, filename: snapshot.filename, revision: snapshot.revision, available: true };
     // Browsing the shared implementation does not change an analysis's imports
     // or the source-facing names in its interface list.
     setModule(module, pointsModule);
+    if (refreshStarter && analysis.value !== starterAnalysis(module)) {
+      analysis.value = starterAnalysis(module);
+      savedAnalysis = analysis.value;
+      invalidateAnalysis("Generated interfaces changed. Check the analysis again.");
+      scheduleDraft();
+    }
     $("generated-view").replaceChildren();
-    for (const [value, label] of [["public", "Public interface"], ["execution", "Shared execution"]]) {
+    for (const [value, label] of [["public", "Public interface"], ["execution", "Shared execution"], ["probability", "Probability interface"], ["parallel", "Parallel contracts"]]) {
       if (!views[value]) continue;
       const option = document.createElement("option");
       option.value = value;
@@ -1118,9 +1145,12 @@
     }
     setOutputActions(true);
     const modulePath = (name) => currentProject ? name.replace(/\./g, "/") : name;
-    $("output-summary").textContent = `${lastResult.lean.trimEnd().split("\n").length} program lines · ${modulePath(lastResult.module)}.lean`;
+    const lineKind = lastResult.view === "probability" ? "probability" : "program";
+    $("output-summary").textContent = `${lastResult.lean.trimEnd().split("\n").length} ${lineKind} lines · ${modulePath(lastResult.module)}.lean`;
     const pointsLines = lastResult.points ? lastResult.points.trimEnd().split("\n").length : 0;
     $("points-summary").textContent = `${pointsLines} interface lines · ${modulePath(lastResult.pointsModule)}.lean`;
+    const state = lastResult.definitionState || { text: "Generated · unchecked", tone: "generated" };
+    setLeanState(state.text, state.tone);
   }
 
   async function compile(check = false) {
@@ -1177,7 +1207,7 @@
       } else if (check && result.ok) {
         setStatus("Lean accepted the generated definitions", "success");
         setLeanState("Lean checked", "checked");
-        note.textContent = currentProject ? "Lean checked the generated modules and their named-line interfaces. This checks the definitions; it does not prove termination or a specification." : "Lean checked both generated files successfully. This checks the definitions; it does not prove termination or a specification.";
+        note.textContent = result.randomized ? "Lean checked the algorithm definitions and named locations. Probability companions require their separate Mathlib check." : currentProject ? "Lean checked the generated modules and their named-line interfaces. This checks the definitions; it does not prove termination or a specification." : "Lean checked both generated files successfully. This checks the definitions; it does not prove termination or a specification.";
       } else if (check) {
         setStatus("Lean reported a problem", "error");
         setLeanState("Lean check failed", "error");
@@ -1188,6 +1218,11 @@
         note.textContent = backend?.hosted ? "Generated in your browser. Verify claimed files or download a generation bundle below. Lean proof checking requires a local installation." : currentProject ? "The selected module and its dependencies were compiled. Check project to validate their definitions and named-line interfaces." : "Algorithm definitions and the named-line interface were generated separately. Check both files to validate the Lean definitions.";
       }
       $("diagnostics").append(note);
+      if (result.randomized) {
+        const probabilityNote = document.createElement("p");
+        probabilityNote.textContent = result.probability_diagnostic || "Probability companions use the optional Mathlib project and require a separate check. Returns and Call describe possible outcomes; they do not assert probabilities.";
+        $("diagnostics").append(probabilityNote);
+      }
       if (check) {
         $("check-output").textContent = result.output || result.message || (result.ok ? "Lean completed without errors." : "No checker output was returned.");
         $("lean-details").hidden = false;
@@ -1624,7 +1659,12 @@
   $("export-button").addEventListener("click", () => {
     if (!currentOutput()) { fileMessage("Compile the current source before exporting Lean.", true); return; }
     const name = leanFilename();
-    try { download(lastResult.lean, name); fileMessage(`Downloaded algorithm definitions ${name}. Include Algo2Lean.lean in your Lean project; export ${lastResult.pointsModule}.lean separately for named-line helpers.`); }
+    try {
+      download(lastResult.lean, name);
+      fileMessage(lastResult.view === "probability"
+        ? `Downloaded probability interface ${name}. Check it with the matching algorithm definitions and the optional probability/ Mathlib project.`
+        : `Downloaded algorithm definitions ${name}. Include Algo2Lean.lean in your Lean project; export ${lastResult.pointsModule}.lean separately for named-line helpers.`);
+    }
     catch (error) { fileMessage(`Could not export Lean: ${error.message}`, true); }
   });
   $("generated-view").addEventListener("change", (event) => {
@@ -1650,14 +1690,14 @@
     fileMessage("Downloaded Algo2Lean.lean. Add it to your Lean project and build the library before checking generated imports.");
   });
   $("standalone-button").addEventListener("click", () => {
-    if (!currentOutput()) return;
+    if (!currentOutput() || lastResult.view === "probability") return;
     const name = leanFilename();
     download(lastResult.shared.trimEnd() + "\n\n" + lastResult.program, name);
     fileMessage(`Downloaded standalone algorithm definitions ${name}, including the shared library. Export ${lastResult.pointsModule}.lean separately if your proof uses named-line helpers.`);
   });
   $("copy-button").addEventListener("click", async () => {
     if (!currentOutput()) { fileMessage("Compile the current source before copying Lean.", true); return; }
-    try { await navigator.clipboard.writeText(lastResult.lean); fileMessage("Algorithm definitions copied to the clipboard."); }
+    try { await navigator.clipboard.writeText(lastResult.lean); fileMessage(lastResult.view === "probability" ? "Probability interface copied to the clipboard." : "Algorithm definitions copied to the clipboard."); }
     catch (_) { fileMessage("Clipboard access is unavailable. Select the generated code to copy it, or Export .lean.", true); }
   });
   $("copy-points-button").addEventListener("click", async () => {

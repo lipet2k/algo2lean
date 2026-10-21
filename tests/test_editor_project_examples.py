@@ -16,9 +16,9 @@ class EditorProjectExamplesTests(unittest.TestCase):
         with patch("algo2lean.editor_examples.compile_project", side_effect=AssertionError("unexpected compile")):
             entries = project_examples()
         self.assertEqual({entry["project_id"] for entry in entries},
-                         {"modules", "interfaces", "kruskal", "prim", "dijkstra", "mutual-recursion-imports"})
+                         {"additional_types", "modules", "interfaces", "kruskal", "prim", "dijkstra", "mutual-recursion-imports", "randomized", "randomized_clrs"})
         self.assertEqual({entry["folder"] for entry in entries},
-                         {"modules", "interfaces", "kruskal", "prim", "dijkstra", "mutual_recursion"})
+                         {"additional_types", "modules", "interfaces", "kruskal", "prim", "dijkstra", "mutual_recursion", "randomized", "randomized_clrs"})
         self.assertLess([entry["project_id"] for entry in entries].index("kruskal"),
                         [entry["project_id"] for entry in entries].index("dijkstra"))
         kruskal, = [entry for entry in entries if entry["project_id"] == "kruskal"]
@@ -30,7 +30,7 @@ class EditorProjectExamplesTests(unittest.TestCase):
         self.assertEqual(dijkstra["filename"], "dijkstra/dijkstra_binary.algo")
         for entry in entries:
             root = EXAMPLES if entry["project_id"] in {"dijkstra", "prim"} else EXAMPLES / entry["folder"]
-            self.assertIn("from ", entry["source"])
+            self.assertIn("randint(" if entry["project_id"] in {"randomized", "randomized_clrs"} else "from ", entry["source"])
             self.assertNotIn("analyses", entry)
             self.assertEqual(entry["source"], (root / entry["filename"]).read_text(encoding="utf-8"))
 
@@ -40,6 +40,7 @@ class EditorProjectExamplesTests(unittest.TestCase):
             ("interfaces", "interfaces", "use_direct.algo"),
             ("mutual-recursion-imports", "mutual_recursion", "client.algo"),
             ("kruskal", "kruskal", "kruskal.algo"),
+            ("randomized", "randomized", "sampling.algo"),
         ):
             with self.subTest(project=identifier), tempfile.TemporaryDirectory() as directory:
                 root = EXAMPLES / folder

@@ -240,7 +240,7 @@ theorem constructor_frame (heap : Heap) (protection : Protected) :
 /-- Construction changes no previously allocated caller location. -/
 theorem constructor_footprint (heap : Heap) : heap.Footprint (newHeap heap) [] [] [] := by
   have frame := constructor_frame heap ⟨[], [], [], {}⟩
-  refine ⟨frame.nextRef, frame.nextObject, frame.nextCollection, frame.classes, frame.types,
+  refine ⟨frame.nextRef, frame.nextObject, frame.nextCollection, frame.classes, (fun _ _ => rfl),
     ?_, ?_, ?_⟩
   · intro ref old _
     exact constructor_old_sequence heap ref old

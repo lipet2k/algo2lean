@@ -1,0 +1,62 @@
+# Balanced fork-join reduction and exclusive prefix sums.
+# Sequence indices are mathematical integers; n <= 0 denotes an empty interval.
+
+
+def parallel_sum(a: Seq, lo: Int, n: Int) -> Int:
+    if n <= 0:
+        return 0
+    if n == 1:
+        return a[lo]
+    half: Int = n // 2
+    left, right = fork_join(
+        parallel_sum(a, lo, half),
+        parallel_sum(a, lo + half, n - half)
+    )
+    return left + right
+
+
+# Store each subtree's total at the last index of its interval.
+# The caller provides a scratch sequence distinct from the input sequence.
+def upsweep(a: Seq, sums: Seq, lo: Int, n: Int) -> Int:
+    if n <= 0:
+        return 0
+    if n == 1:
+        value: Int = a[lo]
+        sums[lo] = value
+        return value
+    half: Int = n // 2
+    left, right = fork_join(
+        upsweep(a, sums, lo, half),
+        upsweep(a, sums, lo + half, n - half)
+    )
+    total: Int = left + right
+    sums[lo + n - 1] = total
+    return total
+
+
+# Propagate the sum of preceding entries to each leaf.
+# Concurrent calls write disjoint intervals of out and only read sums.
+def downsweep(sums: Seq, out: Seq, lo: Int, n: Int, offset: Int) -> Int:
+    if n <= 0:
+        return 0
+    if n == 1:
+        out[lo] = offset
+        return 0
+    half: Int = n // 2
+    left_total: Int = sums[lo + half - 1]
+    left, right = fork_join(
+        downsweep(sums, out, lo, half, offset),
+        downsweep(sums, out, lo + half, n - half, offset + left_total)
+    )
+    return 0
+
+
+# Return a fresh sequence whose requested interval contains exclusive prefixes:
+# out[lo + i] = a[lo] + ... + a[lo + i - 1], for 0 <= i < n.
+# The original input and all caller-owned storage are preserved.
+def prefix_sum(a: Seq, lo: Int, n: Int) -> Seq:
+    sums: Seq = const(0)
+    out: Seq = const(0)
+    total: Int = upsweep(a, sums, lo, n)
+    done: Int = downsweep(sums, out, lo, n, 0)
+    return out

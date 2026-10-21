@@ -1,25 +1,35 @@
-# Ordinary cubic matrix multiplication (CLRS 4.1).
-# Matrices occupy the first n*n entries of an infinite sequence in row-major
-# order. The outer two loops are flattened into one loop over output cells.
+# Ordinary matrix multiplication with correctness and exactly n³ multiply-adds (CLRS 4.1).
+# A matrix is an array of row arrays: a[row][column]. Each output row is
+# allocated separately; rows outside [0,n) share an untouched zero row.
 # Each scalar multiplication and accumulation charges one multiply_add tick.
 
-def matrix_dot(a: Seq, b: Seq, n: Int, row: Int, column: Int) -> Int:
+def matrix_dot(a: Seq[Seq[Int]], b: Seq[Seq[Int]], n: Int, row: Int, column: Int) -> Int:
     k = 0
     total = 0
     # @dot_loop
     while k < n:
         tick("multiply_add")
-        total = total + a[row * n + k] * b[k * n + column]
+        total = total + a[row][k] * b[k][column]
         k = k + 1
     return total
 
 
-def matrix_multiply(a: Seq, b: Seq, n: Int) -> Seq:
+def matrix_row(a: Seq[Seq[Int]], b: Seq[Seq[Int]], n: Int, row: Int) -> Seq[Int]:
     result = const(0)
-    cell = 0
-    # @cells_loop
-    while cell < n * n:
-        value = matrix_dot(a, b, n, cell // n, cell % n)
-        result[cell] = value
-        cell = cell + 1
+    column = 0
+    # @columns_loop
+    while column < n:
+        value = matrix_dot(a, b, n, row, column)
+        result[column] = value
+        column = column + 1
+    return result
+
+
+def matrix_multiply(a: Seq[Seq[Int]], b: Seq[Seq[Int]], n: Int) -> Seq[Seq[Int]]:
+    result: Seq[Seq[Int]] = const(const(0))
+    row = 0
+    # @rows_loop
+    while row < n:
+        result[row] = matrix_row(a, b, n, row)
+        row = row + 1
     return result

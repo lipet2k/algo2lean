@@ -1,0 +1,90 @@
+class Cell:
+    value: Int
+
+    def __init__(self, value: Int) -> None:
+        self.value = value
+
+
+class Packet:
+    payload: Tuple[Int, Bool]
+
+    def __init__(self, payload: Tuple[Int, Bool]) -> None:
+        self.payload = payload
+
+
+class ReferencePair:
+    entries: Tuple[Cell, Cell]
+
+    def __init__(self, cell: Cell) -> None:
+        self.entries = (cell, cell)
+
+
+def stored_values() -> Int:
+    packet = Packet((3, True))
+    values: Seq[Tuple[Int, Bool]] = const(packet.payload)
+    values[-3] = (9, False)
+    packet.payload = values[-3]
+    amount, enabled = packet.payload
+    if enabled:
+        return -amount
+    return amount
+
+
+def shared_sequences() -> Int:
+    values = const(2)
+    aliases = (values, values)
+    first, second = aliases
+    first[-2] = 7
+    return second[-2]
+
+
+def shared_objects() -> Int:
+    cell = Cell(2)
+    aliases = (cell, cell)
+    first, second = aliases
+    first.value = 8
+    return second.value
+
+
+def stored_aliases() -> Int:
+    cell = Cell(2)
+    holder = ReferencePair(cell)
+    values: Seq[Tuple[Cell, Cell]] = const(holder.entries)
+    first, second = values[-100]
+    first.value = 10
+    return cell.value + second.value
+
+
+def mark(cell: Cell, digit: Int) -> Int:
+    cell.value = cell.value * 10 + digit
+    tick("entries")
+    return cell.value
+
+
+def marked_pair(cell: Cell) -> Tuple[Int, Int]:
+    tick("pairs")
+    return mark(cell, 1), mark(cell, 2)
+
+
+def evaluation_order() -> Tuple[Int, Int, Int]:
+    cell = Cell(0)
+    first, second = marked_pair(cell)
+    return first, second, cell.value
+
+
+def swap() -> Tuple[Int, Int]:
+    first = 1
+    second = 2
+    first, second = second, first
+    return first, second
+
+
+def shapes() -> Int:
+    one: Tuple[Int] = (4,)
+    empty: Tuple[()] = ()
+    nested: Tuple[Tuple[Int, Bool], Tuple[Int]] = ((2, True), (7,))
+    return one[-1] + nested[-1][0]
+
+
+def nullable_entry(cell: Cell | None) -> Tuple[Cell | None, Int]:
+    return cell, 3

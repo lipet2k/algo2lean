@@ -1,0 +1,56 @@
+# Parallel multiplication of square matrices stored as arrays of rows.
+# Output rows are distinct and allocated before the parallel computation.
+# Dot-product terms and output rows/columns use balanced fork-join trees.
+
+def parallel_matrix_dot(a: Seq, b: Seq[Seq], column: Int, first: Int, count: Int) -> Int:
+    if count <= 0:
+        return 0
+    if count == 1:
+        return a[first] * b[first][column]
+    half: Int = count // 2
+    left, right = fork_join(parallel_matrix_dot(a, b, column, first, half), parallel_matrix_dot(a, b, column, first + half, count - half))
+    return left + right
+
+
+def parallel_matrix_columns(a: Seq, b: Seq[Seq], out: Seq, n: Int, first: Int, count: Int) -> Int:
+    if count <= 0:
+        return 0
+    if count == 1:
+        value: Int = parallel_matrix_dot(a, b, first, 0, n)
+        out[first] = value
+        return 0
+    half: Int = count // 2
+    left, right = fork_join(parallel_matrix_columns(a, b, out, n, first, half), parallel_matrix_columns(a, b, out, n, first + half, count - half))
+    return 0
+
+
+def parallel_matrix_rows(a: Seq[Seq], b: Seq[Seq], out: Seq[Seq], n: Int, first: Int, count: Int) -> Int:
+    if count <= 0:
+        return 0
+    if count == 1:
+        done: Int = parallel_matrix_columns(a[first], b, out[first], n, 0, n)
+        return 0
+    half: Int = count // 2
+    left, right = fork_join(parallel_matrix_rows(a, b, out, n, first, half), parallel_matrix_rows(a, b, out, n, first + half, count - half))
+    return 0
+
+
+def parallel_matrix_multiply_into(a: Seq[Seq], b: Seq[Seq], out: Seq[Seq], n: Int) -> Int:
+    done: Int = parallel_matrix_rows(a, b, out, n, 0, n)
+    return 0
+
+
+def matrix_new_rows(out: Seq[Seq], first: Int, count: Int) -> Int:
+    if count <= 0:
+        return 0
+    out[first] = const(0)
+    done: Int = matrix_new_rows(out, first + 1, count - 1)
+    return 0
+
+
+def parallel_matrix_multiply(a: Seq[Seq], b: Seq[Seq], n: Int) -> Seq[Seq]:
+    empty: Seq = const(0)
+    out: Seq[Seq] = const(empty)
+    allocated: Int = matrix_new_rows(out, 0, n)
+    done: Int = parallel_matrix_multiply_into(a, b, out, n)
+    return out

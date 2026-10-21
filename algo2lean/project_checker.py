@@ -18,6 +18,7 @@ import time
 
 from . import checker
 from .checker import CheckResult, LeanSetupError, lean_imports, shared_imports
+from .probability_support import OPTIONAL_LIBRARIES, is_optional_library
 
 
 _CACHE_LOCK = threading.Lock()
@@ -32,7 +33,8 @@ def _module_path(name):
 def _validate_name(name):
     if not isinstance(name, str) or not _MODULE.fullmatch(name):
         raise LeanSetupError("Invalid Lean project module name: %r." % (name,))
-    if name.split(".")[0].casefold() in {"init", "std", "lean", "algo2lean", "algo2leanlib", "algo2leanexamples"}:
+    if name.split(".")[0].casefold() in {"init", "std", "lean", "mathlib", "algo2lean", "algo2leanlib",
+                                        "algo2leanexamples", *(library.casefold() for library in OPTIONAL_LIBRARIES)}:
         raise LeanSetupError("Project module '%s' conflicts with a Lean library." % name)
 
 
@@ -77,11 +79,16 @@ def _sources(compilation, analysis, analysis_module, proof_sources, check_facts,
 
     def compile_dependency(name):
         from .frontend import CompileError
-        from .modular import compile_project
+        from .modular import _attach_probability, compile_project
         source_module = ".".join(name.split(".")[1:-1])
         try:
             entry_path = root.joinpath(*source_module.split(".")).with_suffix(".algo")
             imported = compile_project(entry_path, root=root, sources=source_overlays)
+            if name.endswith(".Probability") and name not in imported.files:
+                _attach_probability(imported, force=True)
+            if name.endswith(".Parallel") and name not in imported.files:
+                from .parallel_modules import attach_parallel
+                attach_parallel(imported, force=True)
         except CompileError as error:
             raise LeanSetupError("No generated Lean module '%s' is available: %s" % (name, error)) from error
         for candidate, text in imported.files.items():
@@ -93,6 +100,10 @@ def _sources(compilation, analysis, analysis_module, proof_sources, check_facts,
             generated[candidate] = text
         source_overlays.update({Path(*module.split(".")).with_suffix(".algo").as_posix(): snapshot.source
                                 for module, snapshot in imported.project.modules.items()})
+        if name not in generated:
+            reason = imported.entry.probability_diagnostic if name.endswith(".Probability") else ""
+            raise LeanSetupError("No generated Lean module '%s' is available.%s" %
+                                 (name, " " + reason if reason else ""))
         return generated[name]
 
     def companion(name):
@@ -144,7 +155,7 @@ def _sources(compilation, analysis, analysis_module, proof_sources, check_facts,
         elif name in overlays:
             source = overlays[name]
         elif (name.startswith("Algo.") and len(name.split(".")) >= 3 and
-              name.rsplit(".", 1)[1] in {"Generated", "Points", "Facts"}):
+              name.rsplit(".", 1)[1] in {"Generated", "Points", "Facts", "Probability", "Parallel"}):
             source = compile_dependency(name)
         else:
             source = companion(name)
@@ -153,7 +164,8 @@ def _sources(compilation, analysis, analysis_module, proof_sources, check_facts,
         for dependency in imports:
             if dependency in generated or dependency in overlays or dependency.startswith("Algo."):
                 visit(dependency)
-            elif dependency.split(".")[0] not in _BUILTINS and not shared_imports("import " + dependency):
+            elif (not is_optional_library(dependency) and dependency.split(".")[0] not in _BUILTINS | {"Mathlib"}
+                  and not shared_imports("import " + dependency)):
                 raise LeanSetupError("Unsupported Lean import '%s' in '%s'. Project checks support "
                                      "Std, Init, Lean, shared Algo2Lean libraries, and project modules." %
                                      (dependency, name))
@@ -162,7 +174,7 @@ def _sources(compilation, analysis, analysis_module, proof_sources, check_facts,
         dependencies[name] = imports
 
     for name in list(generated):
-        if check_facts or not name.endswith(".Facts"):
+        if not name.endswith(".Probability") and (check_facts or not name.endswith(".Facts")):
             visit(name)
     if analysis_module is not None:
         visit(analysis_module)
@@ -318,7 +330,10 @@ def check_project(compilation, *, analysis=None, analysis_module=None, proof_sou
     unused proof modules are never checked. The active analysis defaults to
     ``Algo.<entry>.Analysis``. Supplying just ``analysis_module`` selects a disk
     companion. Generated ``.Facts`` modules are built only when imported, unless
-    ``check_facts=True`` explicitly requests them all. Analyses may also import
+    ``check_facts=True`` explicitly requests them all. Optional ``.Probability``
+    companions are selected only through an explicit import. Such imports and
+    explicit Real or Mathlib imports use the optional, separately installed
+    Mathlib checker; ordinary checks stay Std-only. Analyses may also import
     algorithms outside the source call graph; these are compiled on demand
     using the original source snapshots and editor overlays. Acceptance uses the
     analysis's declared assumptions and Lean options; it does not independently
@@ -330,6 +345,9 @@ def check_project(compilation, *, analysis=None, analysis_module=None, proof_sou
         return CheckResult(False, False, "Lean was not found. Install Lean 4 using elan, then restart the editor.")
     try:
         sources, dependencies = _sources(compilation, analysis, analysis_module, proof_sources, check_facts)
+        from .probability_checker import check_mathlib_sources, needs_mathlib
+        if needs_mathlib(*sources.values()):
+            return check_mathlib_sources(sources, timeout=_remaining(deadline))
         environment = os.environ.copy()
         version = _run([executable, "--version"], environment, deadline)
         if version.returncode != 0:

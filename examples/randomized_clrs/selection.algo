@@ -1,0 +1,19 @@
+from partition import randomized_partition
+
+
+# CLRS, fourth edition, Section 9.2: RANDOMIZED-SELECT.
+# Select the zero-based rank within a[lo:hi], allowing repeated values.
+# Requires lo < hi and 0 <= rank < hi - lo. The interval is permuted in place.
+def randomized_select(a: Seq, lo: Int, hi: Int, rank: Int) -> Int:
+    tick("selection_calls")
+    if hi - lo == 1:
+        return a[lo]
+    # @partition
+    pivot = randomized_partition(a, lo, hi)
+    # @choose
+    pivot_rank = pivot - lo
+    if rank == pivot_rank:
+        return a[pivot]
+    if rank < pivot_rank:
+        return randomized_select(a, lo, pivot, rank)
+    return randomized_select(a, pivot + 1, hi, rank - pivot_rank - 1)

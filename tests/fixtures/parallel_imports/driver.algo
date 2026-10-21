@@ -1,0 +1,5 @@
+from client import pair
+
+def sample(a: Seq) -> Int:
+    values = pair(a)
+    return values[0] + randint(0, 2)

@@ -16,11 +16,34 @@ from algo2lean import browser
 from algo2lean.analysis import analysis_support_sources
 from algo2lean.checker import LeanSetupError, _library_sources, lean_imports, shared_imports
 from algo2lean.server import MAX_ANALYSIS_BYTES, MAX_ANALYSIS_REQUEST_BYTES, MAX_SOURCE_BYTES
+try:
+    import algo2lean.probability_support as _optional_support
+except ModuleNotFoundError as error:
+    # The editor adapter also accompanies immutable pre-probability releases.
+    if error.name != "algo2lean.probability_support":
+        raise
+    def needs_mathlib(sources):
+        return False
+    def optional_sources(sources):
+        return {}
+    def mathlib_requirement():
+        raise ValueError("This compiler release does not include probability support.")
+    SETUP_INSTRUCTIONS = ""
+else:
+    # Older frozen compilers have only the probability-specific helper names.
+    needs_mathlib = getattr(_optional_support, "needs_mathlib", _optional_support.needs_probability)
+    mathlib_requirement = _optional_support.mathlib_requirement
+    SETUP_INSTRUCTIONS = _optional_support.SETUP_INSTRUCTIONS
+    if hasattr(_optional_support, "optional_sources"):
+        optional_sources = _optional_support.optional_sources
+    else:
+        def optional_sources(sources):
+            return _optional_support.probability_sources() if needs_mathlib(sources) else {}
 
 
 _MODULE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\Z")
 _BUILTINS = {"Init", "Std", "Lean"}
-_RESERVED = {"init", "std", "lean", "algo2lean", "algo2leanlib", "algo2leanexamples"}
+_RESERVED = {"init", "std", "lean", "algo2lean", "algo2leanlib", "algo2leanexamples", "algo2leanprobability", "algo2leanreal", "mathlib"}
 
 
 def _error(message, status=400):
@@ -68,6 +91,7 @@ def _validate_imports(files):
     sources = {name[:-5].replace("/", "."): text.decode("utf-8")
                for name, text in files.items() if name.endswith(".lean") and not name.startswith("source/")}
     done, visiting = set(), []
+    builtins = _BUILTINS | ({"Mathlib"} if needs_mathlib(sources.values()) else set())
 
     def visit(name):
         if name in visiting:
@@ -78,7 +102,7 @@ def _validate_imports(files):
         for dependency in lean_imports(sources[name]):
             if dependency in sources:
                 visit(dependency)
-            elif not _MODULE.fullmatch(dependency) or dependency.split(".")[0] not in _BUILTINS:
+            elif not _MODULE.fullmatch(dependency) or dependency.split(".")[0] not in builtins:
                 raise ValueError("Cannot export '%s': unresolved or unsupported Lean import '%s'. "
                                  "Include the matching project analysis or use a packaged Algo2Lean library." % (name, dependency))
         visiting.pop()
@@ -95,7 +119,13 @@ def _lakefile(files, selected):
     # archive from the frozen compiler already includes their source files.
     return ('name = "algo2lean_analysis"\nversion = "0.1.0"\n'
             'defaultTargets = ' + json.dumps([selected]) + "\n" +
-            "".join('\n[[lean_lib]]\nname = ' + json.dumps(name) + "\n" for name in roots))
+            "".join('\n[[lean_lib]]\nname = ' + json.dumps(name) + "\n" for name in roots) +
+            (mathlib_requirement() if _needs_mathlib(files) else ""))
+
+
+def _needs_mathlib(files):
+    return needs_mathlib(text.decode("utf-8") for name, text in files.items()
+                         if name.endswith(".lean") and not name.startswith("source/"))
 
 
 def _archive(files, selected):
@@ -113,6 +143,8 @@ def _archive(files, selected):
         "The included Algo2Lean shared libraries are covered by `LICENSE`. "
         "This notice does not assign a license to your algorithm or proof.\n" % selected
     ).encode("utf-8")
+    if _needs_mathlib(files):
+        files["README.md"] += ("\n" + SETUP_INSTRUCTIONS).encode("utf-8")
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for name, contents in sorted(files.items()):
@@ -141,10 +173,14 @@ def _standalone(body):
     files = {}
     _add(files, _module_path(compiled["module"]), compiled["lean"])
     _add(files, _module_path(compiled["points_module"]), compiled["points_lean"])
+    if compiled.get("probability_lean"):
+        _add(files, _module_path(compiled["probability_module"]), compiled["probability_lean"])
     _add(files, name, body["analysis"])
     support = analysis_support_sources(body["analysis"], compiled["module"])
     for module, text in support.items():
         _add(files, _module_path(module), text)
+    for path, text in optional_sources(text.decode("utf-8") for text in files.values()).items():
+        _add(files, path, text)
     libraries = _library_sources(shared_imports(*(text.decode("utf-8") for text in files.values())))
     for module, (_, text) in libraries.items():
         _add(files, _module_path(module), text)

@@ -106,13 +106,13 @@ class AnalysisExportTests(unittest.TestCase):
 
     def test_missing_imports_or_failed_compilation_never_return_a_successful_bundle(self):
         cases = [(False, payload(analysis="import MissingProof\n")),
-                 (False, payload(analysis="import Mathlib\n")),
+                 (False, payload(analysis="import MissingLibrary\n")),
                  (False, payload(analysis="import Algo2LeanExamples.NotAnExample\n")),
                  (False, payload(analysis="import Proof\n")),
                  (False, payload(source="def broken(\n")),
                  (True, project_payload(source="def broken(\n")),
                  (True, project_payload(analysis="import Algo.missing.Analysis\n")),
-                 (True, project_payload(analysis="import Mathlib\n"))]
+                 (True, project_payload(analysis="import MissingLibrary\n"))]
         for project, body in cases:
             with self.subTest(project=project, body=body):
                 response = request("/api/analysis-export", body, project=project)

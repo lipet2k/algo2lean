@@ -96,6 +96,29 @@ test("output and cost conversion helpers stay with output relations", () => {
   ]);
 });
 
+test("probability declarations form their own value group with the companion filename", () => {
+  const members = ["outputProbability", "terminationProbability", "expectedCost", "returnProbability", "law", "outcome"];
+  const functions = [{ name: "roll", interface_entries: members.map((member) => ({
+    name: `roll.${member}`, category: "probability", file_kind: "probability",
+    signature: `roll.${member} (heap : Heap) (input : Unit) : ENNReal`,
+    meaning: "Uses the optional Mathlib probability companion.", arguments: [],
+  })) }];
+  const entries = normalizeEntries(functions);
+  assert.ok(entries.every((entry) => entry.file_kind === "probability"));
+  assert.deepEqual(groupEntries(entries).map((group) => [group.title, group.entries.length]), [["Probability", 6]]);
+  const { container } = surface();
+  render(container, functions, { probabilityFile: "DiceGeneratedProbability.lean" });
+  const buttons = withClass(container, "interface-button");
+  assert.equal(buttons.length, 6);
+  assert.ok(buttons.every((button) => button.className.includes("interface-definition")));
+  buttons[0].click();
+  const panel = withClass(container, "interface-spec").find((candidate) => !candidate.hidden);
+  assert.ok(text(panel).includes("DiceGeneratedProbability.lean"));
+  assert.ok(text(panel).includes("Mathlib"));
+  render(container, FUNCTIONS);
+  assert.ok(!withClass(container, "interface-group-title").some((heading) => heading.textContent === "Probability"));
+});
+
 test("obsolete metadata prompts a compiler update instead of showing removed names", () => {
   const functions = [{ name: "Counter_add", display_name: "Counter.add",
     parameters: [{ name: "self", type: "Counter" }], return_type: "Int",

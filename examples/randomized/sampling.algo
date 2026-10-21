@@ -1,0 +1,12 @@
+# Each draw is uniform on the integers lower <= value < upper.
+# Empty or reversed intervals fail; they do not return an arbitrary value.
+def sample(lower: Int, upper: Int) -> Int:
+    return randint(lower, upper)
+
+
+def die() -> Int:
+    return randint(1, 7)
+
+
+def coin() -> Bool:
+    return randint(0, 2) == 1

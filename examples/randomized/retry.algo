@@ -1,0 +1,12 @@
+from sampling import coin
+
+
+# Count flips until the first head. The clock includes every attempted flip.
+# Finite transcripts also describe prefixes that have not returned yet.
+def until_heads() -> Int:
+    flips = 0
+    while True:
+        tick("flips")
+        flips += 1
+        if coin():
+            return flips

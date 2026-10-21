@@ -123,6 +123,9 @@ toll. Instead define `U(k)=W(k)+10*4^k+1`; then `U(0)=13` and
 
 `runtime_via_substitution` and `runtime_via_tree` state these conclusions using
 `strassen.ReturnsWithCost` for every completed execution.
+The relation receives the initial heap and nested matrix references and returns
+the final heap and result reference. `MatrixHeap.Stored` connects shared input
+rows to mathematical values without requiring disjoint input storage.
 `terminates_with_bounds` also supplies a completed execution, so the bounds are
 not conditional on an unproved termination assumption. `strassen_theta`
 packages the natural-depth asymptotic result. The constant 13 is not claimed

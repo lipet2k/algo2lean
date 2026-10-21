@@ -24,6 +24,11 @@ _SINGLE_FILE_ORDER = (
 )
 _HIDDEN_SINGLE_FILES = {"dijkstra.algo", "dijkstra_fibonacci.algo"}
 _PROJECTS = {
+    "additional_types": (
+        "Values and collections",
+        "main.algo",
+        "Count frequencies with a dictionary, track visited values with a set, and average tuple coordinates using exact real arithmetic. Real examples use optional Mathlib support.",
+    ),
     "modules": (
         "Reusable algorithms",
         "pipeline.algo",
@@ -38,6 +43,16 @@ _PROJECTS = {
         "Mutual recursion across files",
         "client.algo",
         "Even and odd call each other across files; a client reuses their correctness and runtime proof.",
+    ),
+    "randomized": (
+        "Randomized algorithms",
+        "sampling.algo",
+        "Uniform integer draws, a six-sided die, imported random calls, and repeated coin flips. Probability analyses use optional Mathlib support.",
+    ),
+    "randomized_clrs": (
+        "CLRS randomized algorithms",
+        "shuffle.algo",
+        "Shuffle, hiring, selection, quicksort, and coupon collection. Explore joint output laws, expected costs, and runtime tails with the developing probability analyses.",
     ),
     "kruskal": (
         "Kruskal",
@@ -56,9 +71,12 @@ _PROJECTS = {
     ),
 }
 _PROJECT_ROOTS = {
+    "additional_types": "additional_types",
     "modules": "modules",
     "interfaces": "interfaces",
     "mutual-recursion-imports": "mutual_recursion",
+    "randomized": "randomized",
+    "randomized_clrs": "randomized_clrs",
     "kruskal": "kruskal",
 }
 _PROJECT_EXTRA_ENTRIES = {

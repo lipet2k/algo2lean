@@ -131,7 +131,7 @@ def citation_cff(data):
     if data.get("doi"):
         lines.append('doi: ' + quote(data["doi"]))
     if data["status"] == "development":
-        lines.append('abstract: "Development version; no numbered public release has been published yet."')
+        lines.append('abstract: "Unreleased development version; this build is not a numbered public release."')
     return "\n".join(lines) + "\n"
 
 

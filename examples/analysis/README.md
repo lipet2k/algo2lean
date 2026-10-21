@@ -205,4 +205,8 @@ total work upper bound to `13*7^k`; the editor analysis retains its valid
 
 The matrix analyses and recurrence modules use Lean/Std alone. Their public
 execution results use scoped relations such as `strassen.ReturnsWithCost`.
+Each matrix analysis exposes a reusable `call` and
+`correctness_and_running_time` contract over nested row arrays: the product,
+old-storage preservation, fresh distinct result rows, and exact clock increments
+all concern the same generated call. See [the Chapter 4 guide](../../docs/CLRS_CHAPTER_4.md).
 The master theorem is outside the current Chapter 4 scope.

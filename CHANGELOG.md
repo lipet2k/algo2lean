@@ -1,5 +1,17 @@
 # Change log
 
+## 0.2.0
+
+- Add heterogeneous tuples, typed/nested sequences, finite mutable sets and dictionaries, and exact real arithmetic.
+- Add uniform integer randomness, optional probability laws, reusable expected-return contracts, expected cost, and tail analyses.
+- Add deterministic structured fork–join with work/span, access independence, imported contracts, and recursive module support.
+- Reuse deterministic Call proofs in randomized callers, including deterministic functions inside mixed modules; retain Call as the common functional contract.
+- Use natural nested matrix code and reusable contracts carrying preservation, freshness, and actual counter increments. Keep the master theorem outside this release.
+- Add checked randomized CLRS and parallel examples; keep helper statements on public interfaces.
+- Include Mathlib proofs in full CI checks and extend native/browser parity coverage to the new features and their composition.
+
+See [release and upgrade notes](docs/RELEASE_0_2_0.md) for compatibility, setup, and supported combinations. Lean remains pinned to 4.33.1; integer-only core definitions and parallel proofs remain Std-only.
+
 ## 2026-10-11 — Start each refresh with merge sort and collapsed drafts
 
 - Open the current merge-sort source and proof on each refresh, regardless of the previously selected example, file, or project. Keep Browser drafts collapsed until explicitly opened.

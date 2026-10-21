@@ -4,6 +4,12 @@ This guide describes the generated Lean definitions, execution interfaces, and
 local observations. The compiler emits mathematical definitions and propositions;
 compiling an algorithm does not run it or prove its correctness.
 
+For randomized algorithms, the ordinary relations below describe possible
+executions. Probabilities use a separate optional companion with `f.law`,
+`f.outputProbability`, `f.returnProbability`, `f.terminationProbability`, and
+`f.expectedCost`. See the [probability interface](RANDOMIZED_ALGORITHMS.md#current-interface)
+and the [checked die analysis](../examples/randomized/analysis/sampling.lean).
+
 Public declarations are grouped under the source function's name. The ordinary
 interface has two entry points, both taking mathematical inputs:
 

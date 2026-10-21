@@ -1,0 +1,12 @@
+# For n > 0, return the arithmetic mean of the first n planar points.
+# Coordinates and division use exact mathematical reals, not floating point.
+def centroid(points: Seq[Tuple[Real, Real]], n: Int) -> Tuple[Real, Real]:
+    total_x: Real = 0
+    total_y: Real = 0
+    for i in range(n):
+        x, y = points[i]
+        # @accumulate
+        total_x += x
+        total_y += y
+    # @finish
+    return total_x / n, total_y / n

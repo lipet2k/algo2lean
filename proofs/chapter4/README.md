@@ -10,11 +10,12 @@ for the editor and CLI's single-file analysis interface.
 | Module | Responsibility |
 | --- | --- |
 | `MatrixMath.lean` | Finite dot products, block multiplication, seven-product identity, exact recurrences and bounds. |
-| `StrassenValue.lean` | Pure flat-matrix model; ordinary product entries and zero outside the finite result. |
-| `StrassenLinear.lean` | Source linear-combination and scalar-leaf summaries; sequence preservation and counter helpers. |
+| `StrassenValue.lean` | Pure two-dimensional matrix model; ordinary product entries and zero outside the finite square. |
+| `StrassenLinear.lean` | Source row-linear-combination summary; sequence preservation and counter helpers. |
 | `StrassenHelpers.lean` | Source quadrant-copy and join summaries, complete contents, and exact costs. |
+| `StrassenQuadrant.lean` | Assemble the row-copy summaries into a nested quadrant with preserved inputs. |
 | `StrassenComposition.lean` | Composition of the 34 real recursive-branch calls, in source evaluation order. |
-| `StrassenExecution.lean` | Induction connecting those calls to the value model and exact costs. |
+| `StrassenExecution.lean` | Scalar-leaf summary and induction connecting recursive calls to the value model, exact costs, and fresh output rows. |
 | `StrassenDeterminism.lean` | Uniqueness of completed source executions, outputs, and counters. |
 | `StrassenTheorems.lean` | Public termination, correctness, preservation, and runtime theorems. |
 
@@ -37,6 +38,12 @@ See the [Chapter 4 guide](../../docs/CLRS_CHAPTER_4.md) for assumptions and exac
 proof scope. The iterative and eight-way recursive analyses are maintained
 directly in their individual example analysis files.
 
+All three source programs use `Seq[Seq[Int]]`. The shared
+[`Algo2LeanLib/MatrixHeap.lean`](../../Algo2LeanLib/MatrixHeap.lean) view relates
+outer and row references to mathematical matrix entries. Its preservation
+lemmas allow inputs with shared rows and keep old rows, arrays, and objects
+unchanged while new output rows are allocated.
+
 ## General recurrence framework (§4.3–4.4)
 
 These modules are checked independently and are not added to the editor bundle:
@@ -56,3 +63,16 @@ This compiles each module against freshly generated Strassen semantics and
 audits the main theorem assumptions. `tests.test_chapter4` includes this check.
 See [the recurrence guide](../../docs/RECURRENCES.md) for hypotheses, examples,
 source-program connections, and the remaining scope.
+
+## Reusable matrix contracts
+
+The ordinary analysis files expose `MatrixMultiplyAnalysis.call`,
+`MatrixRecursiveAnalysis.call`, and `MatrixStrassenVerified.call`, plus a
+`correctness_and_running_time` theorem in each namespace. They combine the
+actual generated call with the product, preserved caller storage, fresh distinct
+finite output rows, and exact counter increments. These contracts are available
+in the existing example-library imports and exported projects. They require only
+Lean/Std; no master-theorem or publication modules are included.
+
+Run `python3 -m unittest tests.test_matrix_contracts -v` to check repeated imported
+calls and an isolated project build of all three reusable libraries.

@@ -242,6 +242,10 @@ class EditorHandler(BaseHTTPRequestHandler):
             return
         response = {"ok": True, "lean": result.lean, "program_lean": result.program_lean,
                     "points_lean": result.points_lean, "points_module": result.points_module,
+                    "randomized": getattr(result, "randomized", False),
+                    "probability_lean": getattr(result, "probability_lean", ""),
+                    "probability_module": getattr(result, "probability_module", ""),
+                    "probability_diagnostic": getattr(result, "probability_diagnostic", ""),
                     "shared_lean": result.shared_lean, "stats": result.stats,
                     "functions": result.functions, "diagnostics": [], "module": result.module}
         if path in {"/api/check", "/api/analyze"}:
@@ -251,11 +255,17 @@ class EditorHandler(BaseHTTPRequestHandler):
                 return
             try:
                 if path == "/api/analyze":
-                    checked = self._check_analysis(result.lean, analysis, result.module, points_lean=result.points_lean)
+                    analysis_options = {"points_lean": result.points_lean}
+                    if response["randomized"] and response["probability_lean"]:
+                        analysis_options["probability_lean"] = response["probability_lean"]
+                    checked = self._check_analysis(result.lean, analysis, result.module, **analysis_options)
                     response.update(scope="analysis", analysis_diagnostics=analysis_diagnostics(checked.output))
                 else:
                     checked = self._check_generated(result.lean, module=result.module, points_lean=result.points_lean)
                 response.update(ok=checked.ok, available=checked.available, output=checked.output)
+                if path == "/api/check" and response["randomized"]:
+                    response.update(probability_checked=False)
+                    response["output"] += "\nProbability companions require separate checking with the optional probability/ Mathlib project."
             finally:
                 LEAN_SLOTS.release()
         self._send(200, response)
@@ -382,6 +392,9 @@ class EditorHandler(BaseHTTPRequestHandler):
                         analysis_module=selected_proof if path == "/api/analyze" else None)
                     output = checked.output.replace(directory + "/", "")
                     response.update(ok=checked.ok, available=checked.available, output=output)
+                    if path == "/api/check" and response["randomized"]:
+                        response.update(probability_checked=False)
+                        response["output"] += "\nProbability companions require separate checking with the optional probability/ Mathlib project."
                     if path == "/api/analyze":
                         response.update(scope="analysis", analysis_diagnostics=project_analysis_diagnostics(output, project.project.entry))
                 finally:
@@ -395,8 +408,12 @@ def project_response(compilation):
     from .public_names import interface_metadata
     entry = compilation.entry
     implementation = getattr(entry, "implementation", None)
+    probability_module = getattr(entry, "probability_module", "") or entry.namespace + ".Probability"
+    probability_lean = getattr(entry, "probability_lean", "") or compilation.files.get(probability_module, "")
     functions = []
     for function in entry.functions.values():
+        if getattr(function.node, "parallel_adapter", False):
+            continue
         inputs, output = public_types(function)
         functions.append({"name": function.name,
             "display_name": (function.class_name + "." + function.method_name) if function.class_name else function.name,
@@ -404,10 +421,20 @@ def project_response(compilation):
             "parameters": [{"name": name, "type": typ} for name, typ in function.parameters],
             "return_type": function.return_type, "clocks": list(entry.clocks),
             **interface_metadata(function, bool(entry.clocks) or bool(entry.dependencies),
-                                 dependencies=bool(entry.dependencies), facts=bool(entry.facts_lean)),
+                                 dependencies=bool(entry.dependencies), facts=function.name in entry.deterministic_functions,
+                                 randomized=function.name not in entry.deterministic_functions, probability=bool(probability_lean),
+                                 parallel=function.name in entry.parallel_functions),
             "points": list(function.points.values())})
+        for declaration in functions[-1]["interface_entries"]:
+            if ".ParallelCall" in declaration["name"]:
+                declaration["file_kind"] = "parallel"
     return {"ok": True, "lean": entry.lean, "program_lean": entry.lean,
             "points_lean": entry.points_lean, "points_module": entry.points_module,
+            "randomized": getattr(entry, "randomized", False),
+            "probability_lean": probability_lean,
+            "probability_module": probability_module if probability_lean else "",
+            "probability_diagnostic": getattr(entry, "probability_diagnostic", ""),
+            "parallel_module": entry.parallel_module, "parallel_lean": entry.parallel_lean,
             "shared_lean": "", "stats": entry.stats, "functions": functions,
             "diagnostics": [], "module": entry.lean_module, "namespace": entry.namespace,
             "implementation_module": implementation.lean_module if implementation else None,
@@ -437,6 +464,10 @@ def project_archive(compilation, proofs, source_files=None, *, diagnostics=None)
             generated = dict(compilation.files)
             generated.update(project_lean_sources(compilation, proof_sources=proofs, analysis_modules=tuple(proofs)))
             build = {name.replace(".", "/") + ".lean": source for name, source in generated.items()}
+            from .probability_support import needs_mathlib, optional_sources, mathlib_requirement, SETUP_INSTRUCTIONS
+            optional = optional_sources(build.values())
+            mathlib = needs_mathlib(build.values())
+            build.update(optional)
             shared = _library_sources(shared_imports(*build.values()))
             build.update({name.replace(".", "/") + ".lean": source for name, (_, source) in shared.items()})
             build["LICENSE"] = (ROOT / "LICENSE").read_text(encoding="utf-8")
@@ -445,6 +476,14 @@ def project_archive(compilation, proofs, source_files=None, *, diagnostics=None)
             build["lakefile.toml"] = ('name = "algo2lean_project"\nversion = "0.1.0"\n'
                 'defaultTargets = ["Algo"]\n\n[[lean_lib]]\nname = "Algo"\n\n'
                 '[[lean_lib]]\nname = "Algo2Lean"\n\n[[lean_lib]]\nname = "Algo2LeanLib"\n')
+            if any(name.startswith("Algo2LeanExamples.") for name in shared):
+                build["lakefile.toml"] += '\n[[lean_lib]]\nname = "Algo2LeanExamples"\n'
+            if mathlib:
+                build["lakefile.toml"] += "".join(
+                    '\n[[lean_lib]]\nname = "%s"\n' % path.removesuffix(".lean") for path in optional)
+                build["lakefile.toml"] += mathlib_requirement()
+                setup_file = "PROBABILITY.md" if "Algo2LeanProbability.lean" in optional else "MATHLIB.md"
+                build[setup_file] = SETUP_INSTRUCTIONS
             files.update(build)
         except (LeanSetupError, CompileError, OSError, UnicodeError) as error:
             diagnostics = str(error).replace(str(compilation.project.root) + "/", "")

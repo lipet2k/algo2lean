@@ -1,0 +1,4 @@
+# A uniform bit with one charged draw, preserving the caller's other storage.
+def bit() -> Int:
+    tick("draws")
+    return randint(0, 2)

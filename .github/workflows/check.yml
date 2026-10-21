@@ -45,6 +45,13 @@ jobs:
         run: python -m unittest discover -v
       - name: Check every editor test
         run: node --test tests/test_*.js
+      - name: Check the pinned browser runtime and downloadable proofs
+        env:
+          BROWSER_CHECK_SITE: ${{ runner.temp }}/algo2lean-browser-check
+        run: |
+          python scripts/build_site.py --download-runtime --output "$BROWSER_CHECK_SITE"
+          version=$(python -c 'import json; print(json.load(open("publication.json"))["version"])')
+          node scripts/check_browser_runtime.mjs "$BROWSER_CHECK_SITE/versions/v$version/runtime"
       - name: Select UI, package, or full Lean checks
         id: plan
         env:
@@ -57,7 +64,7 @@ jobs:
     needs: compiler-and-editor
     if: needs.compiler-and-editor.outputs.lean-mode != 'none'
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ needs.compiler-and-editor.outputs.lean-mode == 'packages' && 10 || 45 }}
+    timeout-minutes: ${{ needs.compiler-and-editor.outputs.lean-mode == 'packages' && 10 || 90 }}
     env:
       # Stable paths for the Python checkers' content-addressed caches.
       TMPDIR: /tmp
@@ -105,6 +112,13 @@ jobs:
           key: lean-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'algo2lean/**/*.py') }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             lean-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'algo2lean/**/*.py') }}-
+      - name: Prepare pinned Mathlib for probability and real proofs
+        if: needs.compiler-and-editor.outputs.lean-mode != 'packages'
+        working-directory: probability
+        run: |
+          lake exe cache get
+          lake build Algo2LeanProbability Algo2LeanReal
+          test -f .lake/packages/mathlib/.lake/build/lib/lean/Mathlib/Probability/Distributions/Uniform.olean
       - name: Check compiler, generated definitions, and analysis proofs
         if: needs.compiler-and-editor.outputs.lean-mode != 'packages'
         run: python -m unittest discover -v

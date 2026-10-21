@@ -22,7 +22,8 @@ def analysis_support_sources(analysis: str, module: str) -> dict:
     Only the fixed repository support directory is searched, not user paths.
     """
     sources, visiting = {}, set()
-    reserved = {module.casefold(), (module + "Points").casefold(), "analysis", "algorithmanalysis"}
+    reserved = {module.casefold(), (module + "Points").casefold(),
+                (module + "Probability").casefold(), "analysis", "algorithmanalysis"}
 
     def visit(name):
         if "." in name or name in sources:
@@ -47,7 +48,7 @@ def analysis_support_sources(analysis: str, module: str) -> dict:
 
 
 def check_analysis(generated: str, analysis: str, module: str, timeout: float = 120,
-                   *, points_lean: str = None) -> CheckResult:
+                   *, points_lean: str = None, probability_lean: str = None) -> CheckResult:
     """Build the algorithm and optional named points, then check an importing file.
 
     The files are never concatenated. Diagnostic line numbers refer to the
@@ -57,12 +58,30 @@ def check_analysis(generated: str, analysis: str, module: str, timeout: float = 
     In particular, `set_option warn.sorry false` suppresses that diagnostic.
     """
     validate_module_name(module)
-    executable = shutil.which("lean")
-    if executable is None:
-        return CheckResult(False, False, "Lean was not found. Install Lean 4 and restart the editor.")
     deadline = time.monotonic() + timeout
     try:
         support = analysis_support_sources(analysis, module)
+        from .probability_checker import check_mathlib_sources, needs_mathlib
+        probability_requested = module + "Probability" in lean_imports(analysis, *support.values())
+        if probability_requested or needs_mathlib(generated, points_lean or "", analysis, *support.values()):
+            if probability_requested and not probability_lean:
+                return CheckResult(False, True, "No generated probability companion '%sProbability' was supplied." % module)
+            sources = {module: generated}
+            if points_lean is not None:
+                sources[module + "Points"] = points_lean
+            if probability_requested:
+                sources[module + "Probability"] = probability_lean
+            sources.update(support)
+            proof_module = "AlgorithmAnalysis" if module.casefold() == "analysis" else "Analysis"
+            sources[proof_module] = analysis
+            checked = check_mathlib_sources(sources, timeout=max(0, deadline - time.monotonic()))
+            if proof_module != "Analysis":
+                checked = CheckResult(checked.ok, checked.available,
+                                      checked.output.replace(proof_module + ".lean:", "Analysis.lean:"))
+            return checked
+        executable = shutil.which("lean")
+        if executable is None:
+            return CheckResult(False, False, "Lean was not found. Install Lean 4 and restart the editor.")
         environment = prepare_lean_environment(timeout=timeout, executable=executable,
             modules=shared_imports(generated, analysis, points_lean or "", *support.values()))
         with tempfile.TemporaryDirectory(prefix="algo2lean-analysis-") as directory:

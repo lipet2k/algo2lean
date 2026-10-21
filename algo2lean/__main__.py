@@ -45,6 +45,7 @@ def project_outputs(compilation, directory: Path):
         "Generated": "-- Independently compiled module; imported algorithms keep their own transitions.",
         "Points": "-- Named locations are independent of the compiled module body.",
         "Facts": "-- Optional proof certificate; execution remains the generated Step relation.",
+        "Probability": "-- Optional probability semantics; checked separately with Mathlib.",
     }
     outputs = []
     for name, contents in compilation.files.items():
@@ -76,12 +77,12 @@ def main(argv=None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     compile_parser = commands.add_parser("compile", help="Compile an .algo source file to Lean 4.")
     compile_parser.add_argument("source", type=Path)
-    compile_parser.add_argument("-o", "--output", type=Path, help="Write core Lean to Foo.lean and named points to FooPoints.lean (default: core on standard output).")
+    compile_parser.add_argument("-o", "--output", type=Path, help="Write core Lean to Foo.lean, named points to FooPoints.lean, and a probability companion when available (default: core on standard output).")
     compile_parser.add_argument("--points-output", type=Path, help="Named-points output path; must be <core module>Points.lean, beside -o when given. With standard output, the core module is derived from the source filename.")
-    compile_parser.add_argument("--check", action="store_true", help="Ask Lean to check the generated definitions before writing them.")
+    compile_parser.add_argument("--check", action="store_true", help="Check algorithm definitions and named points before writing them; probability companions require separate Mathlib checking.")
     compile_parser.add_argument("--standalone", action="store_true", help="Embed the shared Lean library instead of importing Algo2Lean.")
     compile_parser.add_argument("--project", type=Path, help="Resolve .algo imports beneath this explicit project root.")
-    compile_parser.add_argument("--output-dir", type=Path, help="Export a project as Algo/<module>/Generated.lean, Points.lean, and Facts.lean.")
+    compile_parser.add_argument("--output-dir", type=Path, help="Export a project as Algo/<module>/Generated.lean, Points.lean, and optional Facts.lean or Probability.lean.")
     verify_parser = commands.add_parser("verify", help="Regenerate a source and compare exact generated Lean files in a folder.")
     verify_parser.add_argument("source", type=Path)
     verify_parser.add_argument("generated", type=Path, help="Folder containing claimed generated files at their original relative paths.")
@@ -184,6 +185,11 @@ def main(argv=None) -> int:
             else:
                 sys.stdout.write(result.entry.lean)
                 print("Use --output-dir DIR to export the canonical module files and their dependencies.", file=sys.stderr)
+            if any(getattr(module, "randomized", False) for module in result.modules.values()):
+                print("Probability companions require separate checking with the optional probability/ Mathlib project; --check checks algorithm definitions and named points.", file=sys.stderr)
+            for module in result.modules.values():
+                if getattr(module, "probability_diagnostic", ""):
+                    print(module.probability_diagnostic, file=sys.stderr)
             return 0
         module = generated_module_name(args.source.name)
         if args.output:
@@ -209,6 +215,12 @@ def main(argv=None) -> int:
         if args.output and points_output and same_path(args.output, points_output):
             raise ValueError("Choose different paths for the core and named-points output files.")
         result = compile_source(source, filename=str(args.source), standalone=args.standalone, module=module)
+        probability_output = (args.output.with_name(result.probability_module + ".lean")
+                              if args.output and getattr(result, "probability_lean", "") else None)
+        if probability_output is not None:
+            if any(same_path(probability_output, path) for path in
+                   (args.source, args.output, points_output, library_path) if path is not None):
+                raise ValueError("Choose separate, unaliased paths for the source, algorithm definitions, named points, probability companion, and shared library.")
         if args.check:
             checked = check_lean(result.lean, module=result.module, points_lean=result.points_lean)
             print(checked.output, file=sys.stderr)
@@ -224,6 +236,15 @@ def main(argv=None) -> int:
             print("Wrote %s" % points_output, file=sys.stderr)
             if args.output is None:
                 print("Save the core standard output as %s.lean beside it." % module, file=sys.stderr)
+        if probability_output is not None:
+            write_if_changed(probability_output, result.probability_lean)
+            print("Wrote %s" % probability_output, file=sys.stderr)
+        if getattr(result, "randomized", False):
+            print("Probability companions require separate checking with the optional probability/ Mathlib project; --check checks algorithm definitions and named points.", file=sys.stderr)
+            if args.output is None and getattr(result, "probability_lean", ""):
+                print("Use -o %s.lean to also export %s.lean." % (module, result.probability_module), file=sys.stderr)
+        if getattr(result, "probability_diagnostic", ""):
+            print(result.probability_diagnostic, file=sys.stderr)
         return 0
     except PublicationError as error:
         print("Compiler setup error: %s" % error, file=sys.stderr)

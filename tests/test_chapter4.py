@@ -7,6 +7,7 @@ The modular regression here independently checks import dependencies and the
 general recurrence applications that are maintained outside the editor bundle.
 """
 
+import __future__
 from pathlib import Path
 import random
 import shutil
@@ -14,7 +15,7 @@ import unittest
 
 from algo2lean.compiler import compile_source
 from scripts.build_chapter4_analysis import build_analysis, DESTINATION
-from scripts.check_chapter4_proofs import check_proofs
+from scripts.check_chapter4_proofs import audit_assumptions, check_proofs
 from tests.test_examples import IndexedSequence
 
 
@@ -43,14 +44,27 @@ def load_matrix_example(name):
         "__builtins__": {}, "Int": int, "Seq": IndexedSequence,
         "const": lambda value: IndexedSequence(lambda _index: value), "tick": tick,
     }
-    exec(compile(source, str(path), "exec"), environment, environment)
+    # Keep source annotations such as Seq[Seq[Int]] as annotations; this adapter
+    # models the operations, while the real compiler checks their source types.
+    exec(compile(source, str(path), "exec", flags=__future__.annotations.compiler_flag),
+         environment, environment)
     return environment[ENTRY_POINTS[name]], clocks
 
 
 def matrix_oracle(a, b, n):
     """Ordinary row-by-column multiplication, independent of example helpers."""
-    return [sum(a[row * n + k] * b[k * n + column] for k in range(n))
+    return [sum(a[row][k] * b[k][column] for k in range(n))
             for row in range(n) for column in range(n)]
+
+
+def matrix_input(values, n, seed):
+    """Build finite rows with arbitrary nonzero contents outside the square."""
+    default_row = IndexedSequence(lambda column: seed * column - 71)
+    rows = [IndexedSequence(lambda column, row=row: seed * column + row + 31,
+                            enumerate(values[row * n:(row + 1) * n]))
+            for row in range(n)]
+    matrix = IndexedSequence(lambda _row: default_row, enumerate(rows))
+    return matrix, [matrix, default_row, *rows]
 
 
 def expected_clocks(name, n):
@@ -79,27 +93,43 @@ class Chapter4MatrixTests(unittest.TestCase):
         # Compilation is cheap and done once per source, not once per matrix.
         cls.examples = {name: load_matrix_example(name) for name in ALGORITHMS}
 
-    def check_product(self, name, a_values, b_values, n, *, alias=False):
+    def check_product(self, name, a_values, b_values, n, *, alias=False, shared_rows=False):
         self.assertEqual(len(a_values), n * n)
         self.assertEqual(len(b_values), n * n)
-        a = IndexedSequence(lambda index: 17 * index + 31, enumerate(a_values))
-        b = a if alias else IndexedSequence(
-            lambda index: 29 * index - 43, enumerate(b_values))
-        expected = matrix_oracle(a_values, a_values if alias else b_values, n)
+        a, a_objects = matrix_input(a_values, n, 17)
+        b, b_objects = (a, a_objects) if alias else matrix_input(b_values, n, 29)
+        if shared_rows and n:
+            # Repeated rows within a matrix and shared rows across both inputs
+            # must remain valid, without requiring separation assumptions.
+            for row in range(1, n):
+                if row % 2:
+                    a[row] = a[0]
+                    b[row] = a[0]
+        expected = matrix_oracle(a, b, n)
         # Complete overlays and default functions describe all integer indices,
         # so equality of these snapshots checks full input preservation here.
-        snapshots = [(dict(value._values), value._default) for value in (a, b)]
+        objects = {id(value): value for value in a_objects + b_objects}
+        snapshots = [(value, dict(value._values), value._default) for value in objects.values()]
         execute, clocks = self.examples[name]
         clocks.clear()
         result = execute(a, b, n)
         self.assertIsNot(result, a)
         self.assertIsNot(result, b)
-        self.assertEqual([result[cell] for cell in range(n * n)], expected)
-        for value, (overlay, default) in zip((a, b), snapshots):
+        self.assertEqual([result[row][column] for row in range(n) for column in range(n)], expected)
+        for value, overlay, default in snapshots:
             self.assertEqual(value._values, overlay)
             self.assertIs(value._default, default)
-        for index in (-10 ** 100, -17, -1, n * n, n * n + 1, 10 ** 100):
-            self.assertEqual(result[index], 0, "Fresh results must be zero outside the matrix")
+        active_rows = [result[row] for row in range(n)]
+        self.assertEqual(len({id(row) for row in active_rows}), n,
+                         "Each output row must have its own mutable identity")
+        self.assertTrue(all(id(row) not in objects for row in active_rows),
+                        "Output rows must be fresh, including when input rows alias")
+        outside = (-10 ** 100, -17, -1, n, n + 1, 10 ** 100)
+        for row in (*range(n), *outside):
+            columns = outside if 0 <= row < n else (*range(n), *outside)
+            for column in columns:
+                self.assertEqual(result[row][column], 0,
+                                 "Fresh results must be zero outside the n by n square")
         self.assertEqual(clocks, expected_clocks(name, n))
 
     def test_strassen_analysis_bundle_is_current(self):
@@ -139,7 +169,42 @@ class Chapter4MatrixTests(unittest.TestCase):
             values = [rng.randrange(-100, 101) for _ in range(n * n)]
             for name in ALGORITHMS:
                 with self.subTest(algorithm=name, n=n):
-                    self.check_product(name, values, values, n, alias=True)
+                        self.check_product(name, values, values, n, alias=True)
+
+    def test_shared_input_rows_are_preserved(self):
+        for n in (2, 4, 8):
+            a = [cell - 7 for cell in range(n * n)]
+            b = [3 * cell + 1 for cell in range(n * n)]
+            for name in ALGORITHMS:
+                with self.subTest(algorithm=name, n=n):
+                    self.check_product(name, a, b, n, shared_rows=True)
+
+    def test_iterative_odd_dimensions(self):
+        for n in (3, 5, 7):
+            self.check_product("matrix_multiply", list(range(n * n)),
+                               list(reversed(range(n * n))), n)
+
+
+class Chapter4AssumptionAuditTests(unittest.TestCase):
+    def test_accepts_multiline_standard_axioms_and_axiom_free_report(self):
+        output = ("'Chapter4.first' depends on axioms: [propext,\n"
+                  " Classical.choice,\n Quot.sound]\n"
+                  "'Chapter4.second' does not depend on any axioms\n")
+        self.assertIsNone(audit_assumptions(output, ("Chapter4.first", "Chapter4.second")))
+
+    def test_rejects_disallowed_axiom_after_newline(self):
+        output = ("'Chapter4.first' depends on axioms: [propext,\n"
+                  " Classical.choice, Quot.sound,\n unproved_contract]\n")
+        diagnostic = audit_assumptions(output, ("Chapter4.first",))
+        self.assertIn("Unexpected proof assumptions for Chapter4.first", diagnostic)
+        self.assertIn("unproved_contract", diagnostic)
+
+    def test_requires_a_complete_report_for_every_requested_theorem(self):
+        first = "'Chapter4.first' does not depend on any axioms\n"
+        for incomplete in ("", "'Chapter4.second' depends on axioms: [propext,\n"):
+            with self.subTest(incomplete=incomplete):
+                diagnostic = audit_assumptions(first + incomplete, ("Chapter4.first", "Chapter4.second"))
+                self.assertIn("Missing axiom report for Chapter4.second", diagnostic)
 
 
 @unittest.skipUnless(shutil.which("lean"), "Lean 4 is not installed")

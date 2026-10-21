@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Mapping, Optional, Tuple, Union
 
-from .frontend import BUILTINS, TYPES, CompileError
+from .frontend import BUILTINS, TYPE_NAMES, CompileError
 from .source_validation import RESOURCE_LIMIT, parse_source
 
 
@@ -361,7 +361,7 @@ class _Loader:
             module, declaration, alias = imports[target]
 
     def _bind(self, module, local, symbol, node):
-        if not _NAME.fullmatch(local) or local in TYPES or local in BUILTINS:
+        if not _NAME.fullmatch(local) or local in TYPE_NAMES or local in BUILTINS:
             _error(module.path, node, "Import or definition name '%s' is reserved or invalid." % local)
         previous = module.bindings.get(local)
         if previous is not None and previous != symbol:

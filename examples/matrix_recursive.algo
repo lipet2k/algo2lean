@@ -1,13 +1,14 @@
-# CLRS 4th edition, Chapter 4: eight recursive block products.
-# Matrices use row-major indexing with the common positive stride.
-# c must be a separate output object. n is a positive power of two.
+# Eight-way matrix multiplication with correctness and Θ(n³) counted work for n = 2^k (CLRS 4.1).
+# Matrices are arrays of integer rows; each output row is allocated independently.
+# Output rows of c must be disjoint from all input rows and from one another
+# within the output square. n is a positive power of two.
 # The multiplication clock counts scalar integer multiplications.
 # The calls clock counts all recursion nodes, including scalar leaves.
-def matrix_block(a: Seq, b: Seq, c: Seq, stride: Int, row: Int, col: Int, inner: Int, n: Int) -> Int:
+def matrix_block(a: Seq[Seq[Int]], b: Seq[Seq[Int]], c: Seq[Seq[Int]], stride: Int, row: Int, col: Int, inner: Int, n: Int) -> Int:
     tick("calls")
     if n <= 1:
         tick("multiplications")
-        c[row * stride + col] = c[row * stride + col] + a[row * stride + inner] * b[inner * stride + col]
+        c[row][col] = c[row][col] + a[row][inner] * b[inner][col]
         return 0
     half = n // 2
     matrix_block(a, b, c, stride, row, col, inner, half)
@@ -21,7 +22,11 @@ def matrix_block(a: Seq, b: Seq, c: Seq, stride: Int, row: Int, col: Int, inner:
     return 0
 
 
-def matrix_recursive(a: Seq, b: Seq, n: Int) -> Seq:
-    c = const(0)
+def matrix_recursive(a: Seq[Seq[Int]], b: Seq[Seq[Int]], n: Int) -> Seq[Seq[Int]]:
+    c: Seq[Seq[Int]] = const(const(0))
+    row = 0
+    while row < n:
+        c[row] = const(0)
+        row += 1
     matrix_block(a, b, c, n, 0, 0, 0, n)
     return c

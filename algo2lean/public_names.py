@@ -16,6 +16,10 @@ universes unsafe using variable variables where with elab elab_rules lemma
 termination_by decreasing_by try catch finally for while unless calc suffices Prop Type Sort
 """.split())
 
+PROBABILITY_MEMBERS = ("outcome", "law", "returnProbability", "outputProbability",
+                       "terminationProbability", "cost", "expectedCost", "costProbability",
+                       "expectedReturn", "expectedFrom", "HasLaw", "returnProbability_eq_expectedReturn")
+
 
 def identifier(name):
     # Lean interprets _root_ specially even inside guillemets. The extra dot
@@ -71,11 +75,13 @@ def point_aliases(function):
     return aliases
 
 
-def interface_entries(function, has_clocks, *, dependencies=False, facts=False):
+def interface_entries(function, has_clocks, *, dependencies=False, facts=False,
+                      randomized=False, probability=False, parallel=False):
     """Describe emitted declarations using the emitter's actual Lean types.
 
     Names are relative to the generated module namespace. Facts are optional
-    project declarations; standalone compilation does not emit that module.
+    project declarations; probability declarations require their optional
+    companion. Neither option changes the algorithm definitions.
     """
     from .emitter import input_needs_heap, lean_type, object_type, public_types, tuple_type, valid_value
     from .source_types import is_sequence, sequence_element
@@ -125,16 +131,22 @@ def interface_entries(function, has_clocks, *, dependencies=False, facts=False):
     costs = argument("costs", "Clocks", "Increments of named tick counters during this same execution.")
     value_parameters = [dict(item, name="my_" + item["name"]) for item in values]
     heap_parameters = [dict(item, name={"before": "h", "after": "h'"}.get(item["name"], item["name"])) for item in raw_args]
-    add("Returns", "output", dependency() + value_parameters, "Prop", "The function completes with this returned value.")
+    add("Returns", "output", dependency() + value_parameters, "Prop",
+        "A possible completed execution returns this value; this does not assign a probability." if randomized else
+        "The function completes with this returned value.")
     if has_clocks:
         add("ReturnsWithCost", "output", dependency() + value_parameters + [costs], "Prop",
+            "One possible completed execution produces both this value and these tick-counter increments; this does not assign a probability." if randomized else
             "One completed execution produces both the returned value and these tick-counter increments.")
     add("Call", "execution", dependency() + heap_parameters, "Prop",
+        "Valid inputs and a possible completed call with these heap effects, reusable under any caller stack; this does not assert a probability or almost-sure termination." if randomized else
         "Valid inputs and a completed call with these heap effects, reusable under any caller stack.")
     add("Run", "execution", dependency() + heap_parameters, "Prop",
+        "Valid inputs and a possible completed execution with this final heap and returned value; this does not assign a probability." if randomized else
         "Valid inputs and a completed execution with this final heap and returned value.")
     add("CallFrom", "execution", dependency() + [argument("state", configuration, "Current local configuration of this function."),
         dict(after, name="finalHeap"), argument("output", raw_output, raw_output_meaning)], "Prop",
+        "A possible completion of this function from the supplied local state under any caller stack; this does not assign a probability." if randomized else
         "Complete this function from the supplied local state under any caller stack.")
     trace = argument("trace", transcript, "Finite list containing the initial configuration and every subsequent configuration.")
     add("ValidTranscript", "transcript", dependency() + [value_parameters[0], trace],
@@ -153,12 +165,75 @@ def interface_entries(function, has_clocks, *, dependencies=False, facts=False):
     add("load", "input", [dict(values[0], name="input" if function.parameters else "_input")], "Heap × (%s)" % raw_input,
         "Convert the ordinary input view to a heap and reference-level arguments.")
 
+    if parallel:
+        add("ParallelCall", "execution", dependency() + [dict(item, name="finalHeap") if item["name"] == "h'" else item for item in heap_parameters] + [
+            argument("cost", "Algo2LeanParallel.Cost", "Work and span of this same structured fork-join execution, including primitive, call, and synchronization costs."),
+            argument("access", "Algo2LeanParallel.Access", "Memory accesses of this execution; every fork must establish that its children do not interfere.")], "Prop",
+            "A completed structured fork-join call with its final heap, returned value, work, span, and memory accesses. Forked children must satisfy the parallel safety conditions.")
+
+    if probability:
+        law_arguments = [dict(before, name="heap"), argument("input", raw_input, raw_input_meaning)]
+        add("HasLaw", "probability", law_arguments + [argument("distribution", "PMF (Heap × (%s))" % raw_output,
+            "Joint probability mass function of the final heap and returned value, retaining counters and shared references.")], "Prop",
+            "Reusable joint return law: every nonnegative heap/output reward has the expectation specified by this distribution. This includes almost-sure successful termination.", "probability")
+        add("expectedReturn", "probability", law_arguments + [argument("reward", "Heap → %s → ENNReal" % raw_output,
+            "Nonnegative reward of the joint final heap and returned value, for example a function of output and clock increments.")], "ENNReal",
+            "Unconditional expected reward on successful return. Failed or diverging calls contribute zero; use cost observations to include their work.", "probability")
+        add("expectedFrom", "probability", [argument("state", configuration,
+            "Local configuration of this function; its suspended caller stack is ignored."),
+            argument("reward", "Heap → %s → ENNReal" % raw_output, "Reward of the final heap and returned value.")], "ENNReal",
+            "Expected return reward from this function's current local state, independent of any caller. No reachability or input-validity premise is built in. Other functions and completed states give zero.", "probability")
+        add("outputProbability", "probability", values, "ENNReal",
+            "Unconditional probability of returning this mathematical output. Failure and divergence are not conditioned away.", "probability")
+        add("terminationProbability", "probability", law_arguments, "ENNReal",
+            "Probability of returning successfully, with no bound on duration. Failed and diverging executions do not count as successful termination.", "probability")
+        add("expectedCost", "probability", law_arguments + [argument("clock", "String", "Name of the tick counter to measure.")], "ENNReal",
+            "Expected increase of this tick counter over all finite prefixes, including failed or nonterminating executions; it may be infinite.", "probability")
+        add("cost", "probability", [dict(before, name="heap"), argument("clock", "String", "Name of the tick counter to measure.")],
+            "Algo2LeanProbability.Observable Configuration",
+            "Total clock increase on each execution, including failure and divergence. Combine this observation with other costs or apply a measurable function to study moments and nonlinear rewards.", "probability")
+        add("costProbability", "probability", law_arguments + [argument("clock", "String", "Name of the tick counter to measure."),
+            argument("threshold", "ENNReal", "Strict lower threshold for the total clock increase.")], "ENNReal",
+            "Probability that this clock's total increase exceeds the threshold, including costs on executions that fail or never return.", "probability")
+        add("returnProbability", "probability", law_arguments + [argument("post", "Heap → %s → Prop" % raw_output,
+            "Joint condition on the final heap and returned reference-level value.")], "ENNReal",
+            "Unconditional probability of returning successfully with this heap/output postcondition. Failure and divergence are not conditioned away.", "probability")
+        add("returnProbability_eq_expectedReturn", "probability", law_arguments + [
+            argument("valid", name + ".ValidInput heap input", "The source arguments satisfy this function's input conditions."),
+            argument("post", "Heap → %s → Prop" % raw_output, "Property of the successful final heap and returned value.")],
+            name + ".returnProbability heap input post = " + name +
+            ".expectedReturn heap input (fun final value => if post final value then 1 else 0)",
+            "Rewrite a return probability as the expected zero-or-one reward, allowing reuse of the same completed-call contract.", "probability")
+        add("law", "probability", law_arguments, "MeasureTheory.Measure (Algo2LeanProbability.Run Configuration)",
+            "Probability measure on the whole execution, including successful returns, errors, and divergence. Each reached draw is fresh and uniform on its current interval.", "probability")
+        add("outcome", "probability", [argument("state", configuration,
+            "Configuration to inspect for a successful return of this function.", anonymous=True)], "Option (Heap × (%s))" % raw_output,
+            "Read a successful return of this function as its final heap and reference-level value; otherwise none.", "probability")
+
     applied = " dependencies" if dependencies else ""
     call_type = name + ".Call" + applied + " before input after output"
     run_type = name + ".Run" + applied + " before input after output"
     call_context = [dict(item, implicit=True) for item in raw_args]
     add("Call.run", "helper", dependency(True) + call_context + [argument("call", call_type, "Reusable completed-call proof.")], run_type,
         "Use a reusable call proof as a completed root execution.")
+    if probability and not randomized and not dependencies:
+        add("Call.hasLaw", "probability", call_context + [
+            argument("call", call_type, "An existing terminating deterministic call proof.")],
+            name + ".HasLaw before input (PMF.pure (after, output))",
+            "Reuse a deterministic proof as the joint final-heap/output law, retaining mutation and counters.", "probability")
+        add("Call.expectedReturn", "probability", call_context + [
+            argument("call", call_type, "An existing terminating deterministic call proof."),
+            argument("reward", "Heap → %s → ENNReal" % raw_output, "Joint reward of the final heap and returned value.")],
+            name + ".expectedReturn before input reward = reward after output",
+            "Evaluate a probabilistic caller's continuation using the existing deterministic analysis.", "probability")
+    if parallel:
+        parallel_context = call_context + [
+            argument("cost", "Algo2LeanParallel.Cost", "Work and span of the completed parallel execution.", True),
+            argument("access", "Algo2LeanParallel.Access", "Access record of the same execution.", True)]
+        add("ParallelCall.call", "helper", dependency(True) + parallel_context + [
+            argument("run", name + ".ParallelCall" + applied + " before input after output cost access",
+                     "Completed parallel-call proof, including its safety obligations.")], call_type,
+            "Obtain the ordinary call for the same final heap and result by serializing the structured parallel execution.")
     if has_clocks:
         returns = name + ".Returns" + applied + " input output"
         with_cost = name + ".ReturnsWithCost" + applied + " input output costs"
@@ -194,9 +269,11 @@ def interface_entries(function, has_clocks, *, dependencies=False, facts=False):
     return entries
 
 
-def interface_metadata(function, has_clocks, *, dependencies=False, facts=False):
+def interface_metadata(function, has_clocks, *, dependencies=False, facts=False,
+                       randomized=False, probability=False, parallel=False):
     name = function_namespace(function)
     return {"lean_name": name, "output_relation": name + ".Returns",
             "transcript_relation": name + ".ValidTranscript",
             "cost_relation": name + ".ReturnsWithCost" if has_clocks else None,
-            "interface_entries": interface_entries(function, has_clocks, dependencies=dependencies, facts=facts)}
+            "interface_entries": interface_entries(function, has_clocks, dependencies=dependencies, facts=facts,
+                                                   randomized=randomized, probability=probability, parallel=parallel)}

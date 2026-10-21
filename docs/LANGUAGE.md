@@ -42,6 +42,7 @@ Names must be initialized on every path reaching their use. A variable introduce
 - Boolean `and`, `or`, and `not`.
 - Conditional expressions: `value_if_true if condition else value_if_false`.
 - Positional function calls.
+- Random integer draws: `randint(lower, upper)`.
 - Constructors, object field access, and method calls. Class-reference `==` and
   `!=` compare identity; `is` and `is not` support references and `None`.
 - Sequence indexing, `const(value)`, `copy(sequence)`, and `update(sequence, index, value)`.
@@ -51,6 +52,76 @@ Boolean operations short-circuit from left to right. Therefore `False and diverg
 `//` rounds toward negative infinity, as in Python: `-7 // 3` is `-3`, and `7 // -3` is `-3`. A remainder has the divisor's sign and satisfies `a == (a // b) * b + a % b` when `b != 0`. Division or remainder by zero has no output. A no-output relation can therefore express a stuck computation as well as divergence; it does not classify why an execution failed to return.
 
 `/` and floating-point numbers are not supported. Booleans are distinct from integers: `True + 1`, `if 1:`, and returning an integer from a `Bool` function are errors. Equality between entire sequences is not a supported condition; compare their individual elements instead.
+
+## Random integer draws
+
+`randint(a, b)` returns an `Int` drawn uniformly from the integers `a <= x < b`:
+the lower bound is inclusive and the upper bound is exclusive. It takes exactly
+two positional `Int` arguments;
+booleans, keyword arguments, and expanded arguments are rejected. `randint` is
+a reserved name and cannot name a function, parameter, variable, class, field,
+or method.
+
+```python
+def roll() -> Int:
+    return randint(1, 7)
+
+def signed_step() -> Int:
+    return randint(-1, 2)
+```
+
+Both bounds are evaluated once, from left to right, before the draw. Bounds may
+contain calls, mutations, or further draws. A draw can appear wherever an
+integer expression is allowed, including arithmetic, comparisons, sequence
+indices, loop bounds, and call arguments. Boolean short circuiting and
+conditional expressions draw only on the path actually taken. A chained
+comparison evaluates each reached operand once, including random operands.
+
+Each executed draw is fresh. Conditional on the preceding execution and the
+evaluated bounds `a < b`, every integer in the interval has probability
+`1 / (b - a)`. Earlier results can determine later bounds; later draws use
+the resulting interval. Two calls to `randint(0, 2)` may return different
+values. `randint(k, k + 1)` always returns `k`.
+
+When `a >= b`, including equal bounds, the source still type-checks, but that execution has no next draw
+step and cannot continue to a return. This is a stuck execution, as with
+division by zero; it does not swap the bounds or choose a default value.
+
+The ordinary generated `f.Returns`, `f.Run`, `f.Call`, and transcript interfaces
+describe **possible executions**. They admit exactly the in-range draw outcomes,
+but do not assign probabilities. A proof of `f.Returns input output` establishes
+one possible completed output; it does not establish its probability, expected
+running time, or almost-sure termination. Probability proofs use the optional
+Mathlib companion, which interprets fresh uniform choices and is checked
+separately from the Lean/Std algorithm definitions. Compilation does not sample
+random values or establish a probability theorem.
+
+## Structured fork–join calls
+
+`fork_join(left_call(...), right_call(...))` starts two named source-function
+calls and joins them before returning their pair of results. Evaluate the left
+call's arguments, then the right call's arguments, before starting either child.
+The children may be recursive; ordinary function calls remain sequential.
+
+```python
+left, right = fork_join(sum(a, lo, half), sum(a, lo + half, n - half))
+```
+
+The generated `f.ParallelCall` interface carries the same execution's result,
+heap effects, work, span, and memory accesses. Each fork requires shared reads
+and nonoverlapping writes, including absence of read/write conflicts. Aliased
+references refer to the same cells. Child allocations are excluded, including
+allocations reached through further calls; allocate scratch/output storage before
+forking. Access tracking is conservative for pure conditional expressions.
+
+Parallel contracts support `Int`, `Bool`, ordinary integer `Seq`, `Seq[Seq]`,
+`None`, and tuples thereof, including concrete imports and mutually recursive
+source modules. Unrelated functions may use randomness; a randomized caller can
+reuse a deterministic parallel function's ordinary `Call` and probability law.
+Random draws inside parallel callees, classes, finite collections, other typed
+sequences, real arithmetic, and abstract interface dependencies remain unsupported
+for parallel execution. See [parallel algorithms](PARALLEL_ALGORITHMS.md)
+for the exact work/span model, example contracts, and current scope.
 
 ## Explicit cost counters
 
@@ -166,7 +237,7 @@ heap-aware specifications.
 For data structures, terminology, and a practical Lean API guide, see
 [Using the generated Lean interface](LEAN_INTERFACE.md).
 
-Every source function `f` gets a public proposition `f.Returns` with exactly two arguments: its input and output. These are named `my_input` and `my_output`.
+Every source function `f` gets a public proposition `f.Returns` with exactly two arguments: its input and output. These are named `my_input` and `my_output`. For a randomized function it describes a possible completed result; probability statements belong to the optional probability companion.
 
 The following table describes signatures using primitive values and integer
 sequences. If any input is a class reference or non-integer typed sequence,
@@ -264,7 +335,7 @@ iteration. Labels do not add transitions; `pass` always has a no-op transition.
 Only source statements can be labeled, and labels are unique within a function.
 Read-only expressions are emitted directly as Lean expressions with definedness
 conditions for sequence access, division, and remainder. A variable assignment
-using such an expression is one transition. Calls, allocation, and mutation
+using such an expression is one transition. Calls, random draws, allocation, and mutation
 retain sequential evaluation. Expressions with effects can therefore span
 multiple steps; transcript positions and internal PC numbers are not source-line
 numbers or stable costs.

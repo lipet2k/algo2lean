@@ -34,6 +34,7 @@ def full_jobs(**changes):
         "name": "Lean semantics and proofs",
         "conclusion": "success",
         "steps": [
+            {"name": "Prepare pinned Mathlib for probability and real proofs", "conclusion": "success"},
             {"name": "Require Lean before running semantic checks", "conclusion": "success"},
             {"name": "Check compiler, generated definitions, and analysis proofs", "conclusion": "success"},
         ],
@@ -95,6 +96,13 @@ class LeanPlanTests(unittest.TestCase):
                 for baseline in [selected.baseline, selected.package_baseline]:
                     if baseline:
                         self.assertIn("`" + baseline + "`", report)
+
+    def test_old_full_check_without_mathlib_cannot_be_reused(self):
+        jobs = full_jobs()
+        jobs["jobs"][0]["steps"] = [step for step in jobs["jobs"][0]["steps"]
+                                      if not step["name"].startswith("Prepare pinned Mathlib")]
+        result, _ = self.plan(jobs=jobs)
+        self.assertEqual(result.mode, "full")
 
     def test_successful_full_check_allows_ui_changes(self):
         result, api = self.plan(paths=["editor/styles.css", "README.md", "tests/test_interface.js"])

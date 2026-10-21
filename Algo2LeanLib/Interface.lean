@@ -14,17 +14,17 @@ namespace Algo2LeanCore
 
 /-- The execution portion of an interface. Generated interface records add
     reference validity and typed method entries with a fixed result type. -/
-structure InterfaceCode (Heap Result : Type) where
+structure InterfaceCode (Heap : Type h) (Result : Type) where
   Frame : Type
   Step : Config Heap Frame Result → Config Heap Frame Result → Prop
   terminal : ∀ heap result, Terminal Step (.done heap result)
 
 /-- Optional determinism evidence, kept separate from the code and its laws. -/
-structure InterfaceFacts {Heap Result : Type} (code : InterfaceCode Heap Result) where
+structure InterfaceFacts {Heap : Type h} {Result : Type} (code : InterfaceCode Heap Result) where
   next : Config Heap code.Frame Result → Config Heap code.Frame Result
   step_next : ∀ {before after}, code.Step before after → next before = after
 
-theorem InterfaceFacts.deterministic {Heap Result : Type} {code : InterfaceCode Heap Result}
+theorem InterfaceFacts.deterministic {Heap : Type h} {Result : Type} {code : InterfaceCode Heap Result}
     (facts : InterfaceFacts code) : Deterministic code.Step := by
   intro before left right first second
   exact (facts.step_next first).symm.trans (facts.step_next second)
@@ -38,7 +38,7 @@ inductive Frame (SourceFrame SourceResult Result : Type) where
   | returned (result : Result)
   | invalid
 
-variable {Heap SourceFrame SourceResult Result : Type}
+variable {Heap : Type h} {SourceFrame SourceResult Result : Type}
 
 /-- Delegation carries through the concrete transition's heap effects. The
     separate return rule delivers the decoded result without changing the heap. -/

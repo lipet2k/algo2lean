@@ -1178,7 +1178,7 @@ theorem OtherStoragePreserved.footprint {before after : Heap}
   · exact Nat.le_of_eq storage.nextObject.symm
   · exact Nat.le_of_eq storage.nextCollection.symm
   · intro ref _; simp only [Heap.objectClass, storage.objects]
-  · intro ref _; simp only [Heap.sequenceType, storage.collections]
+  · intro ref _; simp only [Heap.collectionType, storage.collections]
   · intro ref _ outside; exact arrays ref outside
   · intro ref _ _; exact congrFun storage.objects ref
   · intro ref _ _; exact congrFun storage.collections ref

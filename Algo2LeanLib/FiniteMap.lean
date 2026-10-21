@@ -7,7 +7,7 @@ set_option backward.defeqAttrib.useBackward true
 /-! Association-list membership and update lemmas for finite dictionary and queue models. -/
 namespace Algo2Lean.FiniteMap
 
-variable {Key Value : Type} [DecidableEq Key]
+variable {Key : Type u} {Value : Type v} [DecidableEq Key]
 
 def erase (entries : List (Key × Value)) (key : Key) : List (Key × Value) :=
   entries.filter (fun entry => entry.1 != key)

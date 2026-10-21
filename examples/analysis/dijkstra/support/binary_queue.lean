@@ -207,7 +207,7 @@ private theorem storage_footprint {before after : Heap} {layout : Layout}
   · intro ref _
     simp only [Heap.objectClass, storage.objects]
   · intro ref _
-    simp only [Heap.sequenceType, storage.collections]
+    simp only [Heap.collectionType, storage.collections]
   · intro ref _ outside
     simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at outside
     exact arrays ref outside.1 outside.2.1 outside.2.2
@@ -416,7 +416,7 @@ theorem constructor_frame (heap : Heap) (protection : Protected) :
 /-- Construction changes no previously allocated caller location. -/
 theorem constructor_footprint (heap : Heap) : heap.Footprint (newHeap heap) [] [] [] := by
   have frame := constructor_frame heap ⟨[], [], [], {}⟩
-  refine ⟨frame.nextRef, frame.nextObject, frame.nextCollection, frame.classes, frame.types,
+  refine ⟨frame.nextRef, frame.nextObject, frame.nextCollection, frame.classes, (fun _ _ => rfl),
     ?_, ?_, ?_⟩
   · intro ref old _
     exact constructor_old_sequence heap ref old

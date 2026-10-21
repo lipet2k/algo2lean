@@ -1,0 +1,9 @@
+# Count occurrences in the finite prefix values[0], ..., values[n - 1].
+# Empty or reversed prefixes produce an empty dictionary.
+def histogram(values: Seq, n: Int) -> Dict[Int, Int]:
+    counts: Dict[Int, Int] = {}
+    for i in range(n):
+        value = values[i]
+        # @count
+        counts[value] = counts.get(value, 0) + 1
+    return counts

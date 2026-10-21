@@ -86,6 +86,19 @@ test("interface colors distinguish declarations within the same display group", 
   assert.equal(classify({ name: "Box.Call.run", category: "helper" }), "theorem");
 });
 
+test("probability values retain their interface color in generated and importing Lean", () => {
+  const members = ["outcome", "law", "returnProbability", "outputProbability", "terminationProbability", "expectedCost"];
+  const source = "namespace Algo.dice\n" + members.map((member) =>
+    `def roll.${member} : ENNReal := 0\n`).join("") + "end Algo.dice\n";
+  const catalog = createCatalog([], [source]);
+  assert.deepEqual(names(source, catalog), members.map((member) => ({ text: `roll.${member}`, kind: "definition" })));
+  const proof = "open Algo.dice\n" + members.map((member) => `#check roll.${member}\n`).join("");
+  assert.deepEqual(names(proof, catalog), members.map((member) => ({ text: `roll.${member}`, kind: "definition" })));
+  assert.deepEqual(syntaxTypes(highlight("ENNReal MeasureTheory.Measure Algo2LeanProbability.Run", catalog)),
+    ["ENNReal", "MeasureTheory.Measure", "Algo2LeanProbability.Run"]);
+  assert.equal(classify({ name: "roll.expectedCost", category: "probability" }), "definition");
+});
+
 test("token offsets preserve every original character, including Unicode and line endings", () => {
   const source = "namespace «Wrapped»\r\n\tdef Box.«match».Call (α₁ : Int) (heap' : Heap) : Prop := α₁ = 12\r\nend «Wrapped»\n";
   const tokens = tokenize(source);
@@ -460,4 +473,55 @@ structure Actual where
   assert.deepEqual(syntaxTypes(html), ['Actual']);
   assert.deepEqual(coloredNames(html), []);
   assert.equal(visibleText(html), source);
+});
+
+test("exact real and singleton tuple types have ordinary type syntax", () => {
+  const source = "Real ℝ Tuple1 Int Set";
+  assert.deepEqual(syntaxTypes(highlight(source, createCatalog())), source.split(" "));
+});
+
+test("finite storage operations are colored and described only when imported", () => {
+  const prefix = "import Algo2LeanLib.FiniteCollections\nopen Algo2LeanGenerated\n";
+  const catalog = createCatalog([], [prefix]);
+  const source = "SetType DictType SetType.valid DictType.valid SetType.contains DictType.get DictType.set";
+  assert.deepEqual(coloredNames(highlight(source, catalog, prefix)), [
+    { text: "SetType", kind: "type" }, { text: "DictType", kind: "type" },
+    { text: "SetType.valid", kind: "proposition" }, { text: "DictType.valid", kind: "proposition" },
+    { text: "SetType.contains", kind: "definition" }, { text: "DictType.get", kind: "definition" },
+    { text: "DictType.set", kind: "definition" },
+  ]);
+  const get = catalog.extraEntries.find(entry => entry.name === "Algo2LeanGenerated.DictType.get");
+  assert.equal(get.fileLabel, "Algo2LeanLib/FiniteCollections.lean");
+  assert.match(get.meaning, /optional value/);
+  const ordinary = createCatalog([], ["import Algo2Lean\n"]);
+  assert.equal(ordinary.extraEntries.some(entry => /\.(?:SetType|DictType)(?:\.|$)/.test(entry.name)), false);
+});
+
+test("nested finite descriptor namespaces retain declaration previews", () => {
+  const source = `namespace Algo2LeanGenerated
+namespace DictType
+def get (heap : Heap) (ref : CollectionRef) (key : Int) : Option Int := none
+end DictType
+end Algo2LeanGenerated
+`;
+  const catalog = createCatalog([], [source]);
+  const get = catalog.extraEntries.find(entry => entry.name === "Algo2LeanGenerated.DictType.get");
+  assert.ok(get.signature.startsWith("def get"));
+  assert.equal(get.fileLabel, "Algo2LeanLib/FiniteCollections.lean");
+});
+
+
+test("parallel call contracts retain proposition coloring in generated Lean", () => {
+  const source = "def sum.ParallelCall : Nat → Prop := fun _ => True\ntheorem sum.ParallelCall.call : True := True.intro\n";
+  const catalog = createCatalog([], [source]);
+  assert.ok(names(source, catalog).some((entry) => entry.text === "sum.ParallelCall" && entry.kind === "proposition"));
+  assert.ok(names(source, catalog).some((entry) => entry.text === "sum.ParallelCall.call" && entry.kind === "theorem"));
+});
+
+
+test("deterministic probability adapters retain theorem coloring", () => {
+  const source = "theorem f.Call.hasLaw : True := True.intro\ntheorem f.Call.expectedReturn : True := True.intro\n";
+  const catalog = createCatalog([], [source]);
+  assert.ok(names(source, catalog).some((entry) => entry.text === "f.Call.hasLaw" && entry.kind === "theorem"));
+  assert.ok(names(source, catalog).some((entry) => entry.text === "f.Call.expectedReturn" && entry.kind === "theorem"));
 });

@@ -1,0 +1,16 @@
+# CLRS, fourth edition, Section 5.3: RANDOMIZE-IN-PLACE.
+# Permute a[0:n] in place. Sequence cells outside [0, n) stay unchanged.
+# Each integer draw uses the half-open interval [i, n).
+def randomize_in_place(a: Seq, n: Int) -> None:
+    i = 0
+    # @loop
+    while i < n:
+        # @choose
+        j = randint(i, n)
+        tick("random_draws")
+        saved = a[i]
+        a[i] = a[j]
+        a[j] = saved
+        tick("swaps")
+        i += 1
+    return None

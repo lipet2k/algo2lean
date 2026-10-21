@@ -1,0 +1,36 @@
+# CLRS, fourth edition, Section 7.1: PARTITION on the interval [lo, hi).
+# Requires lo < hi. Values equal to the pivot go into the left partition.
+def partition(a: Seq, lo: Int, hi: Int) -> Int:
+    pivot = a[hi - 1]
+    boundary = lo
+    j = lo
+    # @loop
+    while j < hi - 1:
+        # @scan
+        tick("comparisons")
+        if a[j] <= pivot:
+            saved = a[boundary]
+            a[boundary] = a[j]
+            a[j] = saved
+            boundary += 1
+            tick("swaps")
+        j += 1
+    # @place_pivot
+    saved = a[boundary]
+    a[boundary] = a[hi - 1]
+    a[hi - 1] = saved
+    tick("swaps")
+    return boundary
+
+
+# CLRS, fourth edition, Section 7.3: RANDOMIZED-PARTITION.
+# Pick a uniform pivot position, move it to the end, and reuse PARTITION.
+def randomized_partition(a: Seq, lo: Int, hi: Int) -> Int:
+    position = randint(lo, hi)
+    tick("random_draws")
+    saved = a[position]
+    a[position] = a[hi - 1]
+    a[hi - 1] = saved
+    tick("swaps")
+    # @partition
+    return partition(a, lo, hi)

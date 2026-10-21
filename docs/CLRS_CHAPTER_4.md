@@ -23,19 +23,33 @@ including `strassen.ReturnsWithCost`.
 
 ## Representation and assumptions
 
-A matrix occupies indices `0` through `n*n-1` of a `Seq` in row-major order:
-entry `(i,j)` is `a[i*n+j]`. Input values at other integer indices are
-unrestricted. Results are fresh sequences and are zero outside that finite
-prefix. The programs preserve their inputs, including when both input
-references alias the same sequence in the heap interface. Integers are
-unbounded mathematical integers.
+A matrix has type `Seq[Seq[Int]]`: an outer array contains references to its
+integer row arrays, and entry `(i,j)` is `a[i][j]`. The finite matrix occupies
+`0 ≤ i < n` and `0 ≤ j < n`. Input values outside that square are unrestricted.
+Results have fresh outer arrays and separately allocated finite rows; values
+outside the result square are zero. The programs preserve their inputs,
+including matrices that alias each other and rows shared within or between
+inputs. Integers are unbounded mathematical integers.
 
-The iterative example flattens the two output-coordinate loops into a single
-cell loop and uses a dot-product helper. It supports the empty matrix.
-The classic recursive example uses offsets into its original inputs and
-accumulates eight subproducts into one fresh zero matrix. Strassen explicitly
-copies quadrants, combines intermediate matrices, recursively computes seven
-products, and joins four result blocks.
+The iterative example uses row, column, and dot-product loops. It supports the
+empty matrix. The classic recursive example uses row and column offsets into
+its original inputs and accumulates eight subproducts into a fresh zero matrix.
+Strassen copies quadrants into arrays of rows, combines intermediate matrices,
+recursively computes seven products, and joins four result blocks.
+
+Rows are mutable references. `const(row)` repeats the same reference at every
+outer index; it does not clone the row. Each finite result row is allocated
+separately; helpers may fill it before installing it in the outer array. The
+shared zero row used outside the finite matrix is never mutated.
+
+The public nested-array relations accept an initial heap and matrix references,
+and return a final heap and result reference. `MatrixHeap.Stored`, from the shared
+`Algo2LeanLib.MatrixHeap` module, connects these references to mathematical
+two-dimensional values and requires
+well-formed row references. It permits repeated references rather than assuming
+that input rows are disjoint. `Extends` records preservation of all previously
+allocated rows, outer arrays, and objects. This explicit heap interface captures
+sharing that a pure matrix value alone would omit.
 
 For both recursive examples, the theorem precondition is `n = 2^k` for natural
 `k`, so `n ≥ 1`. Arbitrary-size padding, rectangular matrices, and invalid
@@ -54,6 +68,9 @@ The linear helper also evaluates `sign * b[i]` with sign `+1` or `−1`; those
 operations belong to `linear_cells`, not to the `products` clock. Thus `7^k`
 is not a count of every source-level multiplication operator.
 They also do not assert an exact count of every generated Lean transition.
+Outer-array and row allocations are not separate clocks; the exact counts below
+refer to the named scalar/cell operations and recursive calls. The new row loops
+do not change those counts.
 
 For the iterative program, `multiply_add = n³` and every other counter has
 zero increment. For the eight-way recursive program:
@@ -71,33 +88,64 @@ For Strassen, let `H(0)=0` and `H(k+1)=4^k+7H(k)`. Its exact increments are:
 - every other named counter remains unchanged.
 
 Lean proves that the sum of these four counters lies between `7^k` and
-`13·7^k`, using the generic substitution framework. The bundled editor
-analysis proves `33·7^k`; the sharper library theorem is
+`13·7^k`. The combined `correctness_and_running_time` contract includes this
+bound in the editor analysis; the older `runtime_bounds` theorem retains its
+valid upper bound of `33·7^k`. The general substitution proof is
 `Chapter4RecurrenceApplications.runtime_via_substitution`. These are concrete
 two-sided asymptotic bounds over all natural depths.
-For `n=2^k`, it is the familiar **Θ(n^(log₂ 7))** bound. The checked theorem is
-stated using natural powers; the project does not introduce a real logarithm
-library merely to restate that change of variable.
+For `n=2^k`, it is the familiar **Θ(n^(log₂ 7))** bound. The checked Strassen
+theorem is stated using natural powers and needs no real logarithm library.
+The master theorem and its Mathlib dependency are not part of this library.
+
+## Reusable call contracts
+
+Each analysis exports a `call` theorem under `MatrixMultiplyAnalysis`,
+`MatrixRecursiveAnalysis`, or `MatrixStrassenVerified`. The contract packages a
+finite generated `Call`, the complete result matrix, preservation of previously
+allocated storage, a fresh outer array, pairwise distinct fresh finite rows, and
+exact increments of every named clock from the caller's supplied initial values.
+The `correctness_and_running_time` theorem adds a uniform positive runtime bound
+for that same call. The recursive algorithms still require a power-of-two size.
+
+The contracts live in the ordinary analysis files and can be imported through
+`Algo2LeanExamples.MatrixMultiply`, `Algo2LeanExamples.MatrixRecursive`, and
+`Algo2LeanExamples.MatrixStrassen`. A source project can reuse the same proof
+bodies with its generated module imports. `tests/test_matrix_contracts.py` checks
+two actual imported calls in sequence for each algorithm, including intermediate
+storage and accumulated costs, and builds a downloaded project using all three
+analysis libraries without Mathlib or repository search paths.
+
+The nested representation changes the matrix examples' public inputs and outputs:
+callers supply the heap and outer references, and receive a final heap and result
+reference. It replaces the former flat-sequence matrix API; the mathematical
+product and named-operation bounds are preserved.
 
 ## Main theorem names
 
-`MatrixMultiplyAnalysis` contains `output_with_cost_iff`, `terminates`,
+`MatrixMultiplyAnalysis` contains `output_with_cost`, `terminates`,
 `every_output_correct`, `every_execution_preserves`, `product_entry`, and
-`runtime_cubic`.
+`runtime_cubic`. `every_execution_fresh_rows` identifies every finite output
+row and proves that distinct row indices have distinct fresh references.
 
 `MatrixRecursiveAnalysis` contains `output_with_cost`, `output_with_cost_iff`,
 `every_output_correct`, `innerProduct_eq_sum`, `runtime_bounds`, and
-`callCount_exact`. Its `recursive_summary` and `block_summary` work under
-arbitrary caller stacks; `blockEffect_read_other` proves preservation outside
-the accumulator reference.
+`callCount_exact`. Its `every_execution_fresh_rows` proves independent, fresh
+finite output rows. Its `recursive_summary` and `block_summary` work under
+arbitrary caller stacks. `result_heap_preserves` proves preservation of all
+previously allocated rows, outer arrays, and objects.
 
-`MatrixStrassenVerified` contains `output_with_cost`, `output_with_cost_iff`,
+`MatrixStrassenVerified` contains `output_with_cost`, `every_output_costs`,
 `terminates`, `every_output_entry`, `every_output_outside`,
-`every_execution_preserves`, `every_execution_fresh`, and `runtime_bounds`.
+`every_execution_preserves`, `every_execution_fresh`,
+`every_execution_fresh_rows`, and `runtime_bounds`.
 `MatrixStrassenExecution.strassen_summary` also supplies a reusable
 arbitrary-heap/caller contract with exact contents, preserved old sequences,
 and additive counter effects. Its stronger `strassen_summary_fresh` also
-exposes that the returned reference was not allocated in the initial heap.
+exposes that the returned outer-array reference was not allocated in the initial
+heap; `strassen_summary_rows` additionally proves fresh, pairwise distinct
+finite output rows. All three APIs retain explicit well-formed input-row
+hypotheses; callers can reuse the shared `MatrixHeap.Stored`, `Extends`, and
+`FreshRows` lemmas.
 
 ## Use in the editor or CLI
 

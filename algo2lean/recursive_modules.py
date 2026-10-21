@@ -16,15 +16,11 @@ from .frontend import CompileError, parse_program
 from .project import ProjectError, SourceModule, Symbol
 from .publication import credit_generated
 from .public_names import function_namespace, identifier, interface_entries
-from .source_types import sequence_element, sequence_type
+from .source_types import map_type
 
 
 def _translate_type(typ, names):
-    element = sequence_element(typ)
-    if element is not None:
-        return sequence_type(_translate_type(element, names))
-    base = typ.rstrip('?')
-    return names.get(base, base) + ('?' if typ.endswith('?') else '')
+    return map_type(typ, lambda name: names.get(name, name))
 
 
 def _alias(name, target, *, pattern=False):
@@ -73,14 +69,20 @@ def _facade(owner, implementation, function_names, class_names):
         {name: implementation.lowered[internal] for name, internal in function_names.items()},
         {}, implementation.clocks, implementation=implementation,
         implementation_names=function_names, dependencies=implementation.dependencies,
-        group_members=implementation.group_members)
-    module.facts_module = lean_module(owner.name, 'Facts')
+        group_members=implementation.group_members, randomized=implementation.randomized,
+        real_semantics=implementation.real_semantics,
+        deterministic_functions={name for name, internal in function_names.items()
+                                 if internal in implementation.deterministic_functions})
+    if not module.randomized or module.deterministic_functions:
+        module.facts_module = lean_module(owner.name, 'Facts')
     source = implementation.namespace
     generated = source + '.Algo2LeanGenerated.'
     header = ['import ' + implementation.lean_module, '',
         '-- Independently compiled module; execution is shared by recursive imports.',
         '-- Shared transition rules: ' + implementation.lean_module,
         'namespace ' + module.namespace, '', 'open _root_.Algo2LeanGenerated', '']
+    if implementation.real_semantics:
+        header.insert(1, "noncomputable section")
     if implementation.dependencies:
         header += [_alias('Dependencies', source + '.Dependencies'), '']
     lines = header + ['namespace Algo2LeanGenerated', '']
@@ -101,17 +103,21 @@ def _facade(owner, implementation, function_names, class_names):
     if implementation.dependencies:
         facts.append(_alias('DependencyFacts', source + '.DependencyFacts'))
     facts += ['namespace Algo2LeanGenerated']
-    for name in ('next', 'step_next', 'deterministic'):
+    for name in (('next', 'SafeFrame', 'safe_preserved', 'step_next_of_safe', 'deterministicRegion')
+                 if module.randomized else ('next', 'step_next', 'deterministic')):
         facts.append(_alias(name, generated + name))
     facts += ['end Algo2LeanGenerated', '']
     for name, internal in function_names.items():
         function = functions[name]
         original = implementation.functions[internal]
+        if module.randomized and name in module.deterministic_functions:
+            facts.append(_alias(function_namespace(function) + '.initial_safe',
+                                source + '.' + function_namespace(original) + '.initial_safe'))
         prefix = source + '.' + function_namespace(original)
         public = function_namespace(function)
         lines.append(_alias('entry_' + name, source + '.entry_' + internal))
         for entry in interface_entries(function, bool(implementation.clocks) or bool(implementation.dependencies),
-                                       dependencies=bool(implementation.dependencies), facts=True):
+                                       dependencies=bool(implementation.dependencies), facts=name in module.deterministic_functions):
             suffix = entry['name'][len(public):]
             destination = points if entry['file_kind'] == 'points' else facts if entry['file_kind'] == 'facts' else lines
             if suffix in {'.Call.run', '.ReturnsWithCost.returns', '.Returns.withCost', '.Run.eq_of_call'}:
@@ -120,16 +126,44 @@ def _facade(owner, implementation, function_names, class_names):
             else:
                 destination.append(_alias(entry['name'], prefix + suffix))
     for content in (lines, points, facts):
+        if implementation.real_semantics and 'noncomputable section' not in content:
+            start = next(index for index, line in enumerate(content) if line.startswith('namespace '))
+            content.insert(start, 'noncomputable section')
         content += ['', 'end ' + module.namespace, '']
-    module.lean, module.points_lean, module.facts_lean = map(credit_generated,
-        ('\n'.join(lines), '\n'.join(points), '\n'.join(facts)))
+    module.lean, module.points_lean = map(credit_generated, ('\n'.join(lines), '\n'.join(points)))
+    if not module.randomized or module.deterministic_functions:
+        module.facts_lean = credit_generated('\n'.join(facts))
     return module
+
+
+def emit_probability_facade(module):
+    """Expose each source function's law while sharing one recursive kernel."""
+    from .public_names import PROBABILITY_MEMBERS
+    implementation = module.implementation
+    source = implementation.namespace
+    generated = source + '.Algo2LeanGenerated.'
+    lines = ['import ' + module.lean_module, 'import ' + implementation.probability_module,
+        '', '-- Optional probability semantics; checked separately with Mathlib.',
+        'namespace ' + module.namespace, '', 'namespace Algo2LeanGenerated', '']
+    for name in ('nextChoice', 'choice_step', 'nextChoice_context'):
+        lines.append(_alias(name, generated + name))
+    lines += ['', 'end Algo2LeanGenerated', '']
+    for name, internal in module.implementation_names.items():
+        public = function_namespace(module.functions[name])
+        original = source + '.' + function_namespace(implementation.functions[internal])
+        members = PROBABILITY_MEMBERS
+        if name in module.deterministic_functions:
+            members += ('Call.hasLaw', 'Call.expectedReturn')
+        for member in members:
+            lines.append('noncomputable ' + _alias(public + '.' + member, original + '.' + member))
+    return '\n'.join(lines + ['', 'end ' + module.namespace, ''])
 
 
 def compile_group(result, members, interfaces):
     """Lower one cyclic group, then publish its per-source public interfaces."""
     from .interfaces import emit_interface
-    from .modular import CompiledModule, _emit, _imports, _public_facts, _tree, lean_module, namespace
+    from .modular import (CompiledModule, _emit, _imports, _mark_randomized, _public_facts,
+                          _tree, lean_module, namespace)
     from .module_facts import emit_facts
     from .module_interfaces import prepare_interfaces, resolve_interfaces
 
@@ -200,6 +234,8 @@ def compile_group(result, members, interfaces):
 
     try:
         if synthetic.tree.body:
+            from .parallel_modules import adapt_imported_forks
+            adapt_imported_forks(synthetic.tree, external)
             all_functions, classes = parse_program(synthetic.tree, imported_functions=external, imported_classes=classes)
             functions = {name: function for name, function in all_functions.items() if name not in external}
         else:
@@ -221,6 +257,9 @@ def compile_group(result, members, interfaces):
             group_members=members)
         resolve_interfaces(synthetic, compiled, all_functions, calls, result.modules, interfaces)
         compiled.lowered = {name: Lowerer(function) for name, function in functions.items()}
+        _mark_randomized(compiled, result.modules)
+        from .modular import _mark_real_semantics
+        _mark_real_semantics(compiled, result.modules)
         # Checking and lowering use disjoint source line ranges. Once those
         # finish, restore source coordinates for editor metadata and observations.
         visited = set()
@@ -238,18 +277,26 @@ def compile_group(result, members, interfaces):
                 start, _ = location(point['line'])
                 point['line'] -= start
                 point['end_line'] -= start
-        compiled.lean, compiled.points_lean = _emit(synthetic, compiled, [])
         declarations = [info for symbol, info in interfaces.items() if symbol.module in members]
+        from .objects import contains_real, contains_tuple
+        declaration_types = [typ for info in declarations for method in info.methods.values()
+                             for typ in [method.return_type, *(typ for _, typ in method.parameters)]]
+        compiled.real_semantics |= any(contains_real(typ) for typ in declaration_types)
+        compiled.lean, compiled.points_lean = _emit(synthetic, compiled, [])
         if declarations:
             insertion = '\n'.join('namespace ' + namespace(info.module) + '\nopen _root_.Algo2LeanGenerated\n' +
                 emit_interface(info) + '\nend ' + namespace(info.module) for info in declarations)
             marker = 'namespace ' + compiled.namespace
             compiled.lean = compiled.lean.replace(marker, insertion + '\n\n' + marker, 1)
+            if any(contains_tuple(typ) for typ in declaration_types) and 'import Algo2LeanLib.Tuple\n' not in compiled.lean:
+                compiled.lean = compiled.lean.replace('import Algo2LeanLib.Modules\n',
+                    'import Algo2LeanLib.Modules\nimport Algo2LeanLib.Tuple\n', 1)
             if 'import Algo2LeanLib.Interface\n' not in compiled.lean:
                 compiled.lean = compiled.lean.replace('import Algo2LeanLib.Modules\n',
                     'import Algo2LeanLib.Modules\nimport Algo2LeanLib.Interface\n', 1)
-        compiled.facts_module = lean_module(group_name, 'Facts')
-        compiled.facts_lean = credit_generated(emit_facts(compiled) + _public_facts(compiled))
+        if not compiled.randomized or compiled.deterministic_functions:
+            compiled.facts_module = lean_module(group_name, 'Facts')
+            compiled.facts_lean = credit_generated(emit_facts(compiled) + _public_facts(compiled))
         result.implementation_modules[group_name] = compiled
         for owner in owners:
             result.modules[owner.name] = _facade(owner, compiled, function_names[owner.name], class_names[owner.name])

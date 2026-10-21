@@ -185,7 +185,7 @@ def f(node: Node, rows: Seq[Seq[Node | None]]) -> Seq[Node | None]:
                                 (typ, typ, op), "Sequence equality")
 
     def test_collection_annotations_do_not_enable_other_generics(self):
-        for typ in ("Set[Node]", "Dict[Int, Node]", "Seq[Missing]", "Seq[Node, Int]", "Seq[Int | None]"):
+        for typ in ("List[Node]", "Map[Int, Node]", "Seq[Missing]", "Seq[Node, Int]", "Seq[Int | None]"):
             with self.subTest(typ=typ):
                 self.reject(NODE + "def f(a: %s) -> None:\n    pass\n" % typ,
                             "type annotation|nullable class")

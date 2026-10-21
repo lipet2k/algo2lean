@@ -100,8 +100,13 @@ def generation(body, compiled, *, project=False):
     else:
         files = {compiled["module"] + ".lean": compiled["lean"],
                  compiled["points_module"] + ".lean": compiled["points_lean"]}
+        if compiled.get("probability_lean"):
+            files[compiled["probability_module"] + ".lean"] = compiled["probability_lean"]
+    from .probability_support import optional_sources
+    optional = optional_sources(files.values())
     libraries = {path.as_posix(): source.decode("utf-8") for path, source in
-                 _library_sources(shared_imports(*files.values())).values()}
+                 _library_sources(shared_imports(*files.values(), *optional.values())).values()}
+    libraries.update(optional)
     sources = _source_files(body, compiled, project)
     metadata = compiler_metadata(ROOT)
     identity_path = ROOT / "release-manifest.json"
@@ -133,7 +138,9 @@ def generation(body, compiled, *, project=False):
 
 
 def _generation_archive(data, body, compiled, project):
+    from .probability_support import needs_mathlib, OPTIONAL_LIBRARIES, mathlib_requirement, SETUP_INSTRUCTIONS
     files = {**data["libraries"], **data["files"]}
+    mathlib = needs_mathlib(files.values())
     files["LICENSE"] = (ROOT / "LICENSE").read_text(encoding="utf-8")
     files.update({"source/" + name: text for name, text in _source_files(body, compiled, project).items()})
     files["generation.json"] = json.dumps(data["manifest"], ensure_ascii=False, sort_keys=True, indent=2) + "\n"
@@ -143,11 +150,15 @@ def _generation_archive(data, body, compiled, project):
         libraries = ["Algo"]
     else:
         targets = [compiled["module"], compiled["points_module"]]
-        libraries = targets
+        if compiled.get("probability_lean"):
+            targets.append(compiled["probability_module"])
+        libraries = list(targets)
+    libraries.extend(sorted(name for name in OPTIONAL_LIBRARIES if name + ".lean" in data["libraries"]))
     files["lakefile.toml"] = ('name = "algo2lean_generation"\nversion = "0.1.0"\n'
         'defaultTargets = ' + json.dumps(targets) + "\n" +
         "".join('\n[[lean_lib]]\nname = ' + json.dumps(name) + "\n"
-                for name in ["Algo2Lean", "Algo2LeanLib", *libraries]))
+                for name in ["Algo2Lean", "Algo2LeanLib", *libraries]) +
+        (mathlib_requirement() if mathlib else ""))
     files["README.md"] = (
         "# Algo2Lean generated files\n\n"
         "Run `lake build` with the pinned Lean toolchain to check the generated definitions.\n"
@@ -158,6 +169,8 @@ def _generation_archive(data, body, compiled, project):
         "\nThe included Algo2Lean shared libraries are covered by `LICENSE`. "
         "This notice does not assign a license to your algorithm or proof.\n"
     )
+    if mathlib:
+        files["README.md"] += "\n" + SETUP_INSTRUCTIONS
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for name, contents in sorted(files.items()):

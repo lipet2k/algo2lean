@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from .frontend import ClassInfo, Function
 from .interfaces import check_binding, interface_namespace
 from .project import ProjectError, Symbol
-from .source_types import sequence_element, sequence_type
+from .source_types import map_type, sequence_element, type_children
 
 
 @dataclass
@@ -38,12 +38,7 @@ def prepare_interfaces(project, owner, infos, names, classes, origins, functions
     canonical = {origin.canonical_name: local for local, origin in origins.items()}
 
     def translate(typ):
-        element = sequence_element(typ)
-        if element is not None:
-            return sequence_type(translate(element))
-        nullable = typ.endswith('?')
-        base = typ.rstrip('?')
-        return canonical.get(base, base) + ('?' if nullable else '')
+        return map_type(typ, lambda name: canonical.get(name, name))
 
     for symbol, info in infos.items():
         if symbol.module not in available:
@@ -78,10 +73,14 @@ def resolve_interfaces(owner, module, all_functions, all_calls, compiled, infos)
         raise ProjectError(message, owner.path, getattr(node, 'lineno', 1), getattr(node, 'col_offset', 0) + 1)
 
     def interface_type(typ, node=None):
-        element = sequence_element(typ)
-        if element is not None:
-            if interface_type(element, node):
-                fail(node or owner.tree, 'Sequences of abstract interface references are not supported yet; use concrete element classes.')
+        children = type_children(typ)
+        if children:
+            for child in children:
+                if interface_type(child, node):
+                    message = ('Sequences of abstract interface references are not supported yet; use concrete element classes.'
+                               if sequence_element(typ) is not None else
+                               'Composite values containing abstract interface references are not supported yet; use concrete classes.')
+                    fail(node or owner.tree, message)
             return None
         origin = module.class_origins.get(typ.rstrip('?'))
         return origin if origin and origin.kind == 'interface' else None

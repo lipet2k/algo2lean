@@ -8,6 +8,10 @@ and proof checking.
 
 Created by Lunjia Hu, with contributions from Chutong Yang.
 
+Version **0.2.0** adds richer values, randomized algorithms, and structured
+parallel algorithms. See the [release and upgrade notes](docs/RELEASE_0_2_0.md)
+and [composition guide](docs/FOUNDATION_COMPOSITION.md).
+
 ## Get started
 
 [Open the browser compiler](https://lunjiah.github.io/algo2lean/) to compile
@@ -28,8 +32,11 @@ server. To choose another port, add `--port 8766`.
 
 Compilation requires only Python. Proof checking requires
 [Lean 4 via elan](https://lean-lang.org/install/). The repository pins Lean
-**4.33.1** in `lean-toolchain`, matching Prove2Me's default environment; run commands here to use that version. The generated
-code and included analyses use Lean/Std and do not require Mathlib.
+**4.33.1** in `lean-toolchain`, matching Prove2Me's default environment; run commands here to use that version. Integer-only algorithm definitions use Lean/Std and do not require Mathlib.
+Exact `Real` arithmetic uses the optional Mathlib-backed real library. Randomized
+algorithms also have an optional probability companion for Mathlib proofs;
+ordinary compilation and reasoning about possible outputs remain independent
+of Mathlib.
 
 The [browser hosting guide](docs/HOSTING.md) explains how to build a static
 compiler and version archive. Hosted compilation runs entirely in the browser;
@@ -61,6 +68,13 @@ and `FactorialGeneratedPoints.lean` with named locations and variable observatio
 compiles temporary modules and checks the handwritten proof, without modifying
 either input. Omit `--check` when only compilation is needed.
 
+For randomized source, `-o` also writes a separate `Probability.lean` companion,
+such as `DiceGeneratedProbability.lean`. `--check` checks the algorithm
+definitions and named locations; the probability companion requires a separate
+check using the optional `probability/` Mathlib project. After its
+[one-time setup](probability/README.md), an analysis importing that companion is
+checked by the same `analyze` command or **Check analysis** button.
+
 Each algorithm imports the shared `Algo2Lean.lean` library. To use an exported
 algorithm in this checkout, build the library first:
 
@@ -86,6 +100,11 @@ interface separately.
 - **Mathematical data:** arbitrary integers and shared mutable sequences indexed
   by every integer, including negative indices. An integer sequence has infinite
   contents of type `Int → Int`; these are never materialized as an array.
+- **Richer values:** heterogeneous tuples, typed and nested sequences, finite
+  mutable sets and dictionaries, and exact mathematical real arithmetic.
+- **Parallel algorithms:** deterministic `fork_join` calls with reusable
+  correctness, memory-access, work, and span contracts; see the
+  [parallel guide](docs/PARALLEL_ALGORITHMS.md) for the supported subset.
 - **Control flow:** conditionals, recursion, mutual recursion across files, `while`, and integer
   `range` loops. Programs may diverge; a diverging execution has no completed
   output, but finite prefixes remain available for analysis.
@@ -95,6 +114,10 @@ interface separately.
 - **Runtime analysis:** `tick("work", amount)` charges an explicit nonnegative
   amount to a named clock. Multiple clocks compose through calls. They represent
   an author-chosen cost model, not wall-clock time.
+- **Randomized algorithms:** `randint(a, b)` draws a fresh uniform integer from
+  `a` inclusive to `b` exclusive. Bounds are evaluated once, left to right;
+  an empty interval stops that execution. Probability statements use
+  the optional probability companion.
 - **Reusable proofs:** Python-style imports preserve module identities and permit
   reuse of correctness, mutation, termination, and cost contracts. Method-only
   interfaces let a generic algorithm work with different implementations.
@@ -113,6 +136,15 @@ The main generated interfaces are:
 Output interfaces load ordinary integer-sequence inputs automatically. Object
 and typed non-integer sequence inputs carry their heap so sharing is expressible.
 The [interface guide](docs/LEAN_INTERFACE.md) explains the precise argument types.
+For randomized algorithms, `Returns`, `Run`, and `Call` describe possible
+completed outcomes. They do not state their probabilities or imply almost-sure
+termination. See [random integer draws](docs/LANGUAGE.md#random-integer-draws)
+for the distinction between possible execution and probability.
+
+An existing deterministic `f.Call` proof can be reused in a randomized caller
+through the optional `f.Call.hasLaw` and `f.Call.expectedReturn` adapters.
+See [composition of algorithm analyses](docs/FOUNDATION_COMPOSITION.md) for the
+supported combinations and their current limits.
 
 Place `# @name` immediately above a statement to name the state **before** it
 executes. Named locations do not assert reachability. Local transition facts can
@@ -131,6 +163,8 @@ colors. Types declared in analysis code also use brown. The collapsed
 **Advanced · local execution** group exposes `Step` and configuration tools for
 local proofs; ordinary contracts use the source function's `Call` or `Returns`.
 The algorithm definitions and named-line interface have separate export controls.
+Randomized algorithms add a **Probability interface** view with its own filename
+and export. Its checking status stays separate from the ordinary definitions.
 Each code box displays its filename, including the `.algo` or `.lean` extension.
 **Save analysis** downloads a ZIP containing the current proof, algorithm source,
 generated Lean, imported proofs, and shared libraries, with a pinned Lean toolchain

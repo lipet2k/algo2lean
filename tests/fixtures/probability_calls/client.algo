@@ -1,0 +1,7 @@
+from sampler import bit
+
+# Each call uses the same proved sampler contract with its actual initial heap.
+def pair() -> Tuple[Int, Int]:
+    first = bit()
+    second = bit()
+    return first, second

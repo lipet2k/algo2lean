@@ -1,0 +1,8 @@
+from helper import write
+
+def pair(a: Seq) -> Tuple[Int, Int]:
+    return fork_join(write(a, -1, 7), write(a, 3, 9))
+
+def serial(a: Seq) -> Int:
+    first = write(a, -1, 7)
+    return write(a, 3, 9)

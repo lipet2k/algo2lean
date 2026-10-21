@@ -19,8 +19,11 @@ python3 scripts/build_chapter4_analysis.py --check
 ```
 
 Lean tests explain their skips when Lean is unavailable. A release must run
-with Lean available and check the included analyses. The CI workflow runs both
-the compiler/editor tests and the full suite with the pinned Lean toolchain.
+with Lean and the [optional Mathlib package](probability/README.md) available,
+so probability and real-valued proofs are checked too. Install those dependencies
+once before the full run. Ordinary compilation and Std-only proofs do not need
+them. CI checks the compiler/editor, the actual pinned browser runtime and proof
+downloads, and the full proof suite with Lean and Mathlib.
 
 Make changes with focused regression tests. Language changes need an explicit
 account of evaluation order, mutation, undefined operations, and termination.

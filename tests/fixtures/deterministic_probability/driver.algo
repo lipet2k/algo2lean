@@ -1,0 +1,4 @@
+from client import sample
+
+def run(a: Seq) -> Int:
+    return sample(a)

@@ -1,0 +1,32 @@
+from shuffle import randomize_in_place
+
+
+# CLRS, fourth edition, Sections 5.1-5.3: HIRE-ASSISTANT.
+# Larger integer scores mean better candidates. Count each strict new record.
+# The first candidate is hired without requiring a sentinel score of minus infinity.
+def hire_assistant(scores: Seq, n: Int) -> Int:
+    if n <= 0:
+        return 0
+    best = scores[0]
+    hires = 1
+    tick("interviews")
+    tick("hires")
+    i = 1
+    # @loop
+    while i < n:
+        # @interview
+        tick("interviews")
+        if scores[i] > best:
+            best = scores[i]
+            hires += 1
+            tick("hires")
+        i += 1
+    return hires
+
+
+# Shuffle the candidates using an independently reusable imported algorithm.
+# For distinct scores, the expected number of hires is the harmonic number H_n.
+def randomized_hire_assistant(scores: Seq, n: Int) -> Int:
+    randomize_in_place(scores, n)
+    # @hire
+    return hire_assistant(scores, n)

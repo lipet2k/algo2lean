@@ -134,9 +134,9 @@ class ProjectCheckerTests(unittest.TestCase):
         self.check(analysis="import -- companion\n Algo.lib.Analysis\n",
                    proof_sources={"Algo.lib.Analysis": proof})
         self.assertEqual(self.builds[-2:], ["Algo.lib.Analysis", "Algo.client.Analysis"])
-        checked = check_project(self.compilation, analysis="import\n Mathlib\n")
+        checked = check_project(self.compilation, analysis="import\n UnknownLibrary\n")
         self.assertFalse(checked.ok)
-        self.assertIn("Unsupported Lean import 'Mathlib'", checked.output)
+        self.assertIn("Unsupported Lean import 'UnknownLibrary'", checked.output)
 
     def test_shared_source_snapshot_invalidates_only_dependent_modules(self):
         library = self.repository / "Algo2LeanLib"
@@ -158,7 +158,7 @@ class ProjectCheckerTests(unittest.TestCase):
         for analysis, proofs, expected in [
             ("import Algo.missing.Analysis\n", {}, "Could not find proof module"),
             ("import Algo.missing.Generated\n", {}, "No generated Lean module"),
-            ("import Mathlib\n", {}, "Unsupported Lean import"),
+            ("import UnknownLibrary\n", {}, "Unsupported Lean import"),
             ("import Algo.lib.Analysis\n", {"Algo.lib.Analysis": "import Algo.client.Analysis\n"}, "import cycle"),
         ]:
             with self.subTest(expected=expected):

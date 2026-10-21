@@ -271,6 +271,12 @@ def check_lean(lean_source: str, timeout: float = 30, *, module: str = "Generate
     concatenated. Omitting Points checks only the algorithm definitions.
     """
     validate_module_name(module)
+    from .probability_checker import check_mathlib_sources, needs_mathlib
+    if needs_mathlib(lean_source, points_lean or ""):
+        sources = {module: lean_source}
+        if points_lean is not None:
+            sources[module + "Points"] = points_lean
+        return check_mathlib_sources(sources, timeout=timeout)
     executable = shutil.which("lean")
     if executable is None:
         return CheckResult(False, False, "Lean was not found. Install Lean 4 using elan, then restart the editor server.")

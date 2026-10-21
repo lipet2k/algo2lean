@@ -399,6 +399,26 @@ def Clocks.single (name : String) (amount : Nat) : Clocks :=
 def Clocks.add (first second : Clocks) : Clocks :=
   fun clock => first clock + second clock
 
+/-- A scalar payload carries its actual Lean type, independently of source type tags.
+    Stored values remain ordinary `Type` values; the existential box lives in `Type 1`. -/
+structure ScalarValue where
+  type : Type
+  value : type
+
+/-- Decode only after checking actual type equality. Transport uses the equality proof,
+    with no unsafe cast or assumption that a textual type name identifies a type. -/
+noncomputable def ScalarValue.get (α : Type) (stored : ScalarValue) : Option α := by
+  classical
+  exact if same : stored.type = α then some (same ▸ stored.value) else none
+
+@[simp] theorem ScalarValue.get_mk (α : Type) (value : α) :
+    ScalarValue.get α ⟨α, value⟩ = some value := by
+  simp [ScalarValue.get]
+
+@[simp] theorem ScalarValue.get_of_type_ne (α : Type) (stored : ScalarValue)
+    (different : stored.type ≠ α) : stored.get α = none := by
+  simp [ScalarValue.get, different]
+
 /-- Stored field values. A missing field is distinct from an initialized `None`. -/
 inductive ObjectValue where
   | intValue (value : Int)
@@ -407,7 +427,8 @@ inductive ObjectValue where
   | collectionValue (value : CollectionRef)
   | objectValue (value : ObjectRef)
   | noneValue
-  deriving DecidableEq
+  | tupleValue (values : List ObjectValue)
+  | scalarValue (value : ScalarValue)
 
 def ObjectValue.asInt : ObjectValue → Option Int
   | .intValue value => some value
@@ -444,8 +465,21 @@ structure Object where
 
 /-- Collection payloads keep identities separate from their contents. The element
     type is a source type tag, checked before reading a typed sequence. -/
+inductive CollectionHeader where
+  | sequence (elementType : String)
+  | set (elementType : String)
+  | dictionary (keyType valueType : String)
+  deriving DecidableEq
+
 inductive Collection where
   | sequence (elementType : String) (values : Int → ObjectValue)
+  | set (elementType : String) (values : List ObjectValue)
+  | dictionary (keyType valueType : String) (entries : List (ObjectValue × ObjectValue))
+
+def Collection.header : Collection → CollectionHeader
+  | .sequence elementType _ => .sequence elementType
+  | .set elementType _ => .set elementType
+  | .dictionary keyType valueType _ => .dictionary keyType valueType
 
 structure Heap where
   nextRef : Nat := 0
@@ -615,10 +649,17 @@ def Heap.allocateObject (h : Heap) (className : String) : Heap :=
     (h.allocate values).readField ref field = h.readField ref field := rfl
 
 def Heap.sequenceType (h : Heap) (ref : CollectionRef) : Option String :=
-  (h.collections ref).map fun | .sequence elementType _ => elementType
+  (h.collections ref).bind fun
+    | .sequence elementType _ => some elementType
+    | _ => none
+
+def Heap.collectionType (h : Heap) (ref : CollectionRef) : Option CollectionHeader :=
+  (h.collections ref).map Collection.header
 
 def Heap.readElement (h : Heap) (ref : CollectionRef) (index : Int) : Option ObjectValue :=
-  (h.collections ref).map fun | .sequence _ values => values index
+  (h.collections ref).bind fun
+    | .sequence _ values => some (values index)
+    | _ => none
 
 /-- A write preserves the collection's type and every other index. -/
 def Heap.writeElement (h : Heap) (ref : CollectionRef) (index : Int)
@@ -626,7 +667,8 @@ def Heap.writeElement (h : Heap) (ref : CollectionRef) (index : Int)
   { h with collections := fun r => if r = ref then
       (h.collections r).map (fun
         | .sequence elementType values =>
-          .sequence elementType (fun i => if i = index then value else values i))
+          .sequence elementType (fun i => if i = index then value else values i)
+        | other => other)
     else h.collections r }
 
 def Heap.allocateSequence (h : Heap) (elementType : String)
@@ -649,6 +691,70 @@ instance (h : Heap) (ref : CollectionRef) (elementType : String) :
 def Heap.createSequence (h : Heap) (elementType : String)
     (values : Int → ObjectValue) : Heap × CollectionRef :=
   (h.allocateSequence elementType values, h.nextCollection)
+
+/-- Allocate one collection cell in the same identity arena as typed sequences. -/
+def Heap.allocateCollection (h : Heap) (value : Collection) : Heap :=
+  { h with nextCollection := h.nextCollection + 1
+           collections := fun ref => if ref = h.nextCollection then some value else h.collections ref }
+
+/-- Replace contents only when the collection kind and type header agree. -/
+def Heap.replaceCollection (h : Heap) (ref : CollectionRef) (value : Collection) : Heap :=
+  { h with collections := fun other =>
+      if other = ref ∧ h.collectionType ref = some value.header then some value
+      else h.collections other }
+
+/-- Collection kind and type headers determine the sequence-only view. -/
+theorem Heap.sequenceType_eq_collectionType (h : Heap) (ref : CollectionRef) :
+    h.sequenceType ref = (h.collectionType ref).bind (fun
+      | .sequence name => some name
+      | _ => none) := by
+  cases found : h.collections ref with
+  | none => simp [sequenceType, collectionType, found]
+  | some value => cases value <;> simp [sequenceType, collectionType, Collection.header, found]
+
+@[simp] theorem Heap.collectionType_writeElement (h : Heap) (ref target : CollectionRef)
+    (index : Int) (value : ObjectValue) :
+    (h.writeElement target index value).collectionType ref = h.collectionType ref := by
+  by_cases equal : ref = target
+  · subst ref
+    cases found : h.collections target with
+    | none => simp [collectionType, writeElement, found]
+    | some collection => cases collection <;> simp [collectionType, writeElement, Collection.header, found]
+  · simp [collectionType, writeElement, equal]
+
+@[simp] theorem Heap.collections_allocateCollection_new (h : Heap) (value : Collection) :
+    (h.allocateCollection value).collections h.nextCollection = some value := by
+  simp [allocateCollection]
+
+@[simp] theorem Heap.collections_allocateCollection_old (h : Heap) (value : Collection)
+    (ref : CollectionRef) (allocated : ref < h.nextCollection) :
+    (h.allocateCollection value).collections ref = h.collections ref := by
+  simp [allocateCollection, Nat.ne_of_lt allocated]
+
+@[simp] theorem Heap.collections_replaceCollection_same (h : Heap) (ref : CollectionRef)
+    (value : Collection) (header : h.collectionType ref = some value.header) :
+    (h.replaceCollection ref value).collections ref = some value := by
+  simp [replaceCollection, header]
+
+@[simp] theorem Heap.collections_replaceCollection_other (h : Heap) (ref other : CollectionRef)
+    (value : Collection) (different : other ≠ ref) :
+    (h.replaceCollection ref value).collections other = h.collections other := by
+  simp [replaceCollection, different]
+
+@[simp] theorem Heap.collectionType_replaceCollection (h : Heap) (ref other : CollectionRef)
+    (value : Collection) :
+    (h.replaceCollection ref value).collectionType other = h.collectionType other := by
+  by_cases equal : other = ref
+  · subst other
+    by_cases header : h.collectionType ref = some value.header
+    · simp only [collectionType, collections_replaceCollection_same h ref value header,
+        Option.map_some]
+      exact header.symm
+    · change (if ref = ref ∧ h.collectionType ref = some value.header then some value
+        else h.collections ref).map Collection.header = _
+      simp only [header, and_false, if_false]
+      rfl
+  · simp [collectionType, replaceCollection, equal]
 
 @[simp] theorem Heap.write_clocks (h : Heap) (ref : SeqRef) (index value : Int) :
     (h.write ref index value).clocks = h.clocks := rfl
@@ -776,7 +882,7 @@ def Heap.createSequence (h : Heap) (elementType : String)
     (h.writeElement ref index value).readElement ref index = some value := by
   cases found : h.collections ref with
   | none => simp [sequenceType, found] at present
-  | some collection => cases collection <;> simp [readElement, writeElement, found]
+  | some collection => cases collection <;> simp_all [sequenceType, readElement, writeElement]
 
 @[simp] theorem Heap.readElement_writeElement_other_ref (h : Heap) (ref target : CollectionRef)
     (index position : Int) (value : ObjectValue) (different : ref ≠ target) :
@@ -987,7 +1093,7 @@ def copy (h : Heap) (ref : CollectionRef) : Heap × CollectionRef :=
   cases found : h.collections ref with
   | none => simp [Heap.sequenceType, found] at stored
   | some collection =>
-    cases collection
+    cases collection <;> simp_all [Heap.sequenceType]
     simp only [get, valid_copy, present, if_true]
     simp [copy, Heap.createSequence, Heap.readElement, Heap.allocateSequence, found]
 

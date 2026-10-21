@@ -1,0 +1,17 @@
+from partition import randomized_partition
+
+
+# CLRS, fourth edition, Section 7.3: RANDOMIZED-QUICKSORT.
+# Sort a[lo:hi] in place; cells outside that interval remain unchanged.
+# Correctness allows equal keys. The usual expected comparison bound assumes
+# distinct keys for this textbook two-way partition.
+def randomized_quicksort(a: Seq, lo: Int, hi: Int) -> None:
+    tick("quicksort_calls")
+    if hi - lo > 1:
+        # @partition
+        pivot = randomized_partition(a, lo, hi)
+        # @left
+        randomized_quicksort(a, lo, pivot)
+        # @right
+        randomized_quicksort(a, pivot + 1, hi)
+    return None

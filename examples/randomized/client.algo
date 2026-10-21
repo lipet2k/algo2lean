@@ -1,0 +1,8 @@
+from sampling import die
+
+
+# The imported function makes a fresh draw on each call.
+def two_dice() -> Int:
+    first = die()
+    second = die()
+    return first + second

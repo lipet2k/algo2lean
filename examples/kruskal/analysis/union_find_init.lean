@@ -384,7 +384,7 @@ theorem constructor_footprint (heap : Heap) (size : Nat) :
   · intro ref old
     simp only [Heap.objectClass, objects ref old]
   · intro ref old
-    simp only [Heap.sequenceType, collections]
+    simp only [Heap.collectionType, collections]
   · intro ref old _
     exact sequences ref old
   · intro ref old _

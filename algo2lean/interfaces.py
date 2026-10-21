@@ -7,9 +7,10 @@ behavior and cost laws remain in independent Lean analysis files.
 import ast
 from dataclasses import dataclass
 
-from .frontend import BUILTINS, NAME_PATTERN, TYPES
+from .frontend import BUILTINS, NAME_PATTERN, TYPES, TYPE_NAMES, CompileError, require_key_type
 from .project import ProjectError, Symbol
-from .source_types import sequence_element, sequence_type
+from .source_types import (make_tuple_type, map_type, parse_type, sequence_element,
+                           sequence_type, tuple_elements)
 
 
 @dataclass(frozen=True)
@@ -68,12 +69,28 @@ def _type(project, owner, node, declaration):
         return node.id
     if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id == "Seq":
         return sequence_type(_type(project, owner, node.slice, declaration))
+    if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id == "Tuple":
+        elements = node.slice.elts if isinstance(node.slice, ast.Tuple) else [node.slice]
+        return make_tuple_type(_type(project, owner, element, declaration) for element in elements)
+    if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id in {"Set", "Dict"}:
+        elements = node.slice.elts if isinstance(node.slice, ast.Tuple) else [node.slice]
+        arity = 1 if node.value.id == "Set" else 2
+        if len(elements) != arity:
+            _fail(owner, node, "%s expects %d type argument(s)." % (node.value.id, arity))
+        types = [_type(project, owner, element, declaration) for element in elements]
+        interfaces = {symbol.canonical_name for module in project.modules.values()
+                      for symbol in module.bindings.values() if symbol.kind == "interface"}
+        try:
+            require_key_type(elements[0], types[0], lambda name: name in interfaces)
+        except CompileError as error:
+            raise ProjectError(error.message, owner.path, error.line, error.column) from None
+        return "%s[%s]" % (node.value.id, ", ".join(types))
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
         left = _type(project, owner, node.left, declaration)
         right = _type(project, owner, node.right, declaration)
         if left == "None":
             left, right = right, left
-        if right == "None" and left not in TYPES and sequence_element(left) is None and not left.endswith("?"):
+        if right == "None" and left not in TYPES and not parse_type(left).arguments and left != "Tuple[()]" and not left.endswith("?"):
             return left + "?"
         _fail(owner, node, "Only class or interface references may be nullable.")
     symbol = project.resolve(owner, node)
@@ -96,6 +113,8 @@ def collect_interfaces(project):
             symbol = owner.bindings.get(declaration.name)
             if symbol is None or symbol.kind != "interface":
                 continue
+            if declaration.name in TYPE_NAMES:
+                _fail(owner, declaration, "Interface name '%s' is reserved." % declaration.name)
             if declaration.name == "Algo2LeanGenerated":
                 _fail(owner, declaration, "Interface name 'Algo2LeanGenerated' is reserved for the generated execution namespace.")
             if declaration.decorator_list or getattr(declaration, "type_params", None):
@@ -112,7 +131,7 @@ def collect_interfaces(project):
                     _fail(owner, member, "Duplicate interface method '%s'." % member.name)
                 if not NAME_PATTERN.fullmatch(member.name):
                     _fail(owner, member, "Interface method names must use ASCII letters, digits, and underscores.")
-                if member.name in TYPES or member.name in BUILTINS:
+                if member.name in TYPE_NAMES or member.name in BUILTINS - {"set", "len"}:
                     _fail(owner, member, "Interface method name '%s' is reserved." % member.name)
                 if member.decorator_list or getattr(member, "type_params", None):
                     _fail(owner, member, "Interface methods do not support decorators or generic parameters.")
@@ -130,7 +149,7 @@ def collect_interfaces(project):
                         _fail(owner, argument, "Interface parameter names must use ASCII letters, digits, and underscores.")
                     if argument.arg in seen:
                         _fail(owner, argument, "Duplicate interface parameter '%s'." % argument.arg)
-                    if argument.arg in TYPES or argument.arg in BUILTINS:
+                    if argument.arg in TYPE_NAMES or argument.arg in BUILTINS:
                         _fail(owner, argument, "Interface parameter name '%s' is reserved." % argument.arg)
                     seen.add(argument.arg)
                     parameters.append((argument.arg, _type(project, owner, argument.annotation, argument)))
@@ -149,23 +168,12 @@ def collect_interfaces(project):
 
 def canonical_type(typ, class_origins):
     """Resolve a compiled module's local class spellings to canonical types."""
-    element = sequence_element(typ)
-    if element is not None:
-        return sequence_type(canonical_type(element, class_origins))
-    nullable = typ.endswith("?")
-    base = typ[:-1] if nullable else typ
-    if base in class_origins:
-        base = class_origins[base].canonical_name
-    return base + ("?" if nullable else "")
+    return map_type(typ, lambda name: class_origins[name].canonical_name
+                    if name in class_origins else name)
 
 
 def _replace_self(typ, interface, concrete):
-    element = sequence_element(typ)
-    if element is not None:
-        return sequence_type(_replace_self(element, interface, concrete))
-    nullable = typ.endswith("?")
-    base = typ[:-1] if nullable else typ
-    return (concrete if base == interface else base) + ("?" if nullable else "")
+    return map_type(typ, lambda name: concrete if name == interface else name)
 
 
 def check_binding(interface, backend, class_name, *, owner=None, node=None):
@@ -217,13 +225,20 @@ def _lean_type(typ):
     Canonical class names are retained by the static signature checker; the
     concrete generated Ref_Class aliases are definitionally ObjectRef too.
     """
-    if typ == "Int" or typ == "Bool":
+    components = tuple_elements(typ)
+    if components is not None:
+        if not components:
+            return "Unit"
+        if len(components) == 1:
+            return "(Tuple1 %s)" % _lean_type(components[0])
+        return "(%s)" % " × ".join(_lean_type(component) for component in components)
+    if typ in {"Int", "Real", "Bool"}:
         return typ
     if typ == "None":
         return "Unit"
     if typ == "Seq":
         return "SeqRef"
-    if sequence_element(typ) is not None:
+    if sequence_element(typ) is not None or parse_type(typ).name in {"Set", "Dict"}:
         return "CollectionRef"
     return "(Option ObjectRef)" if typ.endswith("?") else "ObjectRef"
 

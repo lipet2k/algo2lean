@@ -1,7 +1,8 @@
 """Emit a direct transition relation and transcript-derived output views."""
 
-from .objects import raw_type, default_value, emit_classes, emit_collections, collection_types, sequence_descriptor
-from .source_types import is_collection, sequence_element
+from .objects import (raw_type, default_value, emit_classes, emit_collections,
+                      collection_types, collection_descriptor, sequence_descriptor, tuple_projection, uses_reals)
+from .source_types import contains_reference, is_collection, is_sequence, sequence_element, tuple_elements
 
 
 def constructor(name):
@@ -13,7 +14,9 @@ def lean_type(typ, values=False):
 
 
 def object_type(typ):
-    return typ not in {"Int", "Bool", "Seq", "None"}
+    # A bare integer sequence retains its existing ordinary-value public view.
+    # References nested in value types must keep their identity and explicit heap.
+    return typ != "Seq" and contains_reference(typ)
 
 
 def input_needs_heap(function):
@@ -31,10 +34,15 @@ def public_types(function):
 
 
 def valid_value(typ, value, heap="h"):
+    elements = tuple_elements(typ)
+    if elements is not None:
+        from .compiler import all_guards
+        return all_guards(*(valid_value(element, tuple_projection(value, i, len(elements)), heap)
+                            for i, element in enumerate(elements)))
     if typ == "Seq":
         return "%s < %s.nextRef" % (value, heap)
     if is_collection(typ):
-        return "%s.valid %s %s" % (sequence_descriptor(typ), heap, value)
+        return "%s.valid %s %s" % (collection_descriptor(typ), heap, value)
     if object_type(typ):
         if typ.endswith("?"):
             return "(∀ ref ∈ %s, is_%s %s ref)" % (value, typ[:-1], heap)
@@ -91,6 +99,10 @@ def emit_step(lines, lowerer, lowered, imports=None):
         elif node.kind == "assign":
             target, value, following, guard = node.data
             after = active(lowerer, following, state=changed(target, value))
+        elif node.kind == "random":
+            target, lower, upper, following = node.data
+            context += " (value : Int) (lowerBound : %s ≤ value) (upperBound : value < %s)" % (lower, upper)
+            after = active(lowerer, following, state=changed(target, "value"))
         elif node.kind == "allocate":
             target, contents, following, guard = node.data
             after = active(lowerer, following, "(h.allocate %s)" % contents, changed(target, "h.nextRef"))
@@ -104,6 +116,9 @@ def emit_step(lines, lowerer, lowered, imports=None):
             target, allocation, following, guard = node.data
             after = active(lowerer, following, allocation + ".1",
                            changed(target, "h.nextCollection"))
+        elif node.kind == "heap_update":
+            heap, target, value, following, guard = node.data
+            after = active(lowerer, following, heap, changed(target, value) if target else "s")
         elif node.kind == "sequence_write":
             sequence_type, data = node.data
             ref, index, value, target, following, expression_guard = data
@@ -307,7 +322,7 @@ def emit_points(lines, lowerer, namespace="", dependencies=False):
                 "def %s.Element.%s (state : Configuration) (index : Int) : Option Int :=" % (public, identifier(name)),
                 "  (%s state).map (fun ref => state.heap.read ref index)" % function_reference(function, "Local." + identifier(name), namespace, dependencies),
             ])
-        elif is_collection(typ):
+        elif is_sequence(typ):
             lines.extend([
                 "def %s.Element.%s (state : Configuration) (index : Int) : Option %s :=" % (public, identifier(name), raw_type(sequence_element(typ))),
                 "  (%s state).bind (fun ref => %s.get state.heap ref index)" % (function_reference(function, "Local." + identifier(name), namespace, dependencies), sequence_descriptor(typ)),
@@ -318,12 +333,15 @@ def emit_points(lines, lowerer, namespace="", dependencies=False):
 
 def emit_program(lowered, namespace=""):
     lines = ["-- Generated direct transitions; outputs are completed valid transcripts.", "namespace Algo2LeanGenerated", ""]
+    if uses_reals(lowerer.function for lowerer in lowered.values()):
+        lines[0:0] = ["noncomputable section", ""]
     emit_classes(lines, next(iter(lowered.values())).function.classes)
     emit_collections(lines, collection_types(lowerer.function for lowerer in lowered.values()))
     for lowerer in lowered.values():
         lines.append("structure State_%s where" % lowerer.function.name)
         for name, typ in lowerer.field_types.items():
-            lines.append("  %s : %s := %s -- %s" % (name, lean_type(typ), default_value(typ), lowerer.field_labels[name]))
+            representation, initial = lowerer.field_representation(name)
+            lines.append("  %s : %s := %s -- %s" % (name, representation, initial, lowerer.field_labels[name]))
         if not lowerer.field_types:
             lines.append("  unused : Unit := ()")
         lines.append("")
@@ -346,6 +364,11 @@ def emit_program(lowered, namespace=""):
     has_clocks = any(lowerer.function.clocks for lowerer in lowered.values())
     for lowerer in lowered.values():
         emit_public(lines, lowerer, has_clocks, namespace)
+    if any(lowerer.forks for lowerer in lowered.values()):
+        from .parallel import emit_parallel
+        emit_parallel(lines, lowered, namespace)
+    if uses_reals(lowerer.function for lowerer in lowered.values()):
+        lines.append("end")
     return "\n".join(lines) + "\n"
 
 
@@ -354,6 +377,10 @@ def emit_points_module(lowered, module, namespace=""):
     # Lean keyword. Validation forbids paths and delimiter characters.
     lines = ["import «%s»" % module, "", "open Algo2LeanGenerated", "",
              "-- Named-line observations; changing labels leaves the imported algorithm unchanged.", ""]
+    if uses_reals(lowerer.function for lowerer in lowered.values()):
+        lines.insert(1, "noncomputable section")
     for lowerer in lowered.values():
         emit_points(lines, lowerer, namespace)
+    if uses_reals(lowerer.function for lowerer in lowered.values()):
+        lines.append("end")
     return "\n".join(lines) + "\n"

@@ -1,0 +1,132 @@
+class Cell:
+    value: Int
+
+    def __init__(self, value: Int) -> None:
+        self.value = value
+
+
+def dictionary_updates() -> Tuple[Int, Int, Int, Bool]:
+    values = {1: 2, 1: 3, 2: 4}
+    alias = values
+    alias[1] = 7
+    del values[2]
+    return values[1], values.get(2, 9), len(values), 2 not in values
+
+
+def set_updates() -> Tuple[Int, Bool, Bool]:
+    values = {1, 1, 2}
+    alias = values
+    alias.add(3)
+    values.discard(1)
+    values.discard(8)
+    return len(values), 3 in values, 1 in values
+
+
+def nullable_values() -> Tuple[Bool, Bool, Bool]:
+    values: Dict[Int, Cell | None] = {1: None}
+    return 1 in values, values[1] is None, 2 in values
+
+
+def shallow_copy() -> Tuple[Int, Int, Int]:
+    cell = Cell(2)
+    values = {1: cell}
+    copied = copy(values)
+    copied[2] = cell
+    copied[1].value = 9
+    return values[1].value, len(values), len(copied)
+
+
+def nested_values() -> Int:
+    values: Dict[Int, Set[Int]] = {1: set()}
+    elements = values[1]
+    elements.add(3)
+    snapshots: Seq[Dict[Int, Set[Int]]] = const(values)
+    return len(snapshots[-7][1])
+
+
+def identity_keys() -> Tuple[Int, Bool]:
+    cell = Cell(1)
+    values = {cell: 4}
+    cell.value = 8
+    keys: Set[Tuple[Cell, Bool]] = {(cell, True)}
+    return values[cell], (cell, True) in keys
+
+
+def mark(cell: Cell, digit: Int) -> Int:
+    cell.value = 10 * cell.value + digit
+    tick("arguments")
+    return digit
+
+
+def literal_order() -> Tuple[Int, Int]:
+    cell = Cell(0)
+    values = {mark(cell, 1): mark(cell, 2), mark(cell, 1): mark(cell, 3)}
+    return cell.value, values[1]
+
+
+def default_order() -> Tuple[Int, Int]:
+    cell = Cell(0)
+    values = {1: 8}
+    result = values.get(mark(cell, 1), mark(cell, 2))
+    return result, cell.value
+
+
+def assignment_order() -> Tuple[Int, Int]:
+    cell = Cell(0)
+    values: Dict[Int, Int] = {}
+    values[mark(cell, 1)] = mark(cell, 2)
+    return cell.value, values[1]
+
+
+def dictionary_snapshot() -> Tuple[Int, Int]:
+    values = {2: 0, 1: 0, 3: 0, 2: 5}
+    total = 0
+    for key in values:
+        total = 10 * total + key
+        if key == 2:
+            del values[1]
+            values[4] = 0
+        tick("visited")
+    return total, len(values)
+
+
+def set_snapshot() -> Tuple[Int, Int]:
+    values = {2, 1, 3, 2}
+    total = 0
+    for key in values:
+        total = 10 * total + key
+        values.discard(1)
+        values.add(4)
+    return total, len(values)
+
+
+def reinsert_order() -> Int:
+    values = {1: 0, 2: 0, 3: 0}
+    del values[1]
+    values[1] = 8
+    total = 0
+    for key in values:
+        total = 10 * total + key
+    return total
+
+
+def snapshot_once(cell: Cell) -> Set[Int]:
+    cell.value += 1
+    return {2, 1}
+
+
+def snapshot_evaluated_once() -> Tuple[Int, Int]:
+    cell = Cell(0)
+    total = 0
+    for key in snapshot_once(cell):
+        total += key
+    return cell.value, total
+
+
+def nullable_loop() -> Bool:
+    cell = Cell(0)
+    last: Cell | None = None
+    values = {cell}
+    for last in values:
+        last.value = 3
+    return last is cell

@@ -1,0 +1,14 @@
+# CLRS, fourth edition, Section 5.4: collecting all n coupon types.
+# Draws are independent and uniform on [0, n). For n <= 0 no draws are needed.
+# The random_draws clock measures trials; abstract Set operations have no
+# implicit machine-time charge or assumed hashing complexity.
+def collect_coupons(n: Int) -> Tuple[Set[Int], Int]:
+    seen: Set[Int] = set()
+    draws = 0
+    # @collect
+    while len(seen) < n:
+        coupon = randint(0, n)
+        seen.add(coupon)
+        draws += 1
+        tick("random_draws")
+    return seen, draws

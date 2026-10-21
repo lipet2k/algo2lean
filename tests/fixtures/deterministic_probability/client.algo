@@ -1,0 +1,6 @@
+from helper import bump
+
+def sample(a: Seq) -> Int:
+    first = bump(a)
+    second = bump(a)
+    return second + randint(0, 2)

@@ -1,0 +1,6 @@
+from sampler import sometimes
+
+
+def run() -> Int:
+    value = sometimes()
+    return value + 1

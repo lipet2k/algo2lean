@@ -1,0 +1,4 @@
+def bump(a: Seq) -> Int:
+    a[0] = a[0] + 1
+    tick("updates")
+    return a[0]

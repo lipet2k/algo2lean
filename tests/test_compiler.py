@@ -165,7 +165,8 @@ def modify(a: Seq, n: Int) -> Seq:
     def test_safe_module_identities(self):
         source = "def f() -> Int:\n    return 0\n"
         for invalid in ("", "1Example", "../Example", "A.B", "A\nimport Lean", "A/B",
-                        "A\\B", "A-B", "«A»", "Algo2Lean", "Std", "Init", "algo2lean", "STD", 1, True):
+                        "A\\B", "A-B", "«A»", "Algo2Lean", "Algo2LeanReal", "algo2leanprobability",
+                        "Algo2LeanLib", "Algo2LeanExamples", "Mathlib", "Lean", "Std", "Init", "algo2lean", "STD", 1, True):
             with self.subTest(module=invalid):
                 with self.assertRaises(CompileError):
                     compile_source(source, module=invalid)

@@ -18,6 +18,7 @@ def validate_module_name(module: str) -> str:
     if not isinstance(module, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", module):
         raise ValueError("A Lean module name must start with an ASCII letter and contain only letters, digits, and underscores.")
     # Avoid shadowing these imports on case-insensitive filesystems as well.
-    if module.lower() in {"algo2lean", "std", "init"}:
+    if module.lower() in {"algo2lean", "algo2leanlib", "algo2leanexamples",
+                          "algo2leanreal", "algo2leanprobability", "std", "init", "lean", "mathlib"}:
         raise ValueError("'%s' is reserved for the shared Lean library or its dependencies." % module)
     return module

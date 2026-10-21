@@ -14,7 +14,7 @@ namespace Algo2Lean.Dijkstra.Execution
 /-- Concrete states may include a heap, queue layout, and amortized potential.
     Accounting is an arbitrary compositional relation, rather than a fixed
     binary-heap cost formula. Completion is the compiled continuation contract. -/
-structure Interface (State : Type) where
+structure Interface (State : Type u) where
   distance : State → Int → Int
   settled : State → Int → Prop
   invariant : State → List Int → Prop
@@ -31,7 +31,7 @@ structure Interface (State : Type) where
 
 /-- One verified extraction and adjacency scan. The premises describe local
     state changes and one compiled segment; all recursive reasoning is shared. -/
-structure Iteration {State : Type} (api : Interface State) (edge : Edges)
+structure Iteration {State : Type u} (api : Interface State) (edge : Edges)
     (adjacency : Adjacency) (before after : State) (remaining : List Int) (selected : Int) : Prop where
   member : selected ∈ remaining
   next : api.invariant after (remaining.erase selected)
@@ -44,7 +44,7 @@ structure Iteration {State : Type} (api : Interface State) (edge : Edges)
   cost : api.accounting before after 1 (adjacency selected).length
 
 /-- The queue either proves exhaustion or supplies one local iteration. -/
-inductive Progress {State : Type} (api : Interface State) (edge : Edges)
+inductive Progress {State : Type u} (api : Interface State) (edge : Edges)
     (adjacency : Adjacency) (state : State) (remaining : List Int) : Prop where
   | done (exhausted : Exhausted (api.distance state) (api.settled state))
       (complete : api.completion state state) : Progress api edge adjacency state remaining
@@ -54,7 +54,7 @@ inductive Progress {State : Type} (api : Interface State) (edge : Edges)
 
 /-- A complete compiled continuation, an independently reusable logical search
     run, and the accumulated local accounting. Final invariants are retained. -/
-structure Completed {State : Type} (api : Interface State) (edge : Edges)
+structure Completed {State : Type u} (api : Interface State) (edge : Edges)
     (adjacency : Adjacency) (before after : State) (remaining : List Int) : Prop where
   invariant : ∃ pending, api.invariant after pending
   search : ∃ vertices, SearchRun edge adjacency (api.distance before) (api.settled before)
@@ -64,7 +64,7 @@ structure Completed {State : Type} (api : Interface State) (edge : Edges)
 
 /-- The remaining vertex list strictly decreases, so verified local iterations
     suffice for finite compiled execution and the shared `SearchRun` interface. -/
-theorem run {State : Type} (api : Interface State) (edge : Edges) (adjacency : Adjacency)
+theorem run {State : Type u} (api : Interface State) (edge : Edges) (adjacency : Adjacency)
     (progress : ∀ state remaining, api.invariant state remaining →
       Progress api edge adjacency state remaining)
     (state : State) (remaining : List Int) (invariant : api.invariant state remaining) :

@@ -64,6 +64,17 @@ def compiler_files(root):
                 files[path.relative_to(root).as_posix()] = path.read_bytes()
     for name in ("Algo2Lean.lean", "publication.json", "lean-toolchain", "LICENSE"):
         files[name] = (root / name).read_bytes()
+    # Include source and the pinned dependency declaration, never a local Mathlib
+    # checkout or compiled cache. Lean checking remains a separate local task.
+    for name in ("Algo2LeanProbability.lean", "Algo2LeanReal.lean", "lakefile.toml"):
+        path = root / "probability" / name
+        if path.is_file():
+            files["probability/" + name] = path.read_bytes()
+    for library in ("Algo2LeanProbability", "Algo2LeanReal"):
+        for path in sorted((root / "probability" / library).rglob("*.lean")):
+            if path.is_symlink():
+                raise ValueError("Compiler resources must not be symbolic links.")
+            files[path.relative_to(root).as_posix()] = path.read_bytes()
     return files
 
 

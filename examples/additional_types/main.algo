@@ -1,0 +1,12 @@
+from histogram import histogram
+from visited import count_distinct
+from centroid import centroid
+
+
+# Compose independent helpers and return their results in one heterogeneous tuple.
+# The coordinate prefix must be nonempty for its centroid to be defined.
+def summarize(values: Seq, points: Seq[Tuple[Real, Real]], n: Int) -> Tuple[Dict[Int, Int], Int, Tuple[Real, Real]]:
+    counts = histogram(values, n)
+    distinct = count_distinct(values, n)
+    center = centroid(points, n)
+    return counts, distinct, center

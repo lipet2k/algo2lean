@@ -11,6 +11,7 @@ of merge sort's source-level runtime.
 namespace Chapter4RecurrenceApplications
 
 open Algo2LeanCore Algo2LeanGenerated
+open Algo2LeanCore.MatrixHeap
 open Chapter4Substitution Chapter4RecursionTree
 
 /-- Sum exactly the four clocks already linked to Strassen's source execution. -/
@@ -65,33 +66,41 @@ theorem strassen_theta : IsTheta strassenWork (fun k => 7^k) := by
   · exact ⟨1, 0, by decide, fun k _ => by simpa using (strassen_substitution_bounds k).1⟩
 
 /-- The new substitution bound holds for every completed source execution. -/
-theorem runtime_via_substitution (a b result : Seq) (depth : Nat) (charged : Clocks)
-    (run : strassen.ReturnsWithCost (a,b,(2^depth:Nat)) result charged) :
+theorem runtime_via_substitution (initial after : Heap) (a b result : CollectionRef)
+    (av bv : Values) (depth : Nat) (charged : Clocks)
+    (sa : Stored initial a av) (sb : Stored initial b bv)
+    (run : strassen.ReturnsWithCost (initial,(a,b,(2^depth:Nat))) (after,result) charged) :
     7^depth ≤ charged "products" + charged "calls" +
       charged "linear_cells" + charged "copied_cells" ∧
     charged "products" + charged "calls" + charged "linear_cells" +
       charged "copied_cells" ≤ 13*7^depth := by
-  obtain ⟨_, rfl⟩ := (MatrixStrassenVerified.output_with_cost_iff a b result depth charged).mp run
+  rw [MatrixStrassenVerified.every_output_costs initial after a b result av bv depth charged sa sb run]
   exact strassen_substitution_bounds depth
 
 /-- The exact recursion-tree sum describes those same source counters. -/
-theorem runtime_via_tree (a b result : Seq) (depth : Nat) (charged : Clocks)
-    (run : strassen.ReturnsWithCost (a,b,(2^depth:Nat)) result charged) :
+theorem runtime_via_tree (initial after : Heap) (a b result : CollectionRef)
+    (av bv : Values) (depth : Nat) (charged : Clocks)
+    (sa : Stored initial a av) (sb : Stored initial b bv)
+    (run : strassen.ReturnsWithCost (initial,(a,b,(2^depth:Nat))) (after,result) charged) :
     charged "products" + charged "calls" + charged "linear_cells" +
       charged "copied_cells" = 7^depth*2 +
         weightedTolls 7 depth (fun k => 30*4^k+1) := by
-  obtain ⟨_, rfl⟩ := (MatrixStrassenVerified.output_with_cost_iff a b result depth charged).mp run
+  rw [MatrixStrassenVerified.every_output_costs initial after a b result av bv depth charged sa sb run]
   exact strassen_tree_expansion depth
 
 /-- Existence is explicit: the runtime claim is not vacuous for diverging runs. -/
-theorem terminates_with_bounds (a b : Seq) (depth : Nat) :
-    ∃ result charged, strassen.ReturnsWithCost (a,b,(2^depth:Nat)) result charged ∧
+theorem terminates_with_bounds (initial : Heap) (a b : CollectionRef)
+    (av bv : Values) (depth : Nat) (sa : Stored initial a av) (sb : Stored initial b bv) :
+    ∃ after result charged,
+      strassen.ReturnsWithCost (initial,(a,b,(2^depth:Nat))) (after,result) charged ∧
       7^depth ≤ charged "products" + charged "calls" +
         charged "linear_cells" + charged "copied_cells" ∧
       charged "products" + charged "calls" + charged "linear_cells" +
         charged "copied_cells" ≤ 13*7^depth := by
-  have run := MatrixStrassenVerified.output_with_cost a b depth
-  exact ⟨_, _, run, runtime_via_substitution _ _ _ _ _ run⟩
+  obtain ⟨after, result, run, _⟩ :=
+    MatrixStrassenVerified.output_with_cost initial a b av bv depth sa sb
+  exact ⟨after, result, _, run,
+    runtime_via_substitution initial after a b result av bv depth _ sa sb run⟩
 
 /-- The usual linear-work balanced recurrence, in depth coordinates n=2^k. -/
 theorem balanced_linear_candidate_step (k : Nat) :

@@ -3,6 +3,7 @@
 import argparse
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -28,7 +29,10 @@ AUDIT_THEOREMS = (
     "Chapter4RecursionTree.balanced_unroll",
     "Chapter4SubstitutionExamples.balancedCost_bounds",
     "Chapter4SubstitutionExamples.balancedCost_isTheta_nlogn",
+    "MatrixStrassenVerified.call",
+    "MatrixStrassenVerified.correctness_and_running_time",
     "MatrixStrassenVerified.every_execution_fresh",
+    "MatrixStrassenVerified.every_execution_fresh_rows",
     "Chapter4RecurrenceApplications.strassen_theta",
     "Chapter4RecurrenceApplications.terminates_with_bounds",
     "Chapter4RecurrenceApplications.runtime_via_tree",
@@ -36,11 +40,32 @@ AUDIT_THEOREMS = (
 STANDARD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
 
 
+def audit_assumptions(output, theorems=AUDIT_THEOREMS):
+    """Return a diagnostic unless every requested theorem has allowed axioms."""
+    reports = dict(re.findall(
+        r"^'([^'\n]+)' depends on axioms:\s*\[([^\]]*)\]", output, re.MULTILINE,
+    ))
+    without_axioms = set(re.findall(
+        r"^'([^'\n]+)' does not depend on any axioms\s*$", output, re.MULTILINE,
+    ))
+    for theorem in theorems:
+        if theorem not in reports:
+            if theorem in without_axioms:
+                continue
+            return "Missing axiom report for " + theorem + "\n" + output
+        axioms = {item.strip() for item in reports[theorem].split(",") if item.strip()}
+        unexpected = axioms - STANDARD_AXIOMS
+        if unexpected:
+            return "Unexpected proof assumptions for " + theorem + ": " + repr(sorted(unexpected))
+    return None
+
+
 def check_proofs(timeout=120):
     executable = shutil.which("lean")
     if executable is None:
         return CheckResult(False, False, "Lean was not found.")
-    environment = prepare_lean_environment(timeout=timeout, executable=executable)
+    environment = prepare_lean_environment(timeout=timeout, executable=executable,
+                                           modules=("Algo2LeanLib.MatrixHeap", "Algo2LeanLib.CallCost"))
     source = ROOT / "examples/matrix_strassen.algo"
     generated = compile_source(source.read_text(encoding="utf-8"), filename=source.name)
     with tempfile.TemporaryDirectory(prefix="algo2lean-chapter4-") as directory:
@@ -71,12 +96,9 @@ def check_proofs(timeout=120):
         output = checked.stdout + checked.stderr
         if checked.returncode:
             return CheckResult(False, True, output)
-        for line in output.splitlines():
-            if "depends on axioms:" in line:
-                axioms = line.split("depends on axioms:", 1)[1].strip().strip("[]")
-                unexpected = set(filter(None, (item.strip() for item in axioms.split(",")))) - STANDARD_AXIOMS
-                if unexpected:
-                    return CheckResult(False, True, "Unexpected proof assumptions: " + repr(unexpected))
+        diagnostic = audit_assumptions(output)
+        if diagnostic:
+            return CheckResult(False, True, diagnostic)
         return CheckResult(True, True,
                            f"Lean accepted {len(MODULES)} Chapter 4 modules against fresh generated source.\n" + output)
 

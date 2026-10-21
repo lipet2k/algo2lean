@@ -1,0 +1,49 @@
+# Exact arithmetic, definedness, and effect-order acceptance cases.
+def divide(numerator: Real, denominator: Real) -> Real:
+    return numerator / denominator
+
+def decimal_sum() -> Bool:
+    return 0.1 + 0.2 == 0.3
+
+def short_circuit() -> Bool:
+    return False and 1 / 0 > 0
+
+def short_chain() -> Bool:
+    return 2 < 1 < 1 / 0
+
+def mark(values: Seq, n: Int) -> Int:
+    values[0] = 10 * values[0] + n
+    tick("arguments")
+    return n
+
+def effect_order(values: Seq) -> Real:
+    return -mark(values, 1) + mark(values, 2) / mark(values, 3)
+
+def unary_cast(values: Seq) -> Real:
+    return -mark(values, 4)
+
+def range_cast() -> Real:
+    value: Real = 0
+    total: Real = 0
+    for value in range(3):
+        total += value
+    return total
+
+class Box:
+    value: Real
+
+def storage(box: Box) -> Tuple[Seq[Real], Dict[Real, Tuple[Real, Int]], Set[Real]]:
+    box.value = 0.1
+    box.value += 1
+    box.value /= 2
+    values: Seq[Real] = const(1)
+    values[-1] = box.value
+    entries: Dict[Real, Tuple[Real, Int]] = {1: (values[-1], 1)}
+    entries[1.0] = (0.2, 2)
+    seen: Set[Real] = {0.1, 0.2}
+    seen.add(2)
+    seen.discard(0.1)
+    for key in seen:
+        entries[key] = (key, 0)
+    # @result
+    return values, entries, seen

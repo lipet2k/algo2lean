@@ -9,6 +9,7 @@ import textwrap
 import unittest
 
 from algo2lean.checker import prepare_lean_environment
+from algo2lean.compiler import compile_source
 from algo2lean.modular import compile_project
 from algo2lean.project import ProjectError, Symbol
 
@@ -204,6 +205,80 @@ class ModularCheckingTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, name + "\n" + result.stdout + result.stderr)
                 self.assertNotIn("declaration uses `sorry`", result.stdout + result.stderr)
             return compiled
+
+    def test_nested_integer_heaps_interoperate_with_standalone_compilation(self):
+        source = """def entry(a: Seq[Seq[Int]]) -> Int:
+    return a[-2][5]
+
+def cube(a: Seq[Seq[Seq[Int]]]) -> Int:
+    return a[-2][5][7]
+"""
+        standalone = compile_source(source, module="StandaloneGenerated", namespace="Standalone")
+        proof = """import StandaloneGenerated
+import Algo.library.Generated
+import Algo.client.Generated
+open Algo2LeanCore Algo2LeanGenerated
+
+-- Both compilation paths must use the same codec and runtime type tag.
+example : Standalone.Algo2LeanGenerated.seq_Seq_Int =
+    Algo.library.Algo2LeanGenerated.seq_Seq_Int := rfl
+example : Standalone.Algo2LeanGenerated.seq_Seq_Seq_Int =
+    Algo.library.Algo2LeanGenerated.seq_Seq_Seq_Int := rfl
+
+-- A real heap built by one descriptor is readable by the other program.
+-- All outer indices alias the same row, including these negative indices.
+def standaloneRows : Heap × CollectionRef :=
+  Standalone.Algo2LeanGenerated.seq_Seq_Int.const (({} : Heap).allocate (fun _ => 17)) 0
+
+def moduleRows : Heap × CollectionRef :=
+  Algo.library.Algo2LeanGenerated.seq_Seq_Int.const (({} : Heap).allocate (fun _ => 17)) 0
+
+example : Algo.library.entry.Returns standaloneRows 17 := by
+  refine ⟨standaloneRows.1, ?_, ?_⟩
+  · change Algo.library.Algo2LeanGenerated.seq_Seq_Int.valid standaloneRows.1 standaloneRows.2
+    decide
+  · apply Reaches.prepend (Algo.library.Algo2LeanGenerated.Step.entry_pc2 _ _ _ (by decide))
+    exact Reaches.single (Algo.library.Algo2LeanGenerated.Step.entry_pc1 _ _ _)
+
+example : Standalone.entry.Returns moduleRows 17 := by
+  refine ⟨moduleRows.1, ?_, ?_⟩
+  · change Standalone.Algo2LeanGenerated.seq_Seq_Int.valid moduleRows.1 moduleRows.2
+    decide
+  · apply Reaches.prepend (Standalone.Algo2LeanGenerated.Step.entry_pc2 _ _ _ (by decide))
+    exact Reaches.single (Standalone.Algo2LeanGenerated.Step.entry_pc1 _ _ _)
+
+-- Canonicalization also reaches integer rows nested more than once.
+def standaloneCube : Heap × CollectionRef :=
+  Standalone.Algo2LeanGenerated.seq_Seq_Seq_Int.const standaloneRows.1 standaloneRows.2
+
+example : Algo.library.cube.Returns standaloneCube 17 := by
+  refine ⟨standaloneCube.1, ?_, ?_⟩
+  · change Algo.library.Algo2LeanGenerated.seq_Seq_Seq_Int.valid standaloneCube.1 standaloneCube.2
+    decide
+  · apply Reaches.prepend (Algo.library.Algo2LeanGenerated.Step.cube_pc2 _ _ _ (by decide))
+    exact Reaches.single (Algo.library.Algo2LeanGenerated.Step.cube_pc1 _ _ _)
+-- The separately proved call composes through a genuine .algo import.
+theorem nested_entry_call : Algo.library.entry.Call standaloneRows.1 standaloneRows.2 standaloneRows.1 17 := by
+  refine ⟨?_, ?_⟩
+  · change Algo.library.Algo2LeanGenerated.seq_Seq_Int.valid standaloneRows.1 standaloneRows.2
+    decide
+  · intro caller
+    apply Reaches.prepend (Algo.library.Algo2LeanGenerated.Step.entry_pc2 _ _ _ (by decide))
+    exact Reaches.single (Algo.library.Algo2LeanGenerated.Step.entry_pc1 _ _ _)
+
+example : Algo.client.run.Returns standaloneRows 17 := by
+  refine ⟨standaloneRows.1, ?_, ?_⟩
+  · change Algo.client.Algo2LeanGenerated.seq_Seq_Int.valid standaloneRows.1 standaloneRows.2
+    decide
+  · apply Reaches.prepend (Algo.client.Algo2LeanGenerated.Step.run_pc3 _ _ _)
+    apply Reaches.prepend (Algo.client.Algo2LeanGenerated.Step.run_pc2 _ _ _)
+    apply Reaches.trans (ModuleCall.summary Algo.client.Algo2LeanGenerated.import_0_simulates _ _ nested_entry_call.2)
+    exact Reaches.single (Algo.client.Algo2LeanGenerated.Step.run_pc1 _ _ _)
+"""
+        caller = "from library import entry\ndef run(a: Seq[Seq[Int]]) -> Int:\n    return entry(a)\n"
+        self.check_project("client", {"library": source, "client": caller}, proofs=(
+            ("StandaloneGenerated", standalone.lean), ("NestedInteropProof", proof)))
+
 
     def test_all_import_forms_reexports_diamond_and_recursive_calls_check(self):
         self.check_project("client", {
