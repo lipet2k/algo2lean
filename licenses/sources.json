@@ -127,6 +127,19 @@
       "source": "https://raw.githubusercontent.com/emscripten-core/emscripten/5.0.3/system/lib/dlmalloc.c",
       "sha256": "e3325f87977501d63ad447abf7fa9d581d115781e60058946b418074b075148e",
       "contents": "public-domain statement and version from leading documentation"
+    },
+    {
+      "file": "react-19.3.1-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/facebook/react/v19.3.1/LICENSE",
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "contents": "complete upstream file"
+    },
+    {
+      "file": "tailwindcss-4.3.3-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/tailwindlabs/tailwindcss/v4.3.3/LICENSE",
+      "sha256": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985",
+      "contents": "complete upstream file"
     }
-  ]
+  ],
+  "editor": "React 19.3.1 and Tailwind CSS 4.3.3 (bundled into editor/app.js and editor/styles.css)"
 }

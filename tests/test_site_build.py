@@ -27,7 +27,7 @@ class SiteBuildTests(unittest.TestCase):
             "publication.json": '{"version":"0.1.0"}', "CITATION.cff": "citation\n",
             "THIRD_PARTY_NOTICES.md": "notices\n", "licenses/runtime.txt": "runtime license\n",
             "examples/main.algo": "def f() -> Int:\n    return 1\n",
-            "editor/index.html": '<script src="/app.js" defer></script>',
+            "editor/index.html": '<script type="module" src="app.js"></script>',
             "editor/app.js": "// editor\n", "editor/browser-host.js": "// bridge\n",
             "editor/compiler-worker.js": "// worker\n",
             "AGENTS.md": "internal instructions", "private.txt": "private",

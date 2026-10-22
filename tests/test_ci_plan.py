@@ -105,7 +105,7 @@ class LeanPlanTests(unittest.TestCase):
         self.assertEqual(result.mode, "full")
 
     def test_successful_full_check_allows_ui_changes(self):
-        result, api = self.plan(paths=["editor/styles.css", "README.md", "tests/test_interface.js"])
+        result, api = self.plan(paths=["editor/styles.css", "README.md", "frontend/tests/interface-entries.test.js"])
         self.assertFalse(result.run_lean)
         self.assertEqual(result.mode, "none")
         self.assertEqual(result.baseline, BASELINE)
@@ -115,7 +115,7 @@ class LeanPlanTests(unittest.TestCase):
 
     def test_path_tiers_are_explicit_and_unknown_inputs_require_full_checks(self):
         for path in ["editor/styles.css", "docs/HOSTING.md", "docs/nested/GUIDE.md",
-                     "tests/test_interface.js", "CHANGELOG.md"]:
+                     "frontend/tests/interface-entries.test.js", "CHANGELOG.md"]:
             with self.subTest(path=path):
                 self.assertTrue(is_ui_path(path))
                 self.assertEqual(required_mode([path]), "none")
@@ -435,6 +435,24 @@ class LeanPlanGitHistoryTests(unittest.TestCase):
         with patch("scripts.ci_plan.github_api", return_value={"workflow_runs": [successful_run(unrelated)]}) as api:
             self.assertTrue(plan_checks("push", REPOSITORY, head).run_lean)
         self.assertEqual(api.call_count, 1)
+
+
+
+class FrontendPathTests(unittest.TestCase):
+    def test_frontend_sources_and_toolchain_files_are_ui_paths(self):
+        for path in ["frontend/src/App.jsx", "frontend/src/editor/store.js", "frontend/tests/editor-basics.test.jsx",
+                     "frontend/index.html", "frontend/package.json", "package.json", "package-lock.json",
+                     "vite.config.mjs", "vitest.config.mjs", ".nvmrc", "scripts/check_editor_build.mjs",
+                     "CONTRIBUTING.md", "editor/app.js",
+                     "editor/styles.css", "editor/index.html"]:
+            with self.subTest(path=path):
+                self.assertTrue(is_ui_path(path))
+                self.assertEqual(required_mode([path]), "none")
+        for path in ["frontend/../algo2lean/compiler.py", "frontend", "frontend/", "frontends/app.js", "tests/test_interface.js",
+                     "editor/compiler-worker.js", "editor/browser-host.js", "editor/current-examples.js"]:
+            with self.subTest(path=path):
+                self.assertFalse(is_ui_path(path))
+                self.assertNotEqual(required_mode([path]), "none")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,194 @@
+/* Only the editor source supplies utility class names. Automatic detection
+   would scan the whole repository, making the committed stylesheet depend on
+   unrelated files such as documentation or test fixtures. */
+@import "tailwindcss" source(none);
+@source "./";
+
+/* Design tokens. The palette is a navy scale: flat on the header and the page
+   background, graded on primary actions and surfaces; interface kinds keep
+   their documented colors. */
+@theme {
+  --color-navy-50: #eef3f9;
+  --color-navy-100: #dce6f2;
+  --color-navy-200: #c0d3e8;
+  --color-navy-300: #8fb0d6;
+  --color-navy-400: #5b8bc0;
+  --color-navy-500: #3a6ea5;
+  --color-navy-600: #2a5282;
+  --color-navy-700: #1f4068;
+  --color-navy-800: #17304d;
+  --color-navy-900: #10233d;
+  --color-navy-950: #0b1a2e;
+  --color-ink: #17304d;
+  --color-text: #243b53;
+  --color-muted: #51647a;
+  --color-paper: #ffffff;
+  --color-workspace: #eef3f9;
+  --color-surface: #f6f9fc;
+  --color-border: #d3deeb;
+  --color-success: #0f6f63;
+  --color-error: #a83232;
+  --color-error-soft: #fff1f0;
+  --color-warning: #845710;
+  --color-warning-soft: #fff5df;
+  --color-focus: #3a6ea5;
+  --color-proposition: #195c9b;
+  --color-theorem: #784398;
+  --color-definition: #146b56;
+  --color-type: #98602a;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  --breakpoint-*: initial;
+  --breakpoint-phone: 500px;
+  --breakpoint-narrow: 600px;
+  --breakpoint-tablet: 800px;
+  --breakpoint-laptop: 1000px;
+  --breakpoint-desktop: 1100px;
+  --breakpoint-wide: 1600px;
+  --shadow-workbench: 0 10px 30px rgba(11, 26, 46, .08);
+  --shadow-panel: 0 4px 18px rgba(11, 26, 46, .05);
+}
+
+@layer base {
+  :root { color-scheme: light; }
+  html { font-family: var(--font-sans); color: var(--color-text); background: var(--color-workspace); font-size: 14px; line-height: 1.5; }
+  body { min-height: 100vh; background: var(--color-workspace); }
+  button, input, select, textarea { font: inherit; }
+  button, select, summary { cursor: pointer; touch-action: manipulation; }
+  button { transition: background-color 120ms, border-color 120ms, box-shadow 120ms; }
+  button:disabled { cursor: not-allowed; opacity: .46; }
+  button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible, pre:focus-visible {
+    outline: 3px solid var(--color-focus); outline-offset: 3px;
+  }
+  button svg { width: 16px; height: 16px; flex: none; }
+  a { color: var(--color-ink); }
+  pre, code, kbd { font-family: var(--font-mono); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
+  }
+}
+
+@layer components {
+  /* Dropdowns: a custom chevron on the closed control everywhere, and a styled
+     picker where the browser supports customizable selects. */
+  .select-control {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: var(--color-paper);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%232a5282' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 14px 14px;
+    padding-right: 36px;
+    color: var(--color-navy-900);
+    border: 1px solid var(--color-navy-200);
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(11, 26, 46, .05);
+    transition: border-color 120ms, box-shadow 120ms, background-color 120ms;
+  }
+  .select-control:hover:not(:disabled) { border-color: var(--color-navy-400); background-color: var(--color-navy-50); }
+  .select-control:focus-visible { border-color: var(--color-navy-500); box-shadow: 0 0 0 3px rgba(58, 110, 165, .18); outline: none; }
+  .select-control:disabled { opacity: .55; cursor: not-allowed; }
+  .select-control optgroup { font-weight: 600; color: var(--color-navy-700); }
+  @supports selector(::picker(select)) {
+    .select-control, .select-control::picker(select) { appearance: base-select; }
+    .select-control { background-image: none; padding-right: 12px; display: inline-flex; align-items: center; gap: 10px; }
+    .select-control::picker-icon {
+      content: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%232a5282' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+      color: var(--color-navy-500); width: 14px; height: 14px; margin-left: auto;
+    }
+    .select-control::picker(select) {
+      margin-top: 6px; padding: 6px; border: 1px solid var(--color-navy-200); border-radius: 10px;
+      background: var(--color-paper); box-shadow: 0 16px 40px rgba(11, 26, 46, .18), 0 2px 6px rgba(11, 26, 46, .08);
+      max-height: 60vh; overflow: auto;
+    }
+    .select-control option { padding: 8px 10px; border-radius: 6px; font: inherit; color: var(--color-text); }
+    .select-control option:hover, .select-control option:focus-visible { background: var(--color-navy-50); outline: none; }
+    .select-control option:checked { background: var(--color-navy-100); color: var(--color-navy-900); font-weight: 600; }
+    .select-control option::checkmark { color: var(--color-navy-600); }
+    .select-control optgroup { padding: 4px 0; }
+    .select-control optgroup option { padding-left: 16px; }
+  }
+
+  /* Editor mechanics: the highlighted text, the line gutter, and the selectable
+     transparent textarea share one scroll surface so their geometry stays identical. */
+  .code-viewport { position: relative; overflow: hidden; scrollbar-gutter: stable; background: var(--color-paper); }
+  .code-viewport:focus-within { overflow: auto; box-shadow: inset 0 0 0 2px rgba(58, 110, 165, .5); }
+  .code-canvas { position: absolute; top: 0; left: 0; display: grid; grid-template-columns: 50px minmax(0, 1fr); width: max-content; min-width: 100%; min-height: 100%; }
+  .code-content { position: relative; min-width: 0; }
+  .line-gutter { position: sticky; left: 0; z-index: 2; background: #f3f6fa; border-right: 1px solid #e1e9f2; pointer-events: none; user-select: none; }
+  .line-gutter pre { margin: 0; text-align: right; padding: 22px 12px 22px 0; font: 13px/24px var(--font-mono); color: #7b8ba0; }
+  .code-text { margin: 0; padding: 22px 18px; tab-size: 4; font: 14px/24px var(--font-mono); letter-spacing: 0; white-space: pre; overflow-wrap: normal; text-align: left; }
+  .code-text-lean { tab-size: 2; }
+  .code-layer { min-height: 100%; background: transparent; pointer-events: none; }
+  .code-layer-lean { color: var(--color-ink); }
+  .code-layer code { font: inherit; }
+  .code-layer .token-comment, .code-layer .token-keyword { font-style: normal; font-weight: inherit; }
+  .code-input { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border: 0; border-radius: 0; resize: none; background: transparent; caret-color: var(--color-ink); outline: none; overflow: hidden; color: transparent; -webkit-text-fill-color: transparent; }
+  .code-input::selection { background: rgba(58, 110, 165, .22); }
+  /* The find mirror paints the current match while the search field has focus. */
+  .code-search-highlight { position: absolute; inset: 0; overflow: hidden; color: transparent; background: transparent; pointer-events: none; user-select: none; }
+  .code-search-highlight mark { color: transparent; background: #ffd96a; border-radius: 2px; box-shadow: 0 0 0 1px #b6881c; }
+
+  .source-editor, .output-container { height: clamp(340px, 55vh, 680px); min-height: 340px; position: relative; }
+  .output-container { overflow: hidden; height: clamp(200px, 27vh, 360px); min-height: 200px; }
+  .analysis-editor { height: clamp(320px, 48vh, 600px); min-height: 320px; position: relative; }
+  .source-editor, .output-container, .analysis-editor, .shared-output { resize: vertical; max-height: max(480px, 90vh); }
+  .shared-output { height: 250px; min-height: 160px; }
+  .source-pane { align-self: start; }
+  .source-pane .source-editor { flex: none; }
+  @media (min-width: 801px) {
+    .source-pane { align-self: stretch; }
+    .source-pane .source-editor { flex: 1 0 auto; height: auto; max-height: none; }
+    /* Native resizing writes an inline height; preserve that explicit choice. */
+    .source-pane:has(> .source-editor[style*="height:"]) { align-self: start; }
+    .source-pane > .source-editor[style*="height:"] { flex: none; }
+  }
+  @media (min-width: 1600px) { .source-editor { height: 60vh; } }
+  @media (max-width: 800px) { .source-editor { height: 390px; } .output-container { height: 300px; } .source-editor, .output-container { min-height: 300px; } }
+  @media (max-width: 500px) {
+    .source-editor { height: 340px; min-height: 260px; } .output-container { height: 260px; min-height: 220px; } .analysis-editor { height: 320px; min-height: 260px; }
+    .code-text { padding: 16px 12px; } .code-text-algo { font-size: 16px; } .code-text-lean { font-size: 16px; }
+    .code-canvas { grid-template-columns: 38px minmax(0, 1fr); } .line-gutter pre { padding-top: 16px; padding-right: 8px; }
+  }
+
+  .lean-output { height: 100%; position: relative; }
+  .lean-output:focus-within { box-shadow: inset 0 0 0 2px rgba(58, 110, 165, .5); }
+  .generated-canvas { width: max-content; min-width: 100%; min-height: 100%; }
+  .generated-text { margin: 0; padding: 22px 24px; font: 13px/24px var(--font-mono); tab-size: 4; white-space: pre; overflow-wrap: normal; letter-spacing: 0; text-align: left; }
+  .generated-highlight { pointer-events: none; }
+  .generated-highlight code { font: inherit; }
+  .generated-highlight .token-comment, .generated-highlight .token-keyword { font-style: normal; font-weight: inherit; }
+  .generated-selection { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border: 0; border-radius: 0; resize: none; overflow: hidden; background: transparent; color: transparent; -webkit-text-fill-color: transparent; outline: none; }
+  .generated-selection::selection { background: rgba(58, 110, 165, .22); }
+  @media (max-width: 500px) { .generated-text { padding: 16px 14px; } }
+
+  .details-output { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--color-surface); padding: 14px; border-radius: 8px; border: 1px solid var(--color-navy-100); max-height: 250px; overflow: hidden; scrollbar-gutter: stable; }
+  .details-output:focus { overflow: auto; }
+
+  /* Syntax and interface colors, applied to tokens produced by the highlighters. */
+  .token-comment { color: #64758a; font-style: italic; }
+  .token-keyword { color: #7354a0; font-weight: 500; }
+  .token-type, .interface-type { color: var(--color-type); }
+  .token-number { color: #b34b39; }
+  .token-function { color: #136d88; }
+  .token-string { color: #27764b; }
+  .interface-proposition { color: var(--color-proposition); }
+  .interface-theorem { color: var(--color-theorem); }
+  .interface-definition { color: var(--color-definition); }
+
+  @media (forced-colors: active) {
+    .code-input, .generated-selection { color: CanvasText; -webkit-text-fill-color: CanvasText; background: Canvas; }
+    .code-layer, .generated-highlight { visibility: hidden; }
+    .code-search-highlight mark { background: Highlight; outline: 1px solid Highlight; }
+  }
+}
+
+/* Horizontal rows that scroll on small screens without a visible scrollbar.
+   Declared as a utility so that variants such as max-phone:scroll-row exist. */
+@utility scroll-row {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  &::-webkit-scrollbar { display: none; }
+}

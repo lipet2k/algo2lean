@@ -115,8 +115,9 @@ def release_files(root, runtime, commit=None):
             files[path.name] = path.read_bytes()
     page = files["index.html"].decode("utf-8")
     page = page.replace('href="/', 'href="').replace('src="/', 'src="')
-    page = page.replace('<script src="app.js" defer>',
-                        '<script src="browser-host.js" defer></script>\n  <script src="app.js" defer>')
+    # The browser bridge must run before the module script that starts the editor.
+    page = page.replace('<script type="module" src="app.js">',
+                        '<script src="browser-host.js" defer></script>\n  <script type="module" src="app.js">')
     files["index.html"] = page.encode("utf-8")
     files["compiler.zip"] = compiler
     files["release-config.json"] = encoded({

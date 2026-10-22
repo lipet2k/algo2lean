@@ -38,13 +38,16 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
+      - name: Install the editor toolchain
+        run: npm ci
       - name: Check citation metadata
         run: python -m algo2lean.publication --check-citation
       - name: Check compiler and editor
         # Lean checks skip until a toolchain is installed in the separate job.
+        # tests/test_editor.py runs the Vitest suite with the installed toolchain.
         run: python -m unittest discover -v
-      - name: Check every editor test
-        run: node --test tests/test_*.js
+      - name: Check that the committed editor build matches its source
+        run: node scripts/check_editor_build.mjs
       - name: Check the pinned browser runtime and downloadable proofs
         env:
           BROWSER_CHECK_SITE: ${{ runner.temp }}/algo2lean-browser-check
@@ -80,6 +83,9 @@ jobs:
         with:
           node-version: '22'
           package-manager-cache: false
+      - name: Install the editor toolchain
+        if: needs.compiler-and-editor.outputs.lean-mode != 'packages'
+        run: npm ci
       - name: Install the toolchain pinned in lean-toolchain
         uses: leanprover/lean-action@f061402b660e0c34644504b324e830f2991d4865 # v1.6.1
         with:

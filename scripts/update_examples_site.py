@@ -122,18 +122,21 @@ def build_current_site(root, previous, output, commit):
     files["release-config.json"] = encoded({**config, "compiler_base": "../versions/v" + version + "/"})
     page = files["index.html"].decode("utf-8")
     page = page.replace('href="/', 'href="').replace('src="/', 'src="')
-    page = page.replace('<script src="app.js" defer>',
+    # The editor reads compiler_base from release-config.json to show the
+    # current-examples links; only the static catalog script is injected here.
+    page = page.replace('<script type="module" src="app.js">',
                         '<script src="browser-host.js" defer></script>\n'
                         '  <script src="current-examples.js" defer></script>\n'
-                        '  <script src="app.js" defer>')
-    page = page.replace('href="../../versions.html"', 'href="../versions.html"')
-    page = page.replace('<p><a href="../versions.html">Earlier compiler versions</a></p>',
-                        '<p><a href="../versions.html">Compiler versions</a> · '
-                        '<a href="example-manifest.json">Example snapshot</a></p>\n'
-                        '      <p class="citation-note">Current examples use the unchanged Algo2Lean '
-                        + version + ' compiler.</p>')
+                        '  <script type="module" src="app.js">')
     files["index.html"] = page.encode("utf-8")
     files["CITATION.cff"] = (release / "CITATION.cff").read_bytes()
+    # The current frontend can add dependencies while the compiler stays frozen.
+    # Ship its notices here, without changing any archived release's licenses.
+    for name in ("LICENSE", "THIRD_PARTY_NOTICES.md"):
+        files[name] = (root / name).read_bytes()
+    for path in sorted((root / "licenses").rglob("*")):
+        if path.is_file():
+            files[path.relative_to(root).as_posix()] = path.read_bytes()
     restore_versions(previous, output)
     for name in ("versions.json", "versions.html"):
         shutil.copyfile(previous / name, output / name)

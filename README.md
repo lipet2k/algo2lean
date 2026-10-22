@@ -254,9 +254,26 @@ python3 -m unittest discover -v
 
 Tests cover parsing, diagnostics, compilation, project imports, the local server,
 and semantic proofs. Lean checks skip with an explanation if Lean is absent;
-otherwise they use the pinned toolchain. Node.js 18 or newer enables the editor
-regression tests without npm dependencies. Run them separately with
-`node --test tests/test_*.js`.
+otherwise they use the pinned toolchain.
+
+The browser editor is a React application in `frontend/`, built with Vite and
+styled with Tailwind CSS. Its build output is committed under `editor/` as
+`index.html`, `app.js`, and `styles.css`, so running or hosting the editor needs
+no Node.js. To change the editor, install Node.js 22 and run from the repository
+root:
+
+```sh
+npm ci
+npm run dev    # hot reload at http://localhost:5173, proxied to the Python server
+npm run build  # regenerate editor/ before committing
+npm test       # editor tests
+npm run check  # confirm editor/ matches frontend/, then run the tests
+```
+
+`npm run dev` expects `python3 -m editor.server` to be running on port 8765 and
+forwards its compiler requests there. `npm run check` and the continuous
+integration workflow rebuild the editor into a temporary directory and fail if
+the result differs from the committed `editor/` files.
 
 GitHub runs compiler and editor tests on every change, then selects Lean work
 according to what changed:
@@ -287,9 +304,10 @@ Pull requests can read these caches but do not publish them. Manual **Check** ru
 and compiler releases run the full suite without restoring caches. Select
 **Actions → Check → Run workflow** for a clean verification.
 
-The compiler is in `algo2lean/`, the browser editor in `editor/`, shared Lean
-libraries in `Algo2Lean.lean` and `Algo2LeanLib/`, and proofs alongside the examples
-and under `proofs/`. Tests are in `tests/`.
+The compiler is in `algo2lean/`, the browser editor source in `frontend/` with
+its committed build in `editor/`, shared Lean libraries in `Algo2Lean.lean` and
+`Algo2LeanLib/`, and proofs alongside the examples and under `proofs/`. Python
+tests are in `tests/` and editor tests in `frontend/tests/`.
 
 The Python compiler has not been formally proved correct. Lean checks the emitted
 mathematical definitions and the stated theorems about them. Compiling or checking

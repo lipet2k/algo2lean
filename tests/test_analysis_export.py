@@ -204,7 +204,7 @@ class AnalysisExportServerTests(unittest.TestCase):
         return result
 
     def test_local_service_serves_current_assets_capabilities_and_zip(self):
-        for path in ("/", "/interface.js", "/analysis_export.py"):
+        for path in ("/", "/app.js", "/analysis_export.py"):
             self.assertEqual(self.http("GET", path)[0], 200)
         status, _, data = self.http("GET", "/api/capabilities")
         self.assertEqual(status, 200)

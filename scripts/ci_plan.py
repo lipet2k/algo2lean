@@ -15,10 +15,11 @@ import subprocess
 
 
 UI_FILES = frozenset({
+    # The committed editor build and the toolchain that produces it from frontend/.
     "editor/app.js", "editor/styles.css", "editor/index.html",
-    "editor/code-search.js", "editor/code-search.css", "editor/drafts.js",
-    "editor/interface.js", "editor/proof-outline.js", "editor/publication.js",
-    "README.md", "CHANGELOG.md",
+    "package.json", "package-lock.json", "vite.config.mjs", "vitest.config.mjs", ".nvmrc",
+    "scripts/check_editor_build.mjs",
+    "README.md", "CHANGELOG.md", "CONTRIBUTING.md",
 })
 PACKAGE_FILES = frozenset({
     "editor/analysis_export.py", "editor/server.py",
@@ -46,7 +47,7 @@ class Plan:
 def is_ui_path(path):
     """Presentation and prose cannot change generated Lean or proof inputs."""
     return (path in UI_FILES or
-            re.fullmatch(r"tests/test_[A-Za-z0-9_]+\.js", path) is not None or
+            re.fullmatch(r"frontend/(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*", path) is not None or
             re.fullmatch(r"docs/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\.md", path) is not None)
 
 

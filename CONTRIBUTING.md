@@ -8,15 +8,28 @@ when reporting a problem with the generated interface.
 ## Development
 
 Use Python 3.9 or newer. No Python packages are required. Install the version of
-Lean recorded in `lean-toolchain` to check proofs, and Node.js 22 or newer to run
-the editor tests. From the repository root:
+Lean recorded in `lean-toolchain` to check proofs, and Node.js 22 or newer to
+build and test the editor. From the repository root:
 
 ```sh
 python3 -m unittest discover -v
-node --test tests/test_*.js
+npm ci
+npm test
 python3 -m algo2lean.publication --check-citation
 python3 scripts/build_chapter4_analysis.py --check
 ```
+
+The editor is a React application in `frontend/` (Vite, Tailwind CSS, Vitest).
+Run `python3 -m editor.server` and `npm run dev` together for hot reload, then
+`npm run build` to regenerate the committed `editor/index.html`, `editor/app.js`,
+and `editor/styles.css`; commit the rebuilt files with the source change.
+`npm run check` rebuilds into a temporary directory, fails if the result
+differs from the committed files or includes a file the server does not
+serve, and runs the editor tests; CI runs the same check. The browser bridge
+(`editor/browser-host.js`, `editor/compiler-worker.js`,
+`editor/current-examples.js`) and `editor/analysis_export.py` are served as-is
+and are not part of the bundle. Keep text from sources, proofs, and compiler
+metadata rendered as text; the editor tests reject markup injection APIs.
 
 Lean tests explain their skips when Lean is unavailable. A release must run
 with Lean and the [optional Mathlib package](probability/README.md) available,
